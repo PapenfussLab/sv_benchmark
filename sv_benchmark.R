@@ -35,6 +35,10 @@ LoadMetadata <- function(directory) {
 	metadata <- data.frame(lapply(metadata, as.character), stringsAsFactors=FALSE)
 	metadata <- cast(metadata, File + Id ~ CX, value="V")  # pivot on context name
 	rownames(metadata) <- metadata$Id
+	# convert data from older format
+	if (!is.null(metadata$CX_ALIGNER_SOFTCLIP)) {
+		metadata$CX_ALIGNER_MODE <- metadata$CX_ALIGNER_MODE %na% ifelse(metadata$CX_ALIGNER_SOFTCLIP == 1, "local", "global")
+	}
 	# transform known numeric data to expected type
 	metadata$CX_READ_FRAGMENT_LENGTH <- as.numeric(as.character(metadata$CX_READ_FRAGMENT_LENGTH))
 	metadata$CX_READ_LENGTH <- as.numeric(as.character(metadata$CX_READ_LENGTH))
