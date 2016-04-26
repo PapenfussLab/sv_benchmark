@@ -86,7 +86,7 @@ LoadMinimalSVs <- function(filename, caller) {
 }
 #vcf <- readVcf("C:/dev/sv_benchmark/data.aligner/5afa7ffdf2cc32602476526d5b477c5c.vcf", "hg19")
 #' Loads structural variant GRanges from the VCFs in the given directory
-LoadVCFs <- function(directory, pattern="*.vcf$", metadata=NULL, existingList=NULL) {
+LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, existingList=NULL) {
 	write("Loading VCFs", stderr())
 	filenames <- list.files(directory, pattern=pattern, full.names=TRUE)
 	zeroSizeFiles = file.info(filenames)$size == 0
@@ -109,10 +109,60 @@ LoadVCFs <- function(directory, pattern="*.vcf$", metadata=NULL, existingList=NU
 			caller <- metadata$CX_CALLER[metadata$Id == GetId(filename)]
 		}
 		gr <- LoadMinimalSVs(filename, caller)
+		gr$Id <- rep(GetId(filename), length(gr))
 		return (gr)
 	})
 	names(grlist) <- GetId(filenames)
 	grlist[sapply(grlist, is.null)] <- NULL # Remove NULL VCFs list
 	write(paste("Loaded", length(grlist), "VCFs"), stderr())
 	return(c(existingList, grlist))
+}
+.interval_distance <- function(s1, e1, s2, e2) {
+  return (ifelse(s2 >= s1 & s2 <= e1, 0,
+          ifelse(s1 >= s2 & s1 <= e2, 0,
+          ifelse(s1 < s2, s2 - e1, s1 - e2))))
+}
+
+ScoreVariantsFromTruthVCF <- function(vcfs, metadata, sizemargin=0.25, sizeallowance=2*(1/maxerrorpercent), ...) {
+	warning("Add event size matching logic")
+	scores <- lapply(metadata$Id[metadata$Id %in% names(vcfs) & !is.na(metadata$CX_CALLER)], function(id) {
+		write(paste0("Processing ", filename), stderr())
+		callgr <- vcfs[[id]]
+		truthgr <- vcfs[[GetId(metadata[id,]$CX_REFERENCE_VCF)]]
+		hits <- findBreakpointOverlaps(callgr, truthgr, ...)
+		# hits$sizeerror # needs to take into account breakend confidence intervals
+		# TODO: should we even have a sizeallowance? Maybe we should indeed be strict on small events
+		# FIXME: make sure we haven't flipped the breakend order
+		# TODO: add untemplated sequence into sizerror calculation for insertions
+		# FIXME: add event size matching logic here
+
+		# FIXME: duplicate calls matching the same truth event
+		calldf <- data.frame(
+			Id=rep(id, length(callgr)),
+			QUAL=callgr$QUAL,
+			svLen=callgr$svLen,
+			insLen=callgr$insLen,
+			tp=rep(FALSE, length(callgr)))
+		calldf$tp[hits$queryHits] <- TRUE
+		calldf$fp <- !calldf$tp
+		truthdf <- data.frame(
+			Id=rep(id, length(truthgr)),
+			svLen=truthgr$svLen,
+			insLen=truthgr$insLen,
+			tp=rep(FALSE, length(truthgr)))
+		truthdf$tp[hits$subjectHits] <- TRUE
+		truthdf$fn <- !truthdf$tp
+		return(list(calls=calldf, truth=truthdf))
+	})
+	return(list(
+		calls=rbind_all(lapply(scores, function(x) x$calls)),
+		truth=rbind_all(lapply(scores, function(x) x$truth))))
+}
+toROC <- function(calldf) {
+	calldf %>%
+		arrange(desc(QUAL)) %>%
+		group_by(Id) %>%
+		mutate(tp=cumsum(tp), fp=cumsum(fp)) %>%
+		group_by(Id, QUAL) %>%
+		summarise(tp=max(tp), fp=max(fp))
 }
