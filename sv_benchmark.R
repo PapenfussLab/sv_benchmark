@@ -1,3 +1,8 @@
+library(StructuralVariantAnnotation)
+library(stringr)
+library(dplyr)
+library(tidyr)
+
 GetId <- function(filenames) {
 	cf <- as.character(filenames)
 	if (length(cf) == 0) {
@@ -33,8 +38,7 @@ LoadMetadata <- function(directory) {
 	})
 	metadata <- do.call(rbind, metadata)
 	metadata <- data.frame(lapply(metadata, as.character), stringsAsFactors=FALSE)
-	metadata <- cast(metadata, File + Id ~ CX, value="V")  # pivot on context name
-	rownames(metadata) <- metadata$Id
+	metadata <- spread(metadata, CX, V)
 	# convert data from older format
 	if (!is.null(metadata$CX_ALIGNER_SOFTCLIP)) {
 		metadata$CX_ALIGNER_MODE <- metadata$CX_ALIGNER_MODE %na% ifelse(metadata$CX_ALIGNER_SOFTCLIP == 1, "local", "global")
@@ -43,6 +47,7 @@ LoadMetadata <- function(directory) {
 	metadata$CX_READ_FRAGMENT_LENGTH <- as.numeric(as.character(metadata$CX_READ_FRAGMENT_LENGTH))
 	metadata$CX_READ_LENGTH <- as.numeric(as.character(metadata$CX_READ_LENGTH))
 	metadata$CX_READ_DEPTH <- as.numeric(as.character(metadata$CX_READ_DEPTH))
+	rownames(metadata) <- metadata$Id
 	write(paste(nrow(metadata), "metadata files loaded"), stderr())
 	return(metadata)
 }
@@ -97,6 +102,8 @@ LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, exi
 	}
 	# exclude already loaded VCFs
 	filenames <- filenames[!(GetId(filenames) %in% names(existingList))]
+	# exclude VCFs without metadata
+	filenames <- filenames[GetId(filenames) %in% metadata$Id]
 	# only load VCFS that have metadata
 	#if (!is.null(metadata)) {
 	#	filenames <- filenames[GetId(filenames) %in% metadata$Id]
@@ -123,13 +130,18 @@ LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, exi
           ifelse(s1 < s2, s2 - e1, s1 - e2))))
 }
 
-ScoreVariantsFromTruthVCF <- function(vcfs, metadata, sizemargin=0.25, sizeallowance=2*(1/maxerrorpercent), ...) {
+ScoreVariantsFromTruthVCF <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, sizeallowance=2*(1/maxerrorpercent)) {
 	warning("Add event size matching logic")
 	scores <- lapply(metadata$Id[metadata$Id %in% names(vcfs) & !is.na(metadata$CX_CALLER)], function(id) {
-		write(paste0("Processing ", filename), stderr())
+		write(paste0("Processing ", id), stderr())
 		callgr <- vcfs[[id]]
+		if (!includeFiltered) {
+			callgr <- callgr[callgr$FILTER == ".",]
+		}
 		truthgr <- vcfs[[GetId(metadata[id,]$CX_REFERENCE_VCF)]]
-		hits <- findBreakpointOverlaps(callgr, truthgr, ...)
+		hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand)
+		hits$QUAL <- callgr$QUAL[hits$queryHits]
+		hits <- hits[order(-hits$QUAL),]
 		# hits$sizeerror # needs to take into account breakend confidence intervals
 		# TODO: should we even have a sizeallowance? Maybe we should indeed be strict on small events
 		# FIXME: make sure we haven't flipped the breakend order
@@ -137,21 +149,25 @@ ScoreVariantsFromTruthVCF <- function(vcfs, metadata, sizemargin=0.25, sizeallow
 		# FIXME: add event size matching logic here
 
 		# FIXME: duplicate calls matching the same truth event
-		calldf <- data.frame(
-			Id=rep(id, length(callgr)),
-			QUAL=callgr$QUAL,
-			svLen=callgr$svLen,
-			insLen=callgr$insLen,
-			tp=rep(FALSE, length(callgr)))
+		calldf <- as.data.frame(callgr) %>%
+			select(Id, QUAL, svLen, insLen) %>%
+			mutate(tp=FALSE, fp=FALSE, fn=FALSE) %>%
+			mutate(
+				includeFiltered=includeFiltered,
+				maxgap=maxgap,
+				ignore.strand=ignore.strand)
 		calldf$tp[hits$queryHits] <- TRUE
 		calldf$fp <- !calldf$tp
-		truthdf <- data.frame(
-			Id=rep(id, length(truthgr)),
-			svLen=truthgr$svLen,
-			insLen=truthgr$insLen,
-			tp=rep(FALSE, length(truthgr)))
+		truthdf <- as.data.frame(truthgr) %>%
+			select(svLen, insLen) %>%
+			mutate(Id=id, QUAL=0, tp=FALSE, fp=FALSE, fn=FALSE) %>%
+			mutate(
+				includeFiltered=includeFiltered,
+				maxgap=maxgap,
+				ignore.strand=ignore.strand)
 		truthdf$tp[hits$subjectHits] <- TRUE
 		truthdf$fn <- !truthdf$tp
+		truthdf$QUAL[hits$subjectHits] <- hits$QUAL
 		return(list(calls=calldf, truth=truthdf))
 	})
 	return(list(
