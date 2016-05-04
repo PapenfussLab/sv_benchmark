@@ -1,4 +1,6 @@
+library(GenomicRanges)
 library(StructuralVariantAnnotation)
+library(testthat)
 library(stringr)
 library(dplyr)
 library(tidyr)
@@ -15,10 +17,13 @@ GetId <- function(filenames) {
 }
 test_that("GetId", {
 	expect_equal(c("a", "m", "bin"),
-		GetId(c("a", "C:\\directory\\m.as.ds.dsa.ss.vcf", "/usr/local/bin")))
+		GetId(c("a", "/dir/m.as.ds.dsa.ss.vcf", "/usr/local/bin")))
 	expect_equal(character(0), GetId(c()))
 	expect_equal(character(0), GetId(NULL))
 	expect_equal(NA_character_, GetId(NA))
+	if (as.character(Sys.info())[1] == "Windows") {
+		expect_equal(c("m"), GetId(c("C:\\directory\\m.as.ds.dsa.ss.vcf")))
+	}
 })
 # Load metadata into a dataframe
 LoadMetadata <- function(directory) {
@@ -75,6 +80,19 @@ withqual <- function(vcf, caller) {
   }
   return(vcf)
 }
+
+StripCallerVersion <- function(caller) {
+	return(paste0(str_match(caller, "^([^/]+)\\/[^/]+(/[^/]+)?")[,2], str_match(caller, "^([^/]+)\\/[^/]+(/[^/]+)?")[,3] %na% ""))
+}
+PrettyVariants <- function(x) {
+	x[x=="hetDEL"] <- "Deletion"
+	x[x=="hetINS"] <- "Insertion"
+	x[x=="hetDUP"] <- "Tandem Duplication"
+	x[x=="hetINV"] <- "Inversion"
+	x[x=="hetBP"] <- "Fusion (15,000 variants)"
+	x[x=="hetBP_SINE"] <- "Fusion at SINE/ALU (14,554 variants)"
+	return(x)
+}
 #' Loads a minimal structural variant GRanges from the VCF
 LoadMinimalSVs <- function(filename, caller) {
 	vcf <- readVcf(filename, "hg19")
@@ -130,27 +148,37 @@ LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, exi
           ifelse(s1 < s2, s2 - e1, s1 - e2))))
 }
 
-ScoreVariantsFromTruthVCF <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, sizeallowance=2*(1/maxerrorpercent)) {
+ScoreVariantsFromTruthVCF <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, sizemarginbp=4) {
 	warning("Add event size matching logic")
-	scores <- lapply(metadata$Id[metadata$Id %in% names(vcfs) & !is.na(metadata$CX_CALLER)], function(id) {
+	scores <- lapply(metadata$Id[
+			!is.na(metadata$CX_CALLER) & # is a caller VCF
+			metadata$Id %in% names(vcfs) & # caller VCF exists
+			GetId(metadata$CX_REFERENCE_VCF) %in% names(vcfs) # truth VCF exists
+			], function(id) {
 		write(paste0("Processing ", id), stderr())
 		callgr <- vcfs[[id]]
 		if (!includeFiltered) {
-			callgr <- callgr[callgr$FILTER == ".",]
+			callgr <- callgr[callgr$FILTER %in% c("PASS", "."),]
 		}
-		truthgr <- vcfs[[GetId(metadata[id,]$CX_REFERENCE_VCF)]]
+		truthid <- GetId((metadata %>% filter(Id==id))$CX_REFERENCE_VCF)
+		truthgr <- vcfs[[truthid]]
+		if (is.null(truthgr)) {
+			stop(paste("Missing truth ", truthid, " for ", id))
+		}
 		hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand)
 		hits$QUAL <- callgr$QUAL[hits$queryHits]
 		hits <- hits[order(-hits$QUAL),]
-		# hits$sizeerror # needs to take into account breakend confidence intervals
-		# TODO: should we even have a sizeallowance? Maybe we should indeed be strict on small events
-		# FIXME: make sure we haven't flipped the breakend order
+		truthgr$size <- (abs(start(truthgr) - start(partner(truthgr))) + abs(end(truthgr) - start(end(truthgr)))) / 2
+		callgr$size <- (abs(start(callgr) - start(partner(callgr))) + abs(end(callgr) - start(end(callgr)))) / 2
+		# needs to take into account breakend confidence intervals
+		hits$sizeerror <- abs(callgr$size[hits$queryHits] - truthgr$size[hits$subjectHits])
+		hits <- hits[hits$sizeerror - sizemarginbp < sizemargin * truthgr$size[hits$subjectHits]]
 		# TODO: add untemplated sequence into sizerror calculation for insertions
-		# FIXME: add event size matching logic here
-
-		# FIXME: duplicate calls matching the same truth event
+		# TODO: what to do with duplicate calls and partial matches
+		# tp/fp at the breakpoint, caller event, ot truth event level?
+		#missVcfIds <- callgr$vcfId[-hits$queryHits]
 		calldf <- as.data.frame(callgr) %>%
-			select(Id, QUAL, svLen, insLen) %>%
+			select(Id, QUAL, svLen, insLen, vcfId) %>%
 			mutate(tp=FALSE, fp=FALSE, fn=FALSE) %>%
 			mutate(
 				includeFiltered=includeFiltered,
@@ -159,7 +187,7 @@ ScoreVariantsFromTruthVCF <- function(vcfs, metadata, includeFiltered=FALSE, max
 		calldf$tp[hits$queryHits] <- TRUE
 		calldf$fp <- !calldf$tp
 		truthdf <- as.data.frame(truthgr) %>%
-			select(svLen, insLen) %>%
+			select(svLen, insLen, vcfId) %>%
 			mutate(Id=id, QUAL=0, tp=FALSE, fp=FALSE, fn=FALSE) %>%
 			mutate(
 				includeFiltered=includeFiltered,
