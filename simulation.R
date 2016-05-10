@@ -3,8 +3,6 @@ source("libplot.R")
 library(dplyr)
 library(stringr)
 
-theme_set(theme_bw())
-
 rootdir <- ifelse(as.character(Sys.info())[1] == "Windows", "W:/projects/sv_benchmark/", "~/projects/sv_benchmark/")
 
 maxgap <- 200
@@ -44,7 +42,7 @@ sensAligner <- mcalls %>%
 	ungroup() %>%
 	arrange(desc(tp)) %>%
 	left_join(metadata) %>%
-	distinct(Filter, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF)
+	distinct(Filter, StripCallerVersion(CX_CALLER), CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF)
 
 sens <- mcalls %>%
 	filter(!fp) %>%
@@ -55,17 +53,19 @@ sens <- mcalls %>%
 	ungroup() %>%
 	left_join(metadata) %>%
 	mutate(caller=StripCallerVersion(CX_CALLER)) %>%
-	filter(caller %in% c("gridss", "breakdancer", "cortex", "delly", "lumpy", "pindel", "socrates", "tigra", "cortex", "hydra"))
+  filter(caller %in% c("gridss", "breakdancer", "cortex", "delly", "lumpy", "pindel", "socrates", "tigra/delly", "cortex", "hydra"))
+	#filter(caller %in% c("gridss", "breakdancer", "tigra/breakdancer", "cortex", "hydra"))
 
 for (rl in unique(sens$CX_READ_LENGTH)) {
 for (rd in unique(sens$CX_READ_DEPTH)) {
 for (fragsize in unique(sens$CX_READ_FRAGMENT_LENGTH)) {
 	ggplot(sens %>% filter(CX_READ_DEPTH==rd & CX_READ_FRAGMENT_LENGTH==fragsize & CX_READ_LENGTH==rl)) +
-		aes(group=Id, x=abs(svLen), y=sens^5, group=Id, color=CX_CALLER, shape=caller, linetype=CX_ALIGNER) +
+		aes(group=Id, x=abs(svLen), y=sens^5, color=CX_CALLER, shape=caller, linetype=CX_ALIGNER) +
 		geom_point() +
-		geom_line() + scale_x_log10() +
-		scale_y_continuous(limits=c(0,1), breaks=seq(0, 1, 0.1)^5, labels=c("0", "", "", "", "", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0")) +
-		facet_grid(Filter ~ PrettyVariants(CX_REFERENCE_VCF_VARIANTS))
+		geom_line() +
+    scale_x_svlen +
+		scale_y_power5 +
+		facet_grid(Filter ~ CX_REFERENCE_VCF_VARIANTS)
 }}}
 
 
@@ -79,14 +79,13 @@ roc <- mcalls %>%
 
 ggplot(roc %>%
 		left_join(metadata) %>%
-		filter(str_detect(CX_REFERENCE_VCF_VARIANTS, "BP")) %>%
 		mutate(caller=StripCallerVersion(CX_CALLER)) %>%
-		filter(caller %in% c("delly"))
+		filter(Filter=="All calls")
 	) +
-    aes(y=tp, x=fp, color=CX_CALLER, linetype=CX_ALIGNER) +
+    aes(group=Id, y=tp, x=fp + 1, color=CX_CALLER, linetype=CX_ALIGNER, shape=Filter) +
     geom_line() +
-    geom_point() +
-    facet_grid(Filter ~ CX_REFERENCE_VCF_VARIANTS)
-
+    geom_point(size=0.2) +
+    facet_grid(CX_CALLER ~ CX_REFERENCE_VCF_VARIANTS) +
+    scale_x_log10()
 
 

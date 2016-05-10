@@ -5,6 +5,8 @@ library(stringr)
 library(dplyr)
 library(tidyr)
 
+rootdir <- ifelse(as.character(Sys.info())[1] == "Windows", "W:/projects/sv_benchmark/", "~/projects/sv_benchmark/")
+
 GetId <- function(filenames) {
 	cf <- as.character(filenames)
 	if (length(cf) == 0) {
@@ -15,16 +17,6 @@ GetId <- function(filenames) {
 		return(str_match(basename(as.character(filenames)), "([^.]+)(\\..*)*$")[,2])
 	}
 }
-test_that("GetId", {
-	expect_equal(c("a", "m", "bin"),
-		GetId(c("a", "/dir/m.as.ds.dsa.ss.vcf", "/usr/local/bin")))
-	expect_equal(character(0), GetId(c()))
-	expect_equal(character(0), GetId(NULL))
-	expect_equal(NA_character_, GetId(NA))
-	if (as.character(Sys.info())[1] == "Windows") {
-		expect_equal(c("m"), GetId(c("C:\\directory\\m.as.ds.dsa.ss.vcf")))
-	}
-})
 # Load metadata into a dataframe
 LoadMetadata <- function(directory) {
 	write("Loading metadata", stderr())
@@ -49,9 +41,15 @@ LoadMetadata <- function(directory) {
 		metadata$CX_ALIGNER_MODE <- metadata$CX_ALIGNER_MODE %na% ifelse(metadata$CX_ALIGNER_SOFTCLIP == 1, "local", "global")
 	}
 	# transform known numeric data to expected type
-	metadata$CX_READ_FRAGMENT_LENGTH <- as.numeric(as.character(metadata$CX_READ_FRAGMENT_LENGTH))
-	metadata$CX_READ_LENGTH <- as.numeric(as.character(metadata$CX_READ_LENGTH))
-	metadata$CX_READ_DEPTH <- as.numeric(as.character(metadata$CX_READ_DEPTH))
+	if (!is.null(metadata$CX_READ_FRAGMENT_LENGTH)) {
+		metadata$CX_READ_FRAGMENT_LENGTH <- as.numeric(as.character(metadata$CX_READ_FRAGMENT_LENGTH))
+	}
+	if (!is.null(metadata$CX_READ_LENGTH)) {
+		metadata$CX_READ_LENGTH <- as.numeric(as.character(metadata$CX_READ_LENGTH))
+	}
+	if (!is.null(metadata$CX_READ_DEPTH)) {
+		metadata$CX_READ_DEPTH <- as.numeric(as.character(metadata$CX_READ_DEPTH))
+	}
 	rownames(metadata) <- metadata$Id
 	write(paste(nrow(metadata), "metadata files loaded"), stderr())
 	return(metadata)
@@ -72,11 +70,13 @@ withqual <- function(vcf, caller) {
       rowRanges(vcf)$QUAL <- geno(vcf)$AD[,1,2]
     } else if (caller %in% c("lumpy")) {
       rowRanges(vcf)$QUAL <- unlist(info(vcf)$SU)
+    } else if (caller %in% c("cortex")) {
+      rowRanges(vcf)$QUAL <- geno(vcf)$COV[,1,1]
     }
   }
   if (any(is.na(rowRanges(vcf)$QUAL))) {
   	#if (is.null(caller) && is.na(caller)) {
-	warning(paste("Missing QUAL scores for", caller))
+	  warning(paste("Missing QUAL scores for", caller))
   }
   return(vcf)
 }
@@ -147,8 +147,56 @@ LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, exi
           ifelse(s1 >= s2 & s1 <= e2, 0,
           ifelse(s1 < s2, s2 - e1, s1 - e2))))
 }
+.distance <- function(r1, r2) {
+  return(data.frame(
+    min=pmax(0, pmax(start(r1), start(r2)) - pmin(end(r1), end(r2))),
+    max=pmax(end(r2) - start(r1), end(r1) - start(r2))))
+}
+ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, sizemarginbp=4,
+		id=ifelse(length(callgr)==0, NA_character_, head(callgr, 1)$Id)) {
+	if (!includeFiltered) {
+		callgr <- callgr[callgr$FILTER %in% c("PASS", "."),]
+	}
+	if (is.null(truthgr)) {
+		stop(paste("Missing truth ", truthid, " for ", id))
+	}
+	hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand)
+	hits$QUAL <- callgr$QUAL[hits$queryHits]
+	hits <- hits[order(hits$QUAL),]
 
-ScoreVariantsFromTruthVCF <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, sizemarginbp=4) {
+	# take into account confidence intervals
+	callsize <- .distance(callgr, partner(callgr))
+	truthsize <- .distance(truthgr, partner(truthgr))
+	hits$sizeerror <- .distance(IRanges(start=callsize$min[hits$queryHits], end=callsize$max[hits$queryHits]),
+	                            IRanges(start=truthsize$min[hits$subjectHits], end=truthsize$max[hits$subjectHits]))$min
+	hits <- hits[hits$sizeerror - sizemarginbp < sizemargin * truthsize$max[hits$subjectHits],]
+	# TODO: add untemplated sequence into sizerror calculation for insertions
+	# TODO: what to do with duplicate calls and partial matches
+	# tp/fp at the breakpoint, caller event, ot truth event level?
+	#missVcfIds <- callgr$vcfId[-hits$queryHits]
+	calldf <- as.data.frame(callgr) %>%
+		select(Id, QUAL, svLen, insLen, vcfId) %>%
+		mutate(tp=FALSE, fp=FALSE, fn=FALSE) %>%
+		mutate(
+			includeFiltered=includeFiltered,
+			maxgap=maxgap,
+			ignore.strand=ignore.strand)
+	calldf$tp[hits$queryHits] <- TRUE
+	calldf$fp <- !calldf$tp
+	truthdf <- as.data.frame(truthgr) %>%
+		select(svLen, insLen, vcfId) %>%
+		mutate(Id=id, QUAL=0, tp=FALSE, fp=FALSE, fn=FALSE) %>%
+		mutate(
+			includeFiltered=includeFiltered,
+			maxgap=maxgap,
+			ignore.strand=ignore.strand)
+	truthdf$tp[hits$subjectHits] <- TRUE
+	truthdf$fn <- !truthdf$tp
+	truthdf$QUAL[hits$subjectHits] <- hits$QUAL
+	return(list(calls=calldf, truth=truthdf))
+}
+
+ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, sizemarginbp=4) {
 	warning("Add event size matching logic")
 	scores <- lapply(metadata$Id[
 			!is.na(metadata$CX_CALLER) & # is a caller VCF
@@ -157,56 +205,11 @@ ScoreVariantsFromTruthVCF <- function(vcfs, metadata, includeFiltered=FALSE, max
 			], function(id) {
 		write(paste0("Processing ", id), stderr())
 		callgr <- vcfs[[id]]
-		if (!includeFiltered) {
-			callgr <- callgr[callgr$FILTER %in% c("PASS", "."),]
-		}
 		truthid <- GetId((metadata %>% filter(Id==id))$CX_REFERENCE_VCF)
 		truthgr <- vcfs[[truthid]]
-		if (is.null(truthgr)) {
-			stop(paste("Missing truth ", truthid, " for ", id))
-		}
-		hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand)
-		hits$QUAL <- callgr$QUAL[hits$queryHits]
-		hits <- hits[order(-hits$QUAL),]
-		truthgr$size <- (abs(start(truthgr) - start(partner(truthgr))) + abs(end(truthgr) - start(end(truthgr)))) / 2
-		callgr$size <- (abs(start(callgr) - start(partner(callgr))) + abs(end(callgr) - start(end(callgr)))) / 2
-		# needs to take into account breakend confidence intervals
-		hits$sizeerror <- abs(callgr$size[hits$queryHits] - truthgr$size[hits$subjectHits])
-		hits <- hits[hits$sizeerror - sizemarginbp < sizemargin * truthgr$size[hits$subjectHits]]
-		# TODO: add untemplated sequence into sizerror calculation for insertions
-		# TODO: what to do with duplicate calls and partial matches
-		# tp/fp at the breakpoint, caller event, ot truth event level?
-		#missVcfIds <- callgr$vcfId[-hits$queryHits]
-		calldf <- as.data.frame(callgr) %>%
-			select(Id, QUAL, svLen, insLen, vcfId) %>%
-			mutate(tp=FALSE, fp=FALSE, fn=FALSE) %>%
-			mutate(
-				includeFiltered=includeFiltered,
-				maxgap=maxgap,
-				ignore.strand=ignore.strand)
-		calldf$tp[hits$queryHits] <- TRUE
-		calldf$fp <- !calldf$tp
-		truthdf <- as.data.frame(truthgr) %>%
-			select(svLen, insLen, vcfId) %>%
-			mutate(Id=id, QUAL=0, tp=FALSE, fp=FALSE, fn=FALSE) %>%
-			mutate(
-				includeFiltered=includeFiltered,
-				maxgap=maxgap,
-				ignore.strand=ignore.strand)
-		truthdf$tp[hits$subjectHits] <- TRUE
-		truthdf$fn <- !truthdf$tp
-		truthdf$QUAL[hits$subjectHits] <- hits$QUAL
-		return(list(calls=calldf, truth=truthdf))
+		return(ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, sizemarginbp, id))
 	})
 	return(list(
 		calls=rbind_all(lapply(scores, function(x) x$calls)),
 		truth=rbind_all(lapply(scores, function(x) x$truth))))
-}
-toROC <- function(calldf) {
-	calldf %>%
-		arrange(desc(QUAL)) %>%
-		group_by(Id) %>%
-		mutate(tp=cumsum(tp), fp=cumsum(fp)) %>%
-		group_by(Id, QUAL) %>%
-		summarise(tp=max(tp), fp=max(fp))
 }
