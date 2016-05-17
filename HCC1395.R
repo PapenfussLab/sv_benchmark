@@ -37,12 +37,18 @@ dnagr$insLen <- NA
 dnagr$vcfId <- NA
 seqlevelsStyle(dnagr) <- "UCSC"
 
+
+dnagr$svLen <- abs(start(dnagr) - start(partner(dnagr)))
+rnagr$svLen <- abs(start(rnagr) - start(partner(rnagr)))
+
+#dnagr <- dnagr[dnagr$svLen >= 1000000]
+#rnagr <- rnagr[dnagr$svLen >= 1000000]
 #Problem 1: RNASeq calls are at exon boundaries
 #DNASeq calls are at genomic breakpoints - these can be way off
 # eg: UNC5C-STPG2 positions differ by over 202kpb
 
 
-matches <- findBreakpointOverlaps(rnagr, dnagr, maxgap=150000)
+matches <- findBreakpointOverlaps(rnagr, dnagr, maxgap=205000)
 rnagr$dnaindex <- NA
 rnagr$dnaindex[matches$queryHits] <- matches$queryHits
 dnagr$rnaindex <- NA
@@ -56,7 +62,12 @@ vcf <- vcfs[[1]]
 vcf <- vcf[is.na(vcf$svLen) | abs(vcf$svLen) > 100,]
 # convert coordinates
 
-dnacalls <- ScoreVariantsFromTruthVCF(vcf, dnagr, TRUE, maxgap=100, ignore.strand=TRUE)
+dnacalls <- ScoreVariantsFromTruthVCF(vcf, dnagr, TRUE, maxgap=1000, ignore.strand=TRUE)
 rnacalls <- ScoreVariantsFromTruthVCF(vcf, rnagr, TRUE, maxgap=250000, ignore.strand=TRUE)
-table(dnacalls$truth$tp) / 2
-table(rnacalls$truth$tp) / 2
+dnagr$gridss <- NA
+dnagr$gridss <- dnacalls$truth$QUAL
+rnagr$gridss <- NA
+rnagr$gridss <- rnacalls$truth$QUAL
+
+# Found by GRIDSS and INTEGRATE
+table(rnagr$gridss > 0, !is.na(rnagr$dnaindex))
