@@ -89,19 +89,22 @@ PrettyVariants <- function(x) {
 	x[x=="hetINS"] <- "Insertion"
 	x[x=="hetDUP"] <- "Tandem Duplication"
 	x[x=="hetINV"] <- "Inversion"
-	x[x=="hetBP"] <- "Fusion (15,000 variants)"
-	x[x=="hetBP_SINE"] <- "Fusion at SINE/ALU (14,554 variants)"
+	x[x=="hetBP"] <- "Breakpoint"
+	x[x=="hetBP_SINE"] <- "Breakpoint at SINE/ALU"
 	return(x)
 }
 #' Loads a minimal structural variant GRanges from the VCF
-LoadMinimalSVs <- function(filename, caller) {
+LoadMinimalSVs <- function(filename, caller, transform=NULL) {
 	vcf <- readVcf(filename, "hg19")
+	if (!is.null(transform)) {
+		vcf <- transform(vcf)
+	}
 	vcf <- withqual(vcf, caller)
 	gr <- breakpointRanges(vcf)
 	gr$paramRangeID <- NULL
 	gr$REF <- NULL
 	gr$ALT <- NULL
-	gr$svtype <- NULL
+	#gr$svtype <- NULL
 	#gr$svLen <- NULL
 	gr$insSeq <- NULL
 	#gr$insLen <- NULL
@@ -109,7 +112,7 @@ LoadMinimalSVs <- function(filename, caller) {
 }
 #vcf <- readVcf("C:/dev/sv_benchmark/data.aligner/5afa7ffdf2cc32602476526d5b477c5c.vcf", "hg19")
 #' Loads structural variant GRanges from the VCFs in the given directory
-LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, existingList=NULL) {
+LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, existingList=NULL, transform=NULL) {
 	write("Loading VCFs", stderr())
 	filenames <- list.files(directory, pattern=pattern, full.names=TRUE)
 	zeroSizeFiles = file.info(filenames)$size == 0
@@ -133,7 +136,7 @@ LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, exi
 		if (!is.null(metadata)) {
 			caller <- metadata$CX_CALLER[metadata$Id == GetId(filename)]
 		}
-		gr <- LoadMinimalSVs(filename, caller)
+		gr <- LoadMinimalSVs(filename, caller, transform)
 		gr$Id <- rep(GetId(filename), length(gr))
 		return (gr)
 	})
