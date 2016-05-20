@@ -1,0 +1,7 @@
+READ_DEPTHS="100 60 30 15 8 4"
+READ_LENGTHS="100"
+FRAGMENT_SIZE="300"
+#ALIGNERS="bwa bowtie2 mrfast"
+#ALIGNER_MODES="local local,multimapping"
+#ALIGNERS="bwa bowtie2"
+#ALIGNER_MODES="local,multimapping"
