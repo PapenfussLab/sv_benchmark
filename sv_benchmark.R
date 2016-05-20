@@ -165,12 +165,12 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	hits <- hits[order(hits$QUAL),]
 
 	# take into account confidence intervals
-	callsize <- .distance(callgr, partner(callgr))
-	truthsize <- .distance(truthgr, partner(truthgr))
+	callsize <- .distance(callgr, partner(callgr)) + callgr$insLen
+	truthsize <- .distance(truthgr, partner(truthgr)) + truthgr$insLen
 	hits$sizeerror <- .distance(IRanges(start=callsize$min[hits$queryHits], end=callsize$max[hits$queryHits]),
 	                            IRanges(start=truthsize$min[hits$subjectHits], end=truthsize$max[hits$subjectHits]))$min
+	# event sizes must be sufficiently close
 	hits <- hits[hits$sizeerror - sizemarginbp < sizemargin * truthsize$max[hits$subjectHits],]
-	# TODO: add untemplated sequence into sizerror calculation for insertions
 	# TODO: what to do with duplicate calls and partial matches
 	# tp/fp at the breakpoint, caller event, ot truth event level?
 	#missVcfIds <- callgr$vcfId[-hits$queryHits]
