@@ -1,5 +1,5 @@
 library(GenomicRanges)
-library(StructuralVariantAnnotation)
+library(StructuralVariantAnnotation) #install_github("d-cameron/StructuralVariantAnnotation")
 library(testthat)
 library(stringr)
 library(dplyr)
@@ -180,7 +180,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	hits <- hits[hits$localbperror <= allowablePositionError & hits$remotebperror <= allowablePositionError, ]
 
 	hits$QUAL <- callgr$QUAL[hits$queryHits]
-	hits <- hits[order(hits$QUAL),]
+	hits <- hits[order(-hits$QUAL),]
 	# duplicate calls are considered FP
 	hits <- hits[!duplicated(hits$subjectHits),]
 
