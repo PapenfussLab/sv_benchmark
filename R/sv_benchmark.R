@@ -82,7 +82,9 @@ withqual <- function(vcf, caller) {
 }
 
 StripCallerVersion <- function(caller) {
-	return(paste0(str_match(caller, "^([^/]+)\\/[^/]+(/[^/]+)?")[,2], str_match(caller, "^([^/]+)\\/[^/]+(/[^/]+)?")[,3] %na% ""))
+  caller <- paste0(str_extract(caller, "^([^/]+)"), str_match(caller, "^([^/]+)\\/[^/]+(/[^/]+)?")[,3] %na% "") %na% caller
+  caller <- relevel(factor(caller), "gridss")
+	return(caller)
 }
 PrettyVariants <- function(x) {
 	x[x=="hetDEL"] <- "Deletion"

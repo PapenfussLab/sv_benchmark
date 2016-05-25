@@ -89,5 +89,11 @@ ggplot(roc )+#%>% filter(caller %in% c("gridss", "breakdancer", "cortex", "delly
   scale_x_continuous(limits=c(0, 1000)) +
   labs(title="ROC per caller")
 
+ggplot(roc) +
+	aes(group=interaction(Id, CallSet), x=tp/2, y=precision, linetype=CallSet, color=CX_CALLER) +
+	geom_line() +
+  	labs(title="FDR per caller", x="True positives", y="Precision")
+
+
 
 

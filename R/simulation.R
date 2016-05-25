@@ -6,10 +6,13 @@ library(stringr)
 rootdir <- ifelse(as.character(Sys.info())[1] == "Windows", "W:/projects/sv_benchmark/", "~/projects/sv_benchmark/")
 
 maxgap <- 200
+sizemargin <- 0.25
 ignore.strand <- TRUE
 
+rd <- 60
+
 metadata <- LoadMetadata(paste0(rootdir, "data.rd"))
-metadata <- metadata %>% filter(is.na(CX_CALLER) | (CX_READ_DEPTH==60))
+metadata <- metadata %>% filter(is.na(CX_CALLER) | (CX_READ_DEPTH==rd))
 
 vcfs <- LoadMinimalSVFromVCF(paste0(rootdir, "data.rd"), metadata=metadata)
 
@@ -28,11 +31,11 @@ vcfs <- sapply(names(vcfs), function(id) {
 }, simplify=FALSE, USE.NAMES=TRUE)
 
 
-calls_default <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=FALSE, maxgap=maxgap, ignore.strand=TRUE)
+calls_default <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=FALSE, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=TRUE)
 mcalls_default <- rbind(calls_default$calls %>% filter(!tp), calls_default$truth)
 mcalls_default$CallSet <- "High confidence only"
 
-calls_all <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=TRUE, maxgap=maxgap, ignore.strand=TRUE)
+calls_all <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=TRUE, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=TRUE)
 mcalls_all <- rbind(calls_all$calls %>% filter(!tp), calls_all$truth)
 mcalls_all$CallSet <- "High & Low confidence"
 mcalls <- rbind(mcalls_all, mcalls_default)
@@ -51,7 +54,6 @@ ggplot(mcalls %>%
     scale_x_svlen +
     facet_grid(CX_CALLER ~ CX_REFERENCE_VCF_VARIANTS) + 
     labs(title="Results sanity check", color="args")
-
 ggplot(mcalls %>%
          select(Id, CallSet, QUAL, tp, fp, fn) %>%
          filter(Id %in% metadata$Id[str_detect(metadata$CX_REFERENCE_VCF_VARIANTS, "BP")]) %>%
@@ -88,21 +90,23 @@ es <- mcalls %>%
   ungroup() %>%
   left_join(metadata) %>%
   mutate(caller=StripCallerVersion(CX_CALLER), eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS)) %>%
-  filter(caller %in% c("gridss", "breakdancer", "delly", "lumpy", "pindel", "socrates", "tigra/delly", "cortex", "hydra"))
+  filter(caller %in% c("gridss", "breakdancer", "delly", "lumpy", "pindel", "socrates", "tigra/breakdancer", "cortex", "hydra"))
 ggplot(es) +
   aes(group=interaction(Id, CallSet), x=abs(svLen), y=sens) +
   geom_area(aes(fill=CallSet), position="identity") + 
   geom_area(data=es[es$CallSet=="High confidence only",], aes(fill=CallSet), position="identity") + 
-  scale_x_svlen +
+  scale_fill_manual(values=c("#000000", "#666666")) + 
+  scale_x_svlen_short +
   facet_grid(caller ~ eventtype, switch="y") + 
   labs(title="", y="Sensitivity", x="Event size", color="Call set", linetype="Call set")
+saveplot(paste0("sim_", rd, "x_per_caller_event_size_fill")) #TODO: how big?
 ggplot(es) +
   aes(group=interaction(Id, CallSet), x=abs(svLen), y=sens, color=eventtype, linetype=CallSet) +
   geom_line(size=0.5) +
   scale_x_svlen +
   facet_grid(caller ~ ., switch="y") + 
   labs(title="", y="Sensitivity", x="Event size", color="Event Type", linetype="Call set")
-
+saveplot(paste0("sim_", rd, "x_per_caller_event_size_line"))
 
 
 roc <- mcalls %>%
