@@ -226,3 +226,10 @@ ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap
 		calls=rbind_all(lapply(scores, function(x) x$calls)),
 		truth=rbind_all(lapply(scores, function(x) x$truth))))
 }
+#' subsets the breakpoints to only include breakpoints in which both breakends
+#' occur within the specified bed regions
+subsetbed <- function(gr, bed, maxgap) {
+	gr <- subsetByOverlaps(gr, bed, maxgap=maxgap, ignore.strand=TRUE)
+	gr <- gr[gr$partner %in% names(gr)]
+	return(gr)
+}
