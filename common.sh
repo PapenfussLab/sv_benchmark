@@ -20,6 +20,7 @@ READ_LENGTHS="36 50 75 100 150 250"
 FRAGMENT_SIZE="500 400 300 250 200 150"
 ALIGNERS="bwa bowtie2 novoalign mrfast"
 ALIGNER_MODES="local global"
+#ALIGNER_MODES="local global local,multimapping"
 MULTIMAPPING_LOCATIONS=300
 MIN_EVENT_SIZE=1
 # GRIDSS settings
@@ -137,7 +138,7 @@ function xc_flush {
 # XC_NOCLUSTER set iff process is unable to run on the cluster
 # XC_MEMORY expected maximum memory in MB
 # XC_OUTPUT output file. If this file exists, the script will not be rerun
-MAX_CORES=$(grep processor < /proc/cpuinfo | wc -l)
+MAX_CORES=$(( $(nproc) / 2 + 1))
 MAX_MEMORY=$(free -m | gawk '{ if (NR == 2) { print $2 } } ')
 
 # Executes the current execution script

@@ -1,9 +1,18 @@
 library(ggplot2)
 library(plyr)
-setwd("W:/i")
+#setwd("W:/i")
 #./runtime.sh | tee time.tsv
-sw <- read.csv("runtime.tsv", sep="\t")
-sw <- sw[sw$caller!="idsv",]
+sw <- read.csv("../time.na12878.tsv", sep="\t")
+sw <- read.csv("../time.rd.tsv", sep="\t")
+
+sw %>%
+  group_by(caller, aligner) %>%
+  summarise(totaltime=sum(real/60), n=n()) %>%
+  select(caller, aligner, totaltime, n) %>%
+  View
+
+#sw <- read.csv("runtime.tsv", sep="\t")
+#sw <- sw[sw$caller!="idsv",]
 
 ggplot(ddply(sw, ~ caller + readDepth, summarise, cpu=mean(user) + mean(sys), wall=mean(real))) +
   aes(x=readDepth, group=caller, color=caller) + 

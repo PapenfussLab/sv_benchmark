@@ -8,7 +8,7 @@ library(stringr)
 maxgap <- 180
 ignore.strand <- FALSE
 sizemargin <- 0.25
-maxSpannnedFragmentSize <- 375
+maxSpanningFragmentSize <- 500
 minimumEventSize <- 500
 
 neochromosome_supp3 <- paste0(rootdir, "input.neo/mmc3.xlsx")
@@ -49,57 +49,73 @@ publishedgrs <- lapply(drsheetnames, function(sheetname) {
                 partner=c(paste0("row", seq_along(dt$chrom1), "_bp2"), paste0("row", seq_along(dt$chrom2), "_bp1")),
                 QUAL=dt$nreads)
 	names(gr) <- c(paste0("row", seq_along(dt$chrom1), "_bp1"), paste0("row", seq_along(dt$chrom2), "_bp2"))
+	gr$insLen <- 0
+	gr$svLen <- NA_integer_
+	gr$vcfId <- paste0(sheetname, "_", seq_along(gr))
 	return(gr)
 })
 names(publishedgrs) <- str_replace(drsheetnames, stringr::fixed(" (DR)"), "")
 publishedgrs <- sapply(names(publishedgrs), function(sample) {
 	gr <- publishedgrs[[sample]]
 	seqlevelsStyle(gr) <- "UCSC"
-	gr <- subsetbed(gr, publishedcgrs[sample])
+	#gr <- subsetbed(gr, publishedcgrs[[sample]], maxgap)
 	return(gr)
 }, simplify=FALSE, USE.NAMES=TRUE)
 
 #########################
 # Load VCFs
 metadata <- LoadMetadata(paste0(rootdir, "data.neo"))
-metadata$samplename <- toupper(str_extract(md$CX_REFERENCE_BAM_TODO), "[^/]+.sc.bam")
-vcfs <- LoadMinimalSVFromVCF(paste0(rootdir, "data.neo"), metadata=metadata)
+metadata$samplename <- metadata$CX_SAMPLE %na% toupper(str_match(metadata$CX_BAM, "([^/]+).s..bam$")[,2] %na%
+  # hack to match on fragment size
+  (metadata %>% left_join(metadata %>% filter(Id %in% c("778", "got3", "t1000")), by="CX_READ_FRAGMENT_LENGTH"))$Id.y)
+vcfs <- LoadMinimalSVFromVCF(paste0(rootdir, "data.neo"), metadata=metadata, existingList=vcfs)
 vcfs <- sapply(names(vcfs), function(id) {
 	sample <- (metadata %>% filter(Id==id))$samplename
 	gr <- vcfs[[id]]
 	seqlevelsStyle(gr) <- "UCSC"
-	gr <- subsetbed(gr, publishedcgrs[sample])
+	#gr <- subsetbed(gr, publishedcgrs[[sample]], maxgap)
 	return(gr)
-}, simplify=FALSE, USE.NAMES=TRUE)
-
-#########################
+}, simplify=FALSE, USE.NAMES=TRUE)#########################
 # Match calls
-lapply((metadata %>% filter(samplename==sample))$Id, function(id) {
+.summarymatches <- function(id, includeFiltered) {
+	write(paste0("Processing ", id), stderr())
 	sample <- (metadata %>% filter(Id==id))$samplename
 	gr <- vcfs[[id]]
-	pubgr <- publishedgrs[sample]
-	gridssgr <- vcfs[[(metadata %>% filter(samplename==sample & StripCallerVersion(CX_CALLER) == "gridss"))$Id]]
-	hitpub <- ScoreVariantsFromTruthVCF(gr, pubgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin)
-	hitgridss <- ScoreVariantsFromTruth(vcfs, gridssgr, includeFiltered=TRUE, maxgap, ignore.strand, sizemargin, truthgr=pubgr)
+	gr$incgr <- overlapsAny(gr, publishedcgrs[[sample]], maxgap=1000)
+	gr$bothgr <- gr$incgr + partner(gr)$incgr
+	pubgr <- publishedgrs[[sample]]
+	gridssgr <- vcfs[[(metadata %>% filter(samplename==sample & CX_ALIGNER == "bwamem" & StripCallerVersion(CX_CALLER) == "gridss"))$Id]]
+	gridssgr <- gridssgr[gridssgr$FILTER %in% c(".", "PASS")]
+	calls <- ScoreVariantsFromTruthVCF(gr, pubgr, includeFiltered=includeFiltered, maxgap, ignore.strand, sizemargin)
+	callsgridss <- ScoreVariantsFromTruthVCF(gr, gridssgr, includeFiltered=includeFiltered, maxgap, ignore.strand, sizemargin)
 
-	calls <- hitpub$calls
-	calls$publishedtp <- calls$tp
-	calls$gridsstp <- hitgridss$calls$tp
-
-	# TODO: look for pub spanning calls
-	# 1) find overlapping breakends
-	# 2) find call pairs such that query breakends Q1, Q2 have matches Q1=A1, Q2=B2 and A2<->B1 < maxSpannnedFragmentSize
-
-	# TODO: filter small events that did not match pub set
-
-	return (data.frame(
-		Id=id,
-		pubmatches=sum(calls$publishedtp),
-		gridssmatches=sum(!calls$publishedtp & calls$gridsstp),
-		misses=sum(!calls$gridsstp & !calls$publishedtp)
-	))
-})
-
+	#spanninghits <- findSpanningBreakpoints(gr, pubgr, maxgap, ignore.strand, sizemargin, maxSpanningFragmentSize=maxSpanningFragmentSize, matchDirection=FALSE)
+	#calls$truth$spanningtp <- FALSE
+	#calls$truth$spanningtp[spanninghits$squeryHits] <- TRUE
+	#calls$truth$tp <- calls$truth$tp | calls$truth$spanningtp
+	
+	# filter small events that did not match a published call
+	# filter false positives outside of CGRs
+	misses <- !calls$calls$tp & !callsgridss$calls$tp & gr$bothgr & (is.na(gr$svLen) | abs(gr$svLen) >= minimumEventSize)
+	
+	callsummary <- data.frame(
+	  Id=id,
+	  pubmatches=sum(calls$truth$tp) / 2,
+	  gridssmatches=sum(callsgridss$truth$tp) / 2,
+	  misses=sum(misses) / 2,
+	  pubcount=length(pubgr) / 2,
+	  gridsscount=length(gridssgr) / 2
+	  #spanning=nrow(spanninghits) / 2,
+	  #spanningMeanFragmentSize=mean(spanninghits$fragmentSize)
+	)
+	return(callsummary)
+}
+summarylist <- lapply((metadata %>% filter(!is.na(CX_CALLER) & Id %in% names(vcfs)))$Id, function(id) .summarymatches(id, TRUE))
+summarydf <- rbind_all(summarylist) %>%
+  left_join(metadata %>% select(Id, CX_CALLER, CX_ALIGNER)) %>%
+  mutate(caller=StripCallerVersion(CX_CALLER))
+summary <- summarydf %>% group_by(CX_CALLER, CX_ALIGNER) %>%
+  summarise(pubsens=sum(pubmatches)/sum(pubcount), gridsssens=sum(gridssmatches)/sum(gridsscount), misses=sum(misses))
 
 # Neochromosome venn diagram
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# runs breakdancer against bams
+# runs manta
 #
 . common.sh
 CALLER=manta/0.29.6
@@ -11,6 +11,9 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 	CX_CALLER=$CALLER
 	cx_save
 	XC_OUTPUT=$CX.vcf
+	# TODO: should we merge diploidSV.vcf and candidateSV.vcf ?
+	# This either stripping the genotyping from diploid, or
+	# putting fake genotyping into candidate.
 	XC_SCRIPT="rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
 	ln -s $BAM input.bam
 	ln -s $BAM.bai input.bam.bai
@@ -18,7 +21,8 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 		--bam input.bam \
 		--referenceFasta $CX_REFERENCE \
 		--runDir $CX && \
-	$CX/runWorkflow.py -m local -j \$(nproc)
+	$CX/runWorkflow.py -m local -j \$(nproc) && \
+	gunzip - < $CX/results/variants/diploidSV.vcf > $CX.vcf
 	"
 	xc_exec
 done

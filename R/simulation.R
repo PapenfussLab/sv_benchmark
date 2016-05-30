@@ -8,6 +8,7 @@ rootdir <- ifelse(as.character(Sys.info())[1] == "Windows", "W:/projects/sv_benc
 maxgap <- 200
 sizemargin <- 0.25
 ignore.strand <- TRUE
+ignore.duplicates <- TRUE
 
 rd <- 60
 
@@ -40,6 +41,12 @@ mcalls_all <- rbind(calls_all$calls %>% filter(!tp), calls_all$truth)
 mcalls_all$CallSet <- "High & Low confidence"
 mcalls <- rbind(mcalls_all, mcalls_default)
 
+# Duplicate TP calls
+if (ignore.duplicates) {
+  # Technically, these events are misclassified
+  mcalls <- mcalls %>% filter(!duptp)
+}
+
 # Sanity checks
 ggplot(mcalls %>%
          filter(!fp) %>%
@@ -48,7 +55,7 @@ ggplot(mcalls %>%
          summarise(sens=sum(tp)/sum(tp+fn)) %>%
          ungroup() %>%
          left_join(metadata)) +
-    aes(group=interaction(Id, CallSet), x=abs(svLen), y=sens, linetype=CX_ALIGNER %na% "", color=CallSet) +
+    aes(group=paste(Id, CallSet), x=abs(svLen), y=sens, linetype=CX_ALIGNER %na% "", color=CallSet) +
     geom_point() +
     geom_line() +
     scale_x_svlen +
@@ -63,7 +70,7 @@ ggplot(mcalls %>%
          group_by(Id, CallSet, QUAL) %>%
          summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
          left_join(metadata)) +
-    aes(group=interaction(Id, CallSet), y=tp, x=fp + 1, linetype=CX_ALIGNER %na% "", color=paste0(CX_CALLER_ARGS %na% "",CX_CALLER_FLAGS %na% "")) +
+    aes(group=paste(Id, CallSet), y=tp, x=fp + 1, linetype=CX_ALIGNER %na% "", color=paste0(CX_CALLER_ARGS %na% "",CX_CALLER_FLAGS %na% "")) +
     geom_line() +
     geom_point(alpha=0.1) +
     facet_grid(CX_CALLER ~ CX_REFERENCE_VCF_VARIANTS) +
@@ -80,9 +87,11 @@ sensAligner <- mcalls %>%
 	left_join(metadata) %>%
 	distinct(CallSet, StripCallerVersion(CX_CALLER), CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF)
 
+#####################
+# Fixed read depth plots
 # Separate plot per caller
 es <- mcalls %>%
-  filter(Id %in% sensAligner$Id) %>%
+  filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
   filter(!fp) %>%
   filter(Id %in% metadata$Id[metadata$CX_REFERENCE_VCF_VARIANTS %in% c("hetDEL","hetINS","hetINV","hetDUP")]) %>%
   group_by(Id, CallSet, maxgap, ignore.strand, svLen) %>%
@@ -91,104 +100,99 @@ es <- mcalls %>%
   left_join(metadata) %>%
   mutate(caller=StripCallerVersion(CX_CALLER), eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS)) %>%
   filter(caller %in% c("gridss", "breakdancer", "delly", "lumpy", "pindel", "socrates", "tigra/breakdancer", "cortex", "hydra"))
-ggplot(es) +
-  aes(group=interaction(Id, CallSet), x=abs(svLen), y=sens) +
-  geom_area(aes(fill=CallSet), position="identity") + 
-  geom_area(data=es[es$CallSet=="High confidence only",], aes(fill=CallSet), position="identity") + 
-  scale_fill_manual(values=c("#000000", "#666666")) + 
-  scale_x_svlen_short +
-  facet_grid(caller ~ eventtype, switch="y") + 
-  labs(title="", y="Sensitivity", x="Event size", color="Call set", linetype="Call set")
-saveplot(paste0("sim_", rd, "x_per_caller_event_size_fill")) #TODO: how big?
-ggplot(es) +
-  aes(group=interaction(Id, CallSet), x=abs(svLen), y=sens, color=eventtype, linetype=CallSet) +
-  geom_line(size=0.5) +
-  scale_x_svlen +
-  facet_grid(caller ~ ., switch="y") + 
-  labs(title="", y="Sensitivity", x="Event size", color="Event Type", linetype="Call set")
-saveplot(paste0("sim_", rd, "x_per_caller_event_size_line"))
-
-
 roc <- mcalls %>%
-  filter(Id %in% sensAligner$Id) %>%
   select(Id, CallSet, QUAL, tp, fp, fn) %>%
-  arrange(desc(QUAL)) %>%
+  rbind(mcalls %>% select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=max(mcalls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
+  filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
   group_by(Id, CallSet) %>%
+  arrange(desc(QUAL)) %>%
   mutate(events=sum(tp) + sum(fn)) %>%
   mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
   group_by(Id, CallSet, QUAL, events) %>%
   summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
+  ungroup() %>%
   mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events) %>%
   left_join(metadata) %>%
-  mutate(caller=StripCallerVersion(CX_CALLER), eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS))
-ggplot(roc %>%
-    filter(caller %in% c("gridss", "breakdancer", "delly", "lumpy", "pindel", "socrates", "tigra/delly", "cortex", "hydra"))) + 
-  aes(group=interaction(Id, CallSet), y=sens, x=fp+1, linetype=CallSet) +
+  mutate(caller=StripCallerVersion(CX_CALLER), eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS)) %>%
+  filter(caller %in% c("gridss", "breakdancer", "delly", "lumpy", "pindel", "socrates", "tigra/breakdancer", "cortex", "hydra"))
+ggplot(es) +
+  aes(group=paste(Id, CallSet), x=abs(svLen), y=sens, color=eventtype, linetype=CallSet) +
+  geom_line(size=0.5) +
+  scale_x_svlen +
+  facet_grid(caller ~ CX_READ_DEPTH, switch="y") + 
+  labs(title="", y="Sensitivity", x="Event size", color="Event Type", linetype="Call set")
+saveplot(paste0("sim_per_caller_event_size_line"))
+ggplot(roc %>% arrange(desc(QUAL))) + 
+  aes(group=paste(Id, CallSet), y=sens, x=fp+1, linetype=CallSet, color=eventtype) +
+  scale_color_manual(values=c("#000000", "#666666")) + 
   geom_line() +
-  scale_x_log10() + 
-  facet_grid(CX_CALLER ~ CX_REFERENCE_VCF_VARIANTS) +
-  labs(title="ROC per caller")
-
-
-
-# Comparison of GRIDSS parameters
-# mcalls %>%
-#   select(Id, CallSet, tp) %>%
-#   group_by(Id, CallSet) %>%
-#   summarise(tp=sum(tp)) %>%
-#   ungroup() %>%
-#   left_join(metadata) %>%
-#   select(tp, Id, CallSet, CX_REFERENCE_VCF_VARIANTS, CX_CALLER, CX_CALLER_ARGS) %>%
-#   filter(str_detect(CX_CALLER, "gridss")) %>%
-#   arrange(CX_REFERENCE_VCF_VARIANTS, desc(tp)) %>%
-#   filter(CallSet=="All calls") %>%
-#   View
-
-sens <- mcalls %>%
-	filter(!fp) %>%
-	filter(Id %in% sensAligner$Id) %>%
-	filter(Id %in% metadata$Id[metadata$CX_REFERENCE_VCF_VARIANTS %in% c("hetDEL","hetINS","hetINV","hetDUP")]) %>%
-	group_by(Id, CallSet, maxgap, ignore.strand, svLen) %>%
-	summarise(sens=sum(tp)/sum(tp+fn)) %>%
-	ungroup() %>%
-	left_join(metadata) %>%
-	mutate(caller=StripCallerVersion(CX_CALLER)) %>%
-  filter(caller %in% c("gridss", "breakdancer", "cortex", "delly", "lumpy", "pindel", "socrates", "tigra/delly", "cortex", "hydra"))
-	#filter(caller %in% c("gridss", "breakdancer", "tigra/breakdancer", "cortex", "hydra"))
-
-for (rl in unique(sens$CX_READ_LENGTH)) {
-for (rd in unique(sens$CX_READ_DEPTH)) {
-for (fragsize in unique(sens$CX_READ_FRAGMENT_LENGTH)) {
-	ggplot(sens %>% filter(CX_READ_DEPTH==rd & CX_READ_FRAGMENT_LENGTH==fragsize & CX_READ_LENGTH==rl)) +
-		aes(group=interaction(Id, CallSet), x=abs(svLen), y=sens^5, color=CX_CALLER, shape=caller, linetype=CX_ALIGNER) +
-		geom_point() +
-		geom_line() +
+  scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001),
+                     labels=c("0", "10", "100", "1k", "10k"),
+                     minor_breaks=c(),
+                     trans="log10") +
+  facet_grid(caller ~ CX_READ_DEPTH) +
+  labs(title="", y="Sensitivity", x="False Positives", color="Call set", linetype="Call set")
+saveplot(paste0("sim_", rd, "x_per_caller_roc"), width=300, height=300, units=c("mm"))
+for (rd in unique(metadata$CX_READ_DEPTH)) {
+  ggplot(es) +
+    aes(group=paste(Id, CallSet), x=abs(svLen), y=sens) +
+    geom_area(aes(fill=CallSet), position="identity") + 
+    geom_area(data=es[es$CallSet=="High confidence only",], aes(fill=CallSet), position="identity") + 
+    scale_fill_manual(values=c("#000000", "#666666")) + 
+    scale_x_svlen_short +
+    facet_grid(caller ~ eventtype, switch="y") + 
+    labs(title="", y="Sensitivity", x="Event size", color="Call set", linetype="Call set")
+  saveplot(paste0("sim_", rd, "x_per_caller_event_size_fill"), width=220, height=300, units=c("mm"))
+  ggplot(es) +
+    aes(group=paste(Id, CallSet), x=abs(svLen), y=sens, color=eventtype, linetype=CallSet) +
+    geom_line(size=0.5) +
     scale_x_svlen +
-		scale_y_power5 + 
-		facet_grid(CallSet ~ CX_REFERENCE_VCF_VARIANTS)
-}}}
-
-roc <- mcalls %>%
-	select(Id, CallSet, QUAL, tp, fp, fn) %>%
-	arrange(desc(QUAL)) %>%
-	group_by(Id, CallSet) %>%
-	mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
-	group_by(Id, CallSet, QUAL) %>%
-	summarise(tp=max(tp), fp=max(fp), fn=max(fn))
-
-for (var in unique(metadata$CX_REFERENCE_VCF_VARIANTS)) {
-  ggplot(roc %>%
-  		left_join(metadata) %>%
-  		mutate(caller=StripCallerVersion(CX_CALLER)) %>%
-  		filter(CallSet=="All calls") %>%
-		  filter(CX_REFERENCE_VCF_VARIANTS==var)
-  	) +
-      aes(group=interaction(Id, CallSet), y=tp, x=fp + 1, color=CX_CALLER, linetype=CX_ALIGNER, shape=CallSet) +
-      geom_line() +
-      geom_point(alpha=0.1) +
-      facet_wrap(~ CX_CALLER) +
-      scale_x_log10() + 
-      labs(title=var)
+    facet_grid(caller ~ ., switch="y") + 
+    labs(title="", y="Sensitivity", x="Event size", color="Event Type", linetype="Call set")
+  saveplot(paste0("sim_", rd, "x_per_caller_event_size_line"))
+  ggplot(roc %>% arrange(desc(QUAL))) + 
+    aes(group=paste(Id, CallSet), y=sens, x=fp+1, linetype=CallSet, color=CallSet) +
+    scale_color_manual(values=c("#000000", "#666666")) + 
+    geom_line() +
+    scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001),
+                       labels=c("", "10", "100", "1k", "10k"),
+                       minor_breaks=c(),
+                       trans="log10") +
+    facet_grid(caller ~ eventtype) +
+    labs(title="", y="Sensitivity", x="False Positives", color="Call set", linetype="Call set")
+  saveplot(paste0("sim_", rd, "x_per_caller_roc"), width=300, height=300, units=c("mm"))
 }
+# table of maximum sensitivity
+roc %>%
+  select(caller, CallSet, eventtype, sens, fp) %>%
+  group_by(caller, CallSet, eventtype) %>%
+  summarise(sens=max(sens), fp=max(fp)) %>%
+  ungroup() %>%
+  arrange(eventtype, desc(sens))
 
+roccombined <- mcalls %>%
+  select(Id, CallSet, QUAL, tp, fp, fn) %>%
+  rbind(mcalls %>% select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=max(mcalls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
+  filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
+  left_join(metadata %>% mutate(caller=StripCallerVersion(CX_CALLER)) %>% select(Id, caller)) %>%
+  filter(caller %in% c("gridss", "breakdancer", "delly", "lumpy", "pindel", "socrates", "tigra/breakdancer", "cortex", "hydra")) %>%
+  group_by(caller, CallSet) %>%
+  arrange(desc(QUAL)) %>%
+  mutate(events=sum(tp) + sum(fn)) %>%
+  mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
+  group_by(caller, CallSet, QUAL, events) %>%
+  summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
+  ungroup() %>%
+  mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events)
+ggplot(roccombined %>% arrange(desc(QUAL))) + 
+  aes(group=paste(caller, CallSet), y=sens, x=fp+1, linetype=CallSet, color=CallSet) +
+  scale_color_manual(values=c("#000000", "#666666")) + 
+  geom_line() +
+  scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001, 100001),
+                     labels=c("", "10", "100", "1k", "10k", "100k"),
+                     minor_breaks=c(),
+                     trans="log10") +
+  facet_wrap(~ caller) +
+  labs(title="", y="Sensitivity", x="False Positives", color="Call set", linetype="Call set")
+saveplot(paste0("sim_", rd, "x_per_caller_roc_combined"), width=300, height=300, units=c("mm"))
 
