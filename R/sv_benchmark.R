@@ -4,6 +4,7 @@ library(testthat)
 library(stringr)
 library(dplyr)
 library(tidyr)
+library(R.cache)
 
 rootdir <- ifelse(as.character(Sys.info())[1] == "Windows", "W:/projects/sv_benchmark/", "~/projects/sv_benchmark/")
 
@@ -99,20 +100,29 @@ PrettyVariants <- function(x) {
 }
 #' Loads a minimal structural variant GRanges from the VCF
 LoadMinimalSVs <- function(filename, caller, transform=NULL) {
-	vcf <- readVcf(filename, "hg19")
-	if (!is.null(transform)) {
-		vcf <- transform(vcf)
-	}
-	vcf <- withqual(vcf, caller)
-	gr <- breakpointRanges(vcf)
-	gr$paramRangeID <- NULL
-	gr$REF <- NULL
-	gr$ALT <- NULL
-	#gr$svtype <- NULL
-	#gr$svLen <- NULL
-	gr$insSeq <- NULL
-	#gr$insLen <- NULL
+  key <- list("LoadMinimalSVs", filename, caller, transform)
+  gr <- loadCache(key=key)
+  if (is.null(gr)) {
+  	gr <- .LoadMinimalSVs(filename, caller, transform)
+  	saveCache(gr, key=key)
+  }
 	return(gr)
+}
+.LoadMinimalSVs <- function(filename, caller, transform=NULL) {
+  vcf <- readVcf(filename, "hg19")
+  if (!is.null(transform)) {
+    vcf <- transform(vcf)
+  }
+  vcf <- withqual(vcf, caller)
+  gr <- breakpointRanges(vcf)
+  gr$paramRangeID <- NULL
+  gr$REF <- NULL
+  gr$ALT <- NULL
+  #gr$svtype <- NULL
+  #gr$svLen <- NULL
+  gr$insSeq <- NULL
+  #gr$insLen <- NULL
+  return(gr)
 }
 #vcf <- readVcf("C:/dev/sv_benchmark/data.aligner/5afa7ffdf2cc32602476526d5b477c5c.vcf", "hg19")
 #' Loads structural variant GRanges from the VCFs in the given directory
@@ -222,8 +232,21 @@ findSpanningBreakpoints <- function(query, subject, maxgap=0L, ignore.strand=FAL
   hits$queryHits <- NULL
   return(hits)
 }
-ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25,
-		id=ifelse(length(callgr)==0, NA_character_, head(callgr, 1)$Id)) {
+#' @param truthhash hash of truthgr if it is not the 'natural' truth to compare to
+ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id=NULL, truthhash=NULL) {
+  if (length(callgr) == 0) {
+    return(.ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id %null% NA_character_))
+  }
+  id <- id %null% callgr$Id[1]
+  key <- list("ScoreVariantsFromTruthVCF", includeFiltered, maxgap, ignore.strand, sizemargin, id, truthhash)
+  result <- loadCache(key=key)
+  if (is.null(result)) {
+    result <- .ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id)
+    saveCache(result, key=key)
+  }
+  return(result)
+}
+.ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id) {
 	if (!includeFiltered) {
 		callgr <- callgr[callgr$FILTER %in% c("PASS", "."),]
 	}
@@ -265,6 +288,10 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 
 ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, truthgr=NULL) {
 	ids <- metadata$Id[!is.na(metadata$CX_CALLER) & metadata$Id %in% names(vcfs)]
+	truthhash <- NULL
+	if (!is.null(truthgr)) {
+	  truthhash <- getChecksum(truthgr)
+	}
 	scores <- lapply(ids, function(id) {
 		write(paste0("Processing ", id), stderr())
 		callgr <- vcfs[[id]]
@@ -275,7 +302,7 @@ ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap
 		if (is.null(truthgr)) {
 			stop("Missing truth for ", id)
 		}
-		return(ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id))
+		return(ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, truthhash=truthhash))
 	})
 	return(list(
 		calls=rbind_all(lapply(scores, function(x) x$calls)),

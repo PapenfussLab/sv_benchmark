@@ -33,11 +33,11 @@ vcfs <- sapply(names(vcfs), function(id) {
 
 
 calls_default <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=FALSE, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=TRUE)
-mcalls_default <- rbind(calls_default$calls %>% filter(!tp), calls_default$truth)
+mcalls_default <- rbind(calls_default$calls %>% filter(!tp), calls_default$truth %>% mutate(duptp=FALSE))
 mcalls_default$CallSet <- "High confidence only"
 
 calls_all <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=TRUE, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=TRUE)
-mcalls_all <- rbind(calls_all$calls %>% filter(!tp), calls_all$truth)
+mcalls_all <- rbind(calls_all$calls %>% filter(!tp), calls_all$truth %>% mutate(duptp=FALSE))
 mcalls_all$CallSet <- "High & Low confidence"
 mcalls <- rbind(mcalls_all, mcalls_default)
 
@@ -121,18 +121,17 @@ ggplot(es) +
   scale_x_svlen +
   facet_grid(caller ~ CX_READ_DEPTH, switch="y") + 
   labs(title="", y="Sensitivity", x="Event size", color="Event Type", linetype="Call set")
-saveplot(paste0("sim_per_caller_event_size_line"))
+saveplot(paste0("sim_per_caller_event_size_line"), width=600, height=300, units=c("mm"))
 ggplot(roc %>% arrange(desc(QUAL))) + 
   aes(group=paste(Id, CallSet), y=sens, x=fp+1, linetype=CallSet, color=eventtype) +
-  scale_color_manual(values=c("#000000", "#666666")) + 
   geom_line() +
-  scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001),
-                     labels=c("0", "10", "100", "1k", "10k"),
+  scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001, 100001),
+                     labels=c("0", "10", "100", "1k", "10k", "100k"),
                      minor_breaks=c(),
                      trans="log10") +
   facet_grid(caller ~ CX_READ_DEPTH) +
   labs(title="", y="Sensitivity", x="False Positives", color="Call set", linetype="Call set")
-saveplot(paste0("sim_", rd, "x_per_caller_roc"), width=300, height=300, units=c("mm"))
+saveplot(paste0("sim_per_caller_roc"), width=300, height=300, units=c("mm"))
 for (rd in unique(metadata$CX_READ_DEPTH)) {
   ggplot(es) +
     aes(group=paste(Id, CallSet), x=abs(svLen), y=sens) +
