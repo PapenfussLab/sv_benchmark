@@ -107,12 +107,16 @@ function align_novoalign {
 	CX_FQ2=$2
 	CX_ALIGNER=novoalign
 	CX_ALIGNER_MODE=$3
-	if [[ "$CX_ALIGNER_MODE" == "global" ]] ; then
+	if [[ "$CX_ALIGNER_MODE" =~ "global" ]] ; then
 		ALIGNER_FLAGS="-o FullNW"
-	elif [[ "$CX_ALIGNER_MODE" == "local" ]] ; then
+	elif [[ "$CX_ALIGNER_MODE" =~ "local" ]] ; then
 		ALIGNER_FLAGS="-o Softclip"
 	else
 		return
+	fi
+	if [[ "$CX_ALIGNER_MODE" =~ "multimapping" ]] ; then
+		ALIGNER_FLAGS="$ALIGNER_FLAGS -r All -e $MULTIMAPPING_LOCATIONS"
+		CX_MULTIMAPPING_LOCATIONS=$MULTIMAPPING_LOCATIONS
 	fi
 	cx_save
 	INDEX=$(ls -1 ${CX_REFERENCE/.fa/}*.novoindex)

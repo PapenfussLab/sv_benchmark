@@ -22,7 +22,7 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 		--referenceFasta $CX_REFERENCE \
 		--runDir $CX && \
 	$CX/runWorkflow.py -m local -j \$(nproc) && \
-	gunzip - < $CX/results/variants/diploidSV.vcf > $CX.vcf
+	$BASE_DIR/manta_combine.sh $CX/results > $CX.vcf
 	"
 	xc_exec
 done
