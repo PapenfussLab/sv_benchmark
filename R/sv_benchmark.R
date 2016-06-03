@@ -100,11 +100,11 @@ PrettyVariants <- function(x) {
 }
 #' Loads a minimal structural variant GRanges from the VCF
 LoadMinimalSVs <- function(filename, caller, transform=NULL) {
-  key <- list("LoadMinimalSVs", filename, caller, transform)
-  gr <- loadCache(key=key)
+  key <- list(filename, caller, transform)
+  gr <- loadCache(key=key, dirs="LoadMinimalSVs")
   if (is.null(gr)) {
   	gr <- .LoadMinimalSVs(filename, caller, transform)
-  	saveCache(gr, key=key)
+  	saveCache(gr, key=key, dirs="LoadMinimalSVs")
   }
 	return(gr)
 }
@@ -170,7 +170,7 @@ LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, exi
 		max=pmax(end(r2) - start(r1), end(r1) - start(r2))))
 }
 #' Finds matchings breakpoints
-#' 
+#'
 #' @param sizemargin error margin in allowable size
 #' @param restrictMarginToSizeMultiple size restriction multiplier on event size.
 #' The default value of 0.5 requires that the breakpoint positions can be off by
@@ -238,11 +238,11 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
     return(.ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id %null% NA_character_))
   }
   id <- id %null% callgr$Id[1]
-  key <- list("ScoreVariantsFromTruthVCF", includeFiltered, maxgap, ignore.strand, sizemargin, id, truthhash)
-  result <- loadCache(key=key)
+  key <- list(includeFiltered, maxgap, ignore.strand, sizemargin, id, truthhash)
+  result <- loadCache(key=key, dirs="ScoreVariantsFromTruthVCF")
   if (is.null(result)) {
     result <- .ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id)
-    saveCache(result, key=key)
+    saveCache(result, key=key, dirs="ScoreVariantsFromTruthVCF")
   }
   return(result)
 }
@@ -254,7 +254,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 		stop(paste("Missing truth ", truthid, " for ", id))
 	}
 	hits <- findMatchingBreakpoints(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin)
-	
+
 	hits$QUAL <- callgr$QUAL[hits$queryHits]
 	hits <- hits[order(-hits$QUAL),]
 
@@ -308,6 +308,7 @@ ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap
 		calls=rbind_all(lapply(scores, function(x) x$calls)),
 		truth=rbind_all(lapply(scores, function(x) x$truth))))
 }
+
 #' subsets the breakpoints to only include breakpoints in which both breakends
 #' occur within the specified bed regions
 subsetbed <- function(gr, bed, maxgap) {
