@@ -1,6 +1,18 @@
 source("sv_benchmark.R")
 library(R.cache)
 
+LoadCachedMetadata <- function(datadir) {
+	cacheroot <- getCacheRootPath()
+	setCacheRootPath(datadir)
+	keymetadata <- list(datadir)
+	metadata <- loadCache(key=keymetadata, dirs=".Rcache/metadata")
+	if (is.null(metadata)) {
+		metadata <- LoadMetadata(datadir)
+		saveCache(metadata, key=keymetadata, dirs=".Rcache/metadata")
+	}
+	setCacheRootPath(cacheroot)
+	return(metadata)
+}
 #' @param output of previous call to LoadPlotData. This will be reused as much as possible to avoid recalculation
 LoadPlotData <- function(
 		datadir,
@@ -54,22 +66,19 @@ LoadPlotData <- function(
 	}
 	# Load metadata
 	if (is.null(slice$metadata)) {
-		slice$metadata <- loadCache(key=keymetadata, dirs=".Rcache/LoadPlotData/metadata")
-		if (is.null(slice$metadata)) {
-			slice$metadata <- LoadMetadata(datadir)
-			saveCache(slice$metadata, key=keymetadata, dirs=".Rcache/LoadPlotData/metadata")
-		}
+		slice$metadata <- LoadCachedMetadata(datadir)
 	}
 	# Load graphs, loading from R.cache whenever possible to avoid recalculation
 	if (is.null(slice$dfs)) {
 		slice$dfs <- loadCache(key=keydfs, dirs=".Rcache/LoadPlotData/dfs")
-		write("Recalculating dfs", stderr())
 		if (is.null(slice$dfs)) {
+			write("Recalculating dfs", stderr())
 			# To recalculate the graph we need the call set
 			if (is.null(slice$calls)) {
 				# Load call set
 				slice$calls <- loadCache(key=keycalls, dirs=".Rcache/LoadPlotData/calls")
 				if (is.null(slice$calls)) {
+					write("Recalculating calls", stderr())
 					# To recalculate the call set we need the vcfs
 					write("Recalculating calls", stderr())
 					if (is.null(slice$vcfs)) {
@@ -126,24 +135,26 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 	if (!is.null(maxeventsize)) {
 		calls <- calls %>% filter(svLen <= maxeventsize)
 	}
+	md <- metadata %>%
+		select(Id, CX_ALIGNER, CX_ALIGNER_MODE, CX_MULTIMAPPING_LOCATIONS, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF_VARIANTS, CX_REFERENCE_VCF) %>%
+		mutate(eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS))
 	mostSensitiveAligner <- calls %>%
 		select(Id, CallSet, tp) %>%
 		group_by(Id, CallSet) %>%
 		summarise(tp=sum(tp)) %>%
 		ungroup() %>%
 		arrange(desc(tp)) %>%
-		left_join(metadata) %>%
+		left_join(md) %>%
 		distinct(CallSet, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF) %>%
 		select(Id, CallSet)
 	callsByEventSize <- calls %>%
 	  #filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
 	  filter(!fp) %>%
-	  filter(Id %in% metadata$Id[metadata$CX_REFERENCE_VCF_VARIANTS %in% c("hetDEL","hetINS","hetINV","hetDUP")]) %>%
+	  filter(Id %in% md$Id[md$CX_REFERENCE_VCF_VARIANTS %in% c("hetDEL","hetINS","hetINV","hetDUP")]) %>%
 	  group_by(Id, CallSet, svLen) %>%
 	  summarise(sens=sum(tp)/sum(tp+fn)) %>%
 	  ungroup() %>%
-	  left_join(metadata) %>%
-	  mutate(eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS))
+	  left_join(md)
 	roc <- calls %>%
 	  select(Id, CallSet, QUAL, tp, fp, fn) %>%
 	  rbind(calls %>% select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=max(calls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
@@ -156,7 +167,35 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 	  summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
 	  ungroup() %>%
 	  mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events) %>%
-	  left_join(metadata) %>%
-	  mutate(eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS))
+	  left_join(md)
+	# lossless reduction of roc plot points by elimination of points on straight lines
+	roc <- roc %>%
+		group_by(Id, CallSet) %>%
+		arrange(tp + fp) %>%
+		filter(
+			# keep start/end
+			is.na(lag(tp)) | is.na(lead(tp)) |
+			# keep group transitions (TODO: is there a way to make lead/lag across group_by return NA?)
+			Id != lag(Id) | CallSet != lag(CallSet) |
+			Id != lead(Id) | CallSet != lead(CallSet) |
+			# slopes not equal dx1/dy1 != dx2/dy2 -> dx1*dy2 != dx2*dy1
+			(tp - lag(tp))*(lead(fp) - lag(fp)) != (lead(tp) - lag(tp))*(fp - lag(fp))) %>%
+		ungroup()
+	# lossy removal of points with least change
+	for (n in c(4, 16, 32, 64)) {
+		roc <- roc %>%
+			group_by(Id, CallSet) %>%
+			arrange(tp + fp) %>%
+			filter(
+				is.na(lag(tp)) | is.na(lead(tp)) |
+				Id != lag(Id) | CallSet != lag(CallSet) |
+				Id != lead(Id) | CallSet != lead(CallSet) |
+				# remove points with least amount of change
+				lead(tp) - lag(tp) + lead(fp) - lag(fp) > n |
+				# keep every 5th to prevent removal of large segments
+				row_number() %% 5 == 0
+			) %>%
+			ungroup()
+	}
 	return(list(mostSensitiveAligner=mostSensitiveAligner, callsByEventSize=callsByEventSize, roc=roc))
 }
