@@ -82,9 +82,10 @@ withqual <- function(vcf, caller) {
 	return(vcf)
 }
 
-StripCallerVersion <- function(caller) {
+StripCallerVersion <- function(caller, gridssfirst=TRUE) {
+	if (length(caller) == 0) return(caller)
 	caller <- paste0(str_extract(caller, "^([^/]+)"), str_match(caller, "^([^/]+)\\/[^/]+(/[^/]+)?")[,3] %na% "") %na% caller
-	if (any(caller=="gridss")) {
+	if (gridssfirst && any(caller=="gridss")) {
 	  caller <- relevel(factor(caller), "gridss")
 	}
 	return(caller)

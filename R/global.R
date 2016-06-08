@@ -18,3 +18,26 @@ facets <- c(
 				"Fragment Size"="CX_READ_FRAGMENT_LENGTH",
 				"Aligner"="aligner",
 				"Call Set"="CallSet")
+
+simoptions <- list()
+simoptions$ds <- ds
+simoptions$maxgap <- 200
+simoptions$ignore.strand <- TRUE
+simoptions$sizemargin <- 0.25
+simoptions$ignore.duplicates <- TRUE
+simoptions$ignore.interchromosomal <- TRUE
+simoptions$mineventsize <- c(0, 51)
+simoptions$maxeventsize <- NULL
+simoptions$vcftransform <- function(id, metadata, vcfs) {
+		gr <- vcfs[[id]]
+		if (!is.na((metadata %>% filter(Id == id))$CX_CALLER)) {
+			# only looking at intrachromosomal calls
+			gr <- gr[!is.na(gr$svLen),]
+			#if (str_detect((metadata %>% filter(Id == id))$CX_REFERENCE_VCF_VARIANTS, "BP")) {
+				# filtering small events calls to remove spurious indels caused by sequence homology around breakpoints
+			#	gr <- gr[abs(gr$svLen) >= 50,]
+			#}
+		}
+		return(gr)
+	}
+

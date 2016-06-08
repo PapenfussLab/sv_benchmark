@@ -130,10 +130,10 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 		calls <- calls %>% filter(!is.na(svLen))
 	}
 	if (!is.null(mineventsize)) {
-		calls <- calls %>% filter(svLen >= mineventsize)
+		calls <- calls %>% filter(abs(svLen + insLen) >= mineventsize)
 	}
 	if (!is.null(maxeventsize)) {
-		calls <- calls %>% filter(svLen <= maxeventsize)
+		calls <- calls %>% filter(abs(svLen + insLen) <= maxeventsize)
 	}
 	md <- metadata %>%
 		select(Id, CX_ALIGNER, CX_ALIGNER_MODE, CX_MULTIMAPPING_LOCATIONS, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF_VARIANTS, CX_REFERENCE_VCF) %>%
