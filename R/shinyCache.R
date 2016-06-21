@@ -135,6 +135,9 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 	if (!is.null(maxeventsize)) {
 		calls <- calls %>% filter(abs(svLen + insLen) <= maxeventsize)
 	}
+	if (is.null(metadata$CX_MULTIMAPPING_LOCATIONS)) {
+		metadata$CX_MULTIMAPPING_LOCATIONS <- NA_integer_
+	}
 	md <- metadata %>%
 		select(Id, CX_ALIGNER, CX_ALIGNER_MODE, CX_MULTIMAPPING_LOCATIONS, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF_VARIANTS, CX_REFERENCE_VCF) %>%
 		mutate(eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS))

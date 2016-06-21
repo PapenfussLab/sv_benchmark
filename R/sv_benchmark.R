@@ -51,6 +51,9 @@ LoadMetadata <- function(directory) {
 	if (!is.null(metadata$CX_READ_DEPTH)) {
 		metadata$CX_READ_DEPTH <- as.numeric(as.character(metadata$CX_READ_DEPTH))
 	}
+	if (is.null(metadata$CX_MULTIMAPPING_LOCATIONS)) {
+		metadata$CX_MULTIMAPPING_LOCATIONS <- NA_integer_
+	}
 	rownames(metadata) <- metadata$Id
 	write(paste(nrow(metadata), "metadata files loaded"), stderr())
 	return(metadata)

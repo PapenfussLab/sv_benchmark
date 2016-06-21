@@ -79,7 +79,7 @@ ggplot(mcalls %>%
 
 # use aligner with best sensitivity
 sensAligner <- mcalls %>%
-	select(Id, CallSet, maxgap, ignore.strand, tp) %>%
+  dplyr:::select(Id, CallSet, maxgap, ignore.strand, tp) %>%
 	group_by(Id, CallSet, maxgap, ignore.strand) %>%
 	summarise(tp=sum(tp)) %>%
 	ungroup() %>%
@@ -101,8 +101,8 @@ es <- mcalls %>%
   mutate(caller=StripCallerVersion(CX_CALLER), eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS)) %>%
   filter(caller %in% c("gridss", "breakdancer", "delly", "lumpy", "pindel", "socrates", "tigra/breakdancer", "cortex", "hydra"))
 roc <- mcalls %>%
-  select(Id, CallSet, QUAL, tp, fp, fn) %>%
-  rbind(mcalls %>% select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=max(mcalls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
+  dplyr::select(Id, CallSet, QUAL, tp, fp, fn) %>%
+  rbind(mcalls %>% dplyr::select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=max(mcalls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
   filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
   group_by(Id, CallSet) %>%
   arrange(desc(QUAL)) %>%
@@ -115,6 +115,23 @@ roc <- mcalls %>%
   left_join(metadata) %>%
   mutate(caller=StripCallerVersion(CX_CALLER), eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS)) %>%
   filter(caller %in% c("gridss", "breakdancer", "delly", "lumpy", "pindel", "socrates", "tigra/breakdancer", "cortex", "hydra"))
+# reduction of roc plot points by elimination of points on straight lines
+roc <- roc %>%
+  group_by(Id, CallSet) %>%
+  arrange(tp + fp) %>%
+  filter(
+    # keep start/end
+    is.na(lag(tp)) | is.na(lead(tp)) |
+      # keep group transitions (TODO: is there a way to make lead/lag across group_by return NA?)
+      Id != lag(Id) | CallSet != lag(CallSet) |
+      Id != lead(Id) | CallSet != lead(CallSet) |
+      # slopes not equal dx1/dy1 != dx2/dy2 -> dx1*dy2 != dx2*dy1
+      (tp - lag(tp))*(lead(fp) - lag(fp)) != (lead(tp) - lag(tp))*(fp - lag(fp)) | 
+      # less than 10 calls wide
+      lead(tp) - lag(tp) > 10 |
+      # keep every 5th row
+      row_number() %% 10 == 0) %>%
+  ungroup()
 ggplot(es) +
   aes(group=paste(Id, CallSet), x=abs(svLen), y=sens, color=eventtype, linetype=CallSet) +
   geom_line(size=0.5) +
@@ -137,7 +154,7 @@ for (rd in unique(metadata$CX_READ_DEPTH)) {
     aes(group=paste(Id, CallSet), x=abs(svLen), y=sens) +
     geom_area(aes(fill=CallSet), position="identity") + 
     geom_area(data=es[es$CallSet=="High confidence only",], aes(fill=CallSet), position="identity") + 
-    scale_fill_manual(values=c("#000000", "#666666")) + 
+    scale_fill_manual(values=c("#2166ac", "#67a9cf")) + 
     scale_x_svlen_short +
     facet_grid(caller ~ eventtype, switch="y") + 
     labs(title="", y="Sensitivity", x="Event size", color="Call set", linetype="Call set")
@@ -150,9 +167,12 @@ for (rd in unique(metadata$CX_READ_DEPTH)) {
     labs(title="", y="Sensitivity", x="Event size", color="Event Type", linetype="Call set")
   saveplot(paste0("sim_", rd, "x_per_caller_event_size_line"))
   ggplot(roc %>% arrange(desc(QUAL))) + 
-    aes(group=paste(Id, CallSet), y=sens, x=fp+1, linetype=CallSet, color=CallSet) +
-    scale_color_manual(values=c("#000000", "#666666")) + 
-    geom_line() +
+    aes(group=paste(Id, CallSet), y=sens, x=fp+1, color=CallSet) +
+    scale_color_manual(values=c("#2166ac", "#67a9cf")) + 
+    #scale_color_brewer(palette="Paired") + 
+    geom_line(size=0.2) +
+    geom_point(size=0.5) +
+    geom_point(size=0.5, data=roc %>% arrange(desc(QUAL)) %>% filter(CallSet=="High confidence only")) + 
     scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001),
                        labels=c("", "10", "100", "1k", "10k"),
                        minor_breaks=c(),
@@ -163,17 +183,17 @@ for (rd in unique(metadata$CX_READ_DEPTH)) {
 }
 # table of maximum sensitivity
 roc %>%
-  select(caller, CallSet, eventtype, sens, fp) %>%
+  dplyr::select(caller, CallSet, eventtype, sens, fp) %>%
   group_by(caller, CallSet, eventtype) %>%
   summarise(sens=max(sens), fp=max(fp)) %>%
   ungroup() %>%
   arrange(eventtype, desc(sens))
 
 roccombined <- mcalls %>%
-  select(Id, CallSet, QUAL, tp, fp, fn) %>%
-  rbind(mcalls %>% select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=max(mcalls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
+  dplyr::select(Id, CallSet, QUAL, tp, fp, fn) %>%
+  rbind(mcalls %>% dplyr::select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=max(mcalls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
   filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
-  left_join(metadata %>% mutate(caller=StripCallerVersion(CX_CALLER)) %>% select(Id, caller)) %>%
+  left_join(metadata %>% mutate(caller=StripCallerVersion(CX_CALLER)) %>% dplyr::select(Id, caller)) %>%
   filter(caller %in% c("gridss", "breakdancer", "delly", "lumpy", "pindel", "socrates", "tigra/breakdancer", "cortex", "hydra")) %>%
   group_by(caller, CallSet) %>%
   arrange(desc(QUAL)) %>%

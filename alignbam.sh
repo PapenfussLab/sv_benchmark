@@ -179,7 +179,7 @@ function align_mrfast {
 		FQ2=\${FQ1/.1./.2.}
 		echo mrfast --search $CX_REFERENCE --pe --seq1 \$FQ1 --seq2 \$FQ2 --discordant-vh --min $MIN --max $MAX --maxdis $MULTIMAPPING_LOCATIONS -o \$CHUNK >> $CX/mrfast.sh
 	done
-	parallel < $CX/mrfast.sh
+	parallel -j $XC_CORES < $CX/mrfast.sh
 	cat *_DIVET.vh > output_DIVET.vh && 
 	mv output_DIVET.vh ${CX}_DIVET.vh
 	"

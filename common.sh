@@ -18,7 +18,8 @@ mkdir -p data.$CONFIG
 READ_DEPTHS="100 60 30 15 8 4"
 READ_LENGTHS="36 50 75 100 150 250"
 FRAGMENT_SIZE="500 400 300 250 200 150"
-ALIGNERS="bwa bowtie2 novoalign mrfast"
+ALIGNERS="bwa bowtie2 novoalign"
+#ALIGNERS="bwa bowtie2 novoalign mrfast"
 #ALIGNER_MODES="local global"
 ALIGNER_MODES="local global local,multimapping global,multimapping"
 MULTIMAPPING_LOCATIONS=300

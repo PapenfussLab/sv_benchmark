@@ -63,7 +63,7 @@ vcf <- vcf[is.na(vcf$svLen) | abs(vcf$svLen) > 100,]
 # convert coordinates
 
 dnacalls <- ScoreVariantsFromTruthVCF(vcf, dnagr, TRUE, maxgap=1000, ignore.strand=TRUE)
-rnacalls <- ScoreVariantsFromTruthVCF(vcf, rnagr, TRUE, maxgap=250000, ignore.strand=TRUE)
+rnacalls <- ScoreVariantsFromTruthVCF(vcf, rnagr, TRUE, maxgap=250000, sizemargin=0.75, ignore.strand=TRUE)
 dnagr$gridss <- NA
 dnagr$gridss <- dnacalls$truth$QUAL
 rnagr$gridss <- NA
@@ -71,3 +71,37 @@ rnagr$gridss <- rnacalls$truth$QUAL
 
 # Found by GRIDSS and INTEGRATE
 table(rnagr$gridss > 0, !is.na(rnagr$dnaindex))
+
+
+gr <- vcf[names(vcf) %in% c((rnacalls$calls %>% filter(tp & !duptp))$vcfId, (dnacalls$calls %>% filter(tp & !duptp))$vcfId)]
+bedpe <- data.frame(
+    chrom1=seqnames(gr),
+    start1=start(gr),
+    end1=end(gr),
+    chrom1=seqnames(partner(gr)),
+    start1=start(partner(gr)),
+    end1=end(partner(gr)),
+    name=names(gr),
+    score=gr$QUAL,
+    strand1=strand(gr),
+    strand2=strand(partner(gr))
+    )
+bedpe <- bedpe[str_detect(bedpe$name, "gridss[0-9]+o"),] # Just the lower of the two breakends
+write.table(bedpe, paste0(rootdir, "input.HCC1395/gridss.bedpe"), quote=FALSE, sep='\t', row.names=FALSE, col.names=FALSE)
+
+
+vcfbed <- vcf[seqnames(vcf)==seqnames(partner(vcf))]
+vcfbeddf <- data.frame(
+	chrom=seqnames(vcfbed),
+	chromStart=start(vcfbed),
+	chromEnd=start(partner(vcfbed)),
+	name=names(vcfbed),
+	score=vcfbed$QUAL,
+	strand=as.character(strand(vcfbed))
+)
+vcfbeddf <- vcfbeddf[str_detect(vcfbeddf$name, "gridss[0-9]+o"),]
+vcfbeddf <- vcfbeddf[vcfbeddf$chromEnd - vcfbeddf$chromStart < 1000000,]
+write.table(vcfbeddf, paste0(rootdir, "input.HCC1395/gridss.vcf.bed"), quote=FALSE, sep='\t', row.names=FALSE, col.names=FALSE)
+
+
+

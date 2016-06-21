@@ -19,7 +19,7 @@ for (data in simoptions$ds) {
 									ignore.interchromosomal=ignore.interchromosomal,
 									mineventsize=mineventsize,
 									maxeventsize=NULL,
-									vcftransform=vcftransform,
+									vcftransform=simoptions$vcftransform,
 									truthgr=NULL,
 									existingCache=plotdata)
 							#}
