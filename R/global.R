@@ -1,8 +1,25 @@
 source("sv_benchmark.R")
+source("libplot.R")
 source("shinyCache.R")
+
+# callers that have data points for all simulation conditions and NA12878
+fulldatacallers <- c(
+	"breakdancer",
+	"cortex",
+	"crest",
+	"delly",
+	"gridss",
+	"hydra",
+	"lumpy",
+	"manta",
+	"pindel",
+	"socrates"
+)
+
 
 knownaligners <- c("bowtie2", "bwa mem"="bwamem", "novoalign")
 ds <- c("Read Depth"="rd", "Read Length"="rl", "Fragment Size"="fs")
+dscol <- c("rd"="CX_READ_DEPTH", "rl"="CX_READ_LENGTH", "fs"="CX_READ_FRAGMENT_LENGTH")
 md <- lapply(ds, function (data) LoadCachedMetadata(paste0("../data.", data)))
 names(md) <- ds
 withnames <- function(v, n) { names(v) <- n; return(v) }

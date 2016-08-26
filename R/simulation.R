@@ -159,6 +159,7 @@ for (rd in unique(metadata$CX_READ_DEPTH)) {
     facet_grid(caller ~ eventtype, switch="y") + 
     labs(title="", y="Sensitivity", x="Event size", color="Call set", linetype="Call set")
   saveplot(paste0("sim_", rd, "x_per_caller_event_size_fill"), width=220, height=300, units=c("mm"))
+  saveplot(paste0("ppt_sim_", rd, "x_per_caller_event_size_fill"), width=220*16/10, height=220, units=c("mm"))
   ggplot(es) +
     aes(group=paste(Id, CallSet), x=abs(svLen), y=sens, color=eventtype, linetype=CallSet) +
     geom_line(size=0.5) +
@@ -177,9 +178,10 @@ for (rd in unique(metadata$CX_READ_DEPTH)) {
                        labels=c("", "10", "100", "1k", "10k"),
                        minor_breaks=c(),
                        trans="log10") +
-    facet_grid(caller ~ eventtype) +
+    facet_grid(caller ~ eventtype, switch="y") +
     labs(title="", y="Sensitivity", x="False Positives", color="Call set", linetype="Call set")
   saveplot(paste0("sim_", rd, "x_per_caller_roc"), width=300, height=300, units=c("mm"))
+  saveplot(paste0("ppt_sim_", rd, "x_per_caller_roc"), width=220*16/10, height=220, units=c("mm"))
 }
 # table of maximum sensitivity
 roc %>%

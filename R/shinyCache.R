@@ -200,5 +200,20 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 			) %>%
 			ungroup()
 	}
-	return(list(mostSensitiveAligner=mostSensitiveAligner, callsByEventSize=callsByEventSize, roc=roc))
+	bpErrorDistribution <- calls %>%
+		filter(tp) %>%
+		select(Id, CallSet, bperror) %>%
+		group_by(Id, CallSet, bperror) %>%
+		summarize(n=n())
+	bpErrorDistribution <- bpErrorDistribution %>%
+		left_join(bpErrorDistribution %>% group_by(Id, CallSet) %>% summarize(count=sum(n))) %>%
+		mutate(rate=n/count) %>%
+		select(-count) %>%
+		left_join(md)
+	ggplot(data$calls, aes(x=sizeerror)) + facet_grid(CX_CALLER)
+	return(list(mostSensitiveAligner=mostSensitiveAligner,
+							callsByEventSize=callsByEventSize,
+							roc=roc,
+							bpErrorDistribution=bpErrorDistribution))
 }
+

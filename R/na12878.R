@@ -2,9 +2,10 @@ source("sv_benchmark.R")
 source("libplot.R")
 library(dplyr)
 library(stringr)
+library(RColorBrewer)
 
-maxgap <- 180
-sizemargin <- 0.5
+maxgap <- 200
+sizemargin <- 0.25
 ignore.strand <- TRUE
 minsize <- 51
 
@@ -47,17 +48,25 @@ if (!exists("longsplitreads") || !exists("longspanningreads")) {
 rootdir <- ifelse(as.character(Sys.info())[1] == "Windows", "W:/i/", "~/i/")
 #####################################
 # Load VCFs
+vcfs <- NULL
 metadata <- LoadMetadata(paste0(rootdir, "data.na12878"))
-vcfs <- LoadMinimalSVFromVCF(paste0(rootdir, "data.na12878"), metadata=metadata)
+vcfs <- LoadMinimalSVFromVCF(paste0(rootdir, "data.na12878"), metadata=metadata, existingList=vcfs)
 vcfs <- sapply(names(vcfs), function(id) {
+  write(paste0("Cleaning ", id), stderr())
 	gr <- vcfs[[id]]
+	if (length(gr) == 0) return(gr)
 	seqlevelsStyle(gr) <- "UCSC"
 	# only looking at intrachromosomal events at least 50bp in size
 	gr <- gr[!is.na(gr$svLen) & abs(gr$svLen) >= minsize,]
+	if (any(is.na(gr$svtype))) {
+	  warning("NA svtype found - ignoring")
+	  gr <- gr[!is.na(gr$svtype),]
+	}
 	# deletion-like events
 	gr <- gr[gr$svtype == "DEL" | (gr$svtype == "BND" & strand(gr) != strand(partner(gr)) & strand(gr) == ifelse(start(gr) < start(partner(gr)), "+", "-")),]
 	# on primary chromosomes not overlapping blacklist
-	gr <- gr[!overlapsAny(gr, encodeblacklist) & seqnames(gr) %in% paste0("chr", c(1:22, "X", "Y")),]
+	gr <- gr[seqnames(gr) %in% paste0("chr", c(1:22, "X", "Y")),]
+	gr <- gr[!overlapsAny(gr, encodeblacklist),]
 	gr <- gr[gr$partner %in% names(gr),]
 	return(gr)
 }, simplify=FALSE, USE.NAMES=TRUE)
@@ -82,11 +91,18 @@ mcalls$tp[mcalls$duptp] <- FALSE
 lrcalls <- rbind_all(lapply(names(vcfs)[names(vcfs) %in% (metadata %>% filter(!is.na(CX_CALLER)))$Id], function(id) {
   write(paste0("Processing ", id), stderr())
   callgr <- vcfs[[id]]
-  result <- data.frame(vcfId=callgr$vcfId, QUAL=callgr$QUAL, FILTER=callgr$FILTER) %>% mutate(Id=id, srhits=0, sphits=0)
+  result <- data.frame(
+  	vcfId=callgr$vcfId,
+  	QUAL=callgr$QUAL,
+  	FILTER=callgr$FILTER,
+  	svLen=callgr$svLen) %>% mutate(
+		Id=id,
+		srhits=0,
+		sphits=0)
 
   .hitCounts <- function(truthgr) {
     hitscounts <- rep(0, length(callgr))
-    hits <- findMatchingBreakpoints(callgr, truthgr, maxgap=maxgap, ignore.strand=FALSE, sizemargin=sizemargin)
+    hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=FALSE, sizemargin=sizemargin)
     hits$QUAL <- callgr$QUAL[hits$queryHits]
     # assign supporting evidence to the call with the highest QUAL
     hits <- hits %>%
@@ -109,7 +125,7 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
 
 #####################################
 # Plots
-.mostSensitivePerCaller <- function(calls, callers=c("gridss", "breakdancer", "cortex", "delly", "lumpy", "pindel", "socrates", "tigra/breakdancer", "cortex", "hydra")) {
+.mostSensitivePerCaller <- function(calls, callers) {
   calls %>%
     dplyr::select(Id, CallSet, tp) %>%
     group_by(Id, CallSet) %>%
@@ -118,32 +134,32 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
     arrange(desc(tp)) %>%
     left_join(metadata) %>%
     distinct(CallSet, StripCallerVersion(CX_CALLER)) %>%
-    filter(StripCallerVersion(CX_CALLER) %in% callers) %>%
+    filter(is.null(callers) | StripCallerVersion(CX_CALLER) %in% callers) %>%
     dplyr::select(Id, CallSet)
 }
-.plotgraphs <- function(calls, label) {
+.plotgraphs <- function(calls, label, callers=c("gridss", "breakdancer", "cortex", "delly", "lumpy", "pindel", "socrates", "tigra/breakdancer", "cortex", "hydra")) {
   # use aligner with best sensitivity
-  sensAligner <- .mostSensitivePerCaller(calls)
+  sensAligner <- .mostSensitivePerCaller(calls, callers)
   roc <- calls %>%
-	dplyr::select(Id, CallSet, QUAL, tp, fp) %>%
-	# force a (0,0) point for all callers
-	rbind(calls %>% select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=2 * max(calls$QUAL), tp=0, fp=0)) %>%
-    filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
-    arrange(desc(QUAL)) %>%
-    group_by(Id, CallSet) %>%
-    mutate(tp=cumsum(tp), fp=cumsum(fp)) %>%
-    ungroup() %>%
-    group_by(Id, CallSet, QUAL) %>%
-    summarise(tp=max(tp), fp=max(fp)) %>%
-    ungroup() %>%
-    mutate(precision=tp / (tp + fp), fdr=1-precision) %>%
-    left_join(metadata) %>%
-    mutate(caller=StripCallerVersion(CX_CALLER), CallSet=relevel(factor(CallSet), "High confidence only"))
+  	dplyr::select(Id, CallSet, QUAL, tp, fp) %>%
+  	# force a (0,0) point for all callers
+  	rbind(calls %>% select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=2 * max(calls$QUAL), tp=0, fp=0)) %>%
+      filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
+      arrange(desc(QUAL)) %>%
+      group_by(Id, CallSet) %>%
+      mutate(tp=cumsum(tp), fp=cumsum(fp)) %>%
+      ungroup() %>%
+      group_by(Id, CallSet, QUAL) %>%
+      summarise(tp=max(tp), fp=max(fp)) %>%
+      ungroup() %>%
+      mutate(precision=tp / (tp + fp), fdr=1-precision) %>%
+      left_join(metadata) %>%
+      mutate(caller=StripCallerVersion(CX_CALLER), CallSet=relevel(factor(CallSet), "High confidence only"))
   ggplot(roc) +
     aes(group=paste(Id, CallSet), y=tp/2, x=fp/2, linetype=CallSet, color=caller) +
     geom_line() +
     coord_cartesian(xlim=c(0, 1000), ylim=c(0, 3000)) +
-    scale_colour_brewer(palette="Set1") +
+    scale_colour_brewer(palette="Set3") +
 	scale_linetype_manual(values=c("solid", "dotted")) +
     labs(y="True Positives", x="False Positives")
   saveplot(paste0("na12878_tp_fp_", label, "_error_", maxgap, "bp_", sizemargin, "x"), width=7, height=5)
@@ -156,14 +172,52 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
     aes(group=paste(Id, CallSet), x=tp/2, y=precision, linetype=CallSet, color=caller) +
     geom_line() +
     coord_cartesian(xlim=c(0, 4000)) +
-    scale_colour_brewer(palette="Set1") +
+    scale_color_manual(values=c(brewer.pal("Set1", n=9), "#000000")) +
+    #scale_colour_brewer(palette=colorRampPalette("Set1")) +
 	scale_linetype_manual(values=c("solid", "dotted")) +
     labs(x="True positives", y="Precision")
   saveplot(paste0("na12878_prec_", label, "_error_", maxgap, "bp_", sizemargin, "x"), width=7, height=5)
+
+  ggplot(rbind(roc, roc %>%
+                 # add in horizontal line to the y axis
+                 filter(tp > 0) %>%
+                 arrange(tp) %>%
+                 distinct(caller, CallSet) %>%
+                 mutate(tp=0)) %>%
+                mutate(caller=StripCallerVersion(CX_CALLER)) %>%
+                filter(CallSet=="High confidence only")) +
+    aes(group=paste(Id, CallSet), x=tp/2, y=fdr, color=caller) +
+    geom_line() +
+    coord_cartesian(xlim=c(0, 3000), ylim=c(0, 0.25)) +
+    scale_color_manual(values=c(brewer.pal("Set1", n=9), "#000000")) +
+    labs(x="True positives", y="False Discovery Rate (FDR)") +
+    theme(plot.margin=unit(c(0,0,0,0), "cm"))
+  saveplot(paste0("na12878_fdr_", label, "_error_", maxgap, "bp_", sizemargin, "x"), width=7, height=5)
 }
+
+ggplot(lrcalls %>%
+			 	filter(tp) %>%
+			 	# most sensitive
+			 	inner_join(lrcalls %>%
+			 						 	group_by(Id, CallSet) %>%
+			 						 	summarise(tp=sum(tp)) %>%
+			 						 	ungroup() %>%
+			 						 	arrange(desc(tp)) %>%
+			 						 	left_join(metadata) %>%
+			 						 	distinct(CallSet, StripCallerVersion(CX_CALLER)) %>%
+			 						 	dplyr::select(Id, CallSet)
+			 						 	) %>%
+			 	left_join(metadata) %>%
+			 	mutate(caller=StripCallerVersion(CX_CALLER))) +
+	aes(group=paste(Id, CallSet), x=abs(svLen), color=caller) +
+	scale_x_log10() +
+	geom_density() +
+	facet_wrap( ~ CallSet)
+
 
 .plotgraphs(mcalls, "Mills")
 .plotgraphs(lrcalls, "pacbiomoleculo")
+.plotgraphs(lrcalls, "_all_pacbiomoleculo", callers=fulldatacallers)
 
 dterror <- mcalls %>%
   dplyr::select(Id, CallSet, bperror) %>%
@@ -173,7 +227,7 @@ ggplot(dterror) +
   aes(group=paste(Id, CallSet), x=bperror, color=caller, linetype=CallSet) +
   geom_density() +
 	scale_linetype_manual(values=c("solid", "dotted")) +
-  scale_colour_brewer(palette="Set1") +
+  scale_colour_brewer(palette="Set3") +
 	facet_wrap(~caller) +
   labs(title="Error margin", y="density", x="bp error")
 

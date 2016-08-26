@@ -3,7 +3,8 @@
 # runs breakdancer against bams
 #
 . common.sh
-CALLER=clever/1.1
+CALLER=clever/270dee03
+PATH=$BASE_DIR/tools/clever-toolkit/scripts:$PATH
 for BAM in $DATA_DIR/*.sq.bam ; do
 	cx_load $BAM
 	if [ "$CX_READ_FRAGMENT_LENGTH" == "" ] ; then
@@ -21,20 +22,19 @@ for BAM in $DATA_DIR/*.sq.bam ; do
 	fi
 	CX_BAM=$BAM
 	CX_CALLER=$CALLER
-	CX_CALLER_FLAGS=
 	# TODO: use --use_xa --sorted flags if SAM XA field is written (ie: BWA)
 	cx_save
 	XC_MEMORY=1024
 	XC_OUTPUT=$CX.vcf
 	# Clever does not write the VCF SV headers - we need to add them ourselves
-	XC_SCRIPT="module add bwa $CALLER ; rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
-	ln -s $CX_BAM raw.bam
-	clever-all-in-one -a -T $XC_CORES -f -k raw.bam $CX_REFERENCE results && \
+	XC_SCRIPT="module add bwa ; rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
+	ln -s $CX_BAM input.bam
+	clever input.bam $CX_REFERENCE results && \
 	cp indel.vcf $CX.vcf && \
 	tail -n +2 $CX/predictions.vcf >> $CX.vcf
+	# need to add missing VCF headers
 	"
 	xc_exec
-	exit
 	#mkdir -p results/work
 	#cd results/work
 	#add-score-tags-to-bam -s $CX_REFERENCE < ../../raw.bam > input.bam && \

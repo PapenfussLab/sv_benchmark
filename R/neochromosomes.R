@@ -93,11 +93,11 @@ vcfs <- sapply(names(vcfs), function(id) {
 	#calls$truth$spanningtp <- FALSE
 	#calls$truth$spanningtp[spanninghits$squeryHits] <- TRUE
 	#calls$truth$tp <- calls$truth$tp | calls$truth$spanningtp
-	
+
 	# filter small events that did not match a published call
 	# filter false positives outside of CGRs
 	misses <- !calls$calls$tp & !callsgridss$calls$tp & gr$bothgr & (is.na(gr$svLen) | abs(gr$svLen) >= minimumEventSize)
-	
+
 	callsummary <- data.frame(
 	  Id=id,
 	  pubmatches=sum(calls$truth$tp) / 2,
@@ -117,26 +117,43 @@ summarydf <- rbind_all(summarylist) %>%
 summary <- summarydf %>% group_by(CX_CALLER, CX_ALIGNER) %>%
   summarise(pubsens=sum(pubmatches)/sum(pubcount), gridsssens=sum(gridssmatches)/sum(gridsscount), misses=sum(misses))
 
-# Neochromosome venn diagram
 
-# Venn Diagram for each other caller
+# Events identified spanning callers
+# Extract spanning assemblies
+# samtools view -h breakend.vcf.idsv.assembly.bam | grep -E "^(@|(asm[0-9]+_))" | samtools view -b - > be.bam
+library(GenomicAlignments)
+gridss_assembly_breakpoint_to_gr <- function(bam) {
+	grp1 <- readGAlignments(bam, param=ScanBamParam(flag=scanBamFlag(isPaired=TRUE, isFirstMateRead=TRUE), tag="ad"), use.names=TRUE)
+	grp2 <- readGAlignments(bam, param=ScanBamParam(flag=scanBamFlag(isPaired=TRUE, isSecondMateRead=TRUE)), use.names=TRUE)
+	grp1 <- grp1[names(grp1) %in% names(grp2),]
+	grp2 <- grp2[names(grp2) %in% names(grp1),]
+	# first is the anchoring position
+	gr1 <- GRanges(grp1)
+	ranges(gr1) <- IRanges(start=ifelse(mcols(grp1)$ad=="f", end(grp1), start(grp1)), width=1)
+	strand(gr1) <- ifelse(mcols(grp1)$ad=="f", "+", "-")
+	names(gr1) <- names(grp1)
+	gr2 <- GRanges(grp2)
+	strand(gr2) <- ifelse(xor(mcols(grp1[names(grp2),])$ad=="f", strand(grp2)=="+"), "-", "+")
+	ranges(gr2) <- IRanges(start=ifelse(strand(gr2)=="-", start(grp1), end(grp1)), width=1)
+	names(gr2) <- names(grp2)
+	gr1$partner <- paste0(names(gr1), "/realign")
+	names(gr1) <- paste0(names(gr1), "/anchor")
+	gr2$partner <- paste0(names(gr2), "/anchor")
+	names(gr2) <- paste0(names(gr2), "/realign")
+	gr1$ad <- NULL
+	return(c(gr1, gr2))
+}
+assgr <- gridss_assembly_breakpoint_to_gr(paste0(rootdir,"data.neo/archive/250ae70eff3b456cf4e7fa13a1f0225f/breakend.vcf.idsv.working/be.bam"))
+assgr$id <- str_match(names(assgr), "asm([0-9]+)_([0-9]+)/(.+)")[,2]
+assgr$offset <- as.integer(str_match(names(assgr), "asm([0-9]+)_([0-9]+)/(.+)")[,3])
+assgr$anchor <- str_match(names(assgr), "asm([0-9]+)_([0-9]+)/(.+)")[,4] == "anchor"
+assgr <- assgr[assgr$id %in% assgr[assgr$anchor]$id[duplicated(assgr[assgr$anchor]$id)]] # is compound alignment
 
-# list of overlaps
+# filter out calls that only have an _0
+# this set is the spanning call set
+# pair up the breakpoint based on source assembly
+# Enumerate miscalls by connecting _n/anchor to _(n+1)/realign, _(n+2)/realign, ...
 
-# Published, GRIDSS, ...
-# 1
-# 2
-# 3
-# 4
-# 5
-# 6
-# 7
-# 8
-# High Confidence calls
-
-# within main text: compound breakpoints identified by caller
-# Published, GRIDSS, ...
-# identify calls that could be transitive
-# identify calls that are transitive
-
+# findBreakpointOverlaps on spanning call set & miscall call sets
+# table calls
 

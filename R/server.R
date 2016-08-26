@@ -103,4 +103,16 @@ shinyServer(function(input, output) {
 				colour=names(facets)[facets==input$colour])
   	return(p)
   })
+	output$bpErrorDistributionPlot <- renderPlot({
+		data <- RefreshSimData(input, data)
+		plotdf <- PrettyFormatPlotdf(input, data, data$dfs$bpErrorDistribution)
+		# TODO: incorporate error margin only for truth calls
+		p <- ggplot(plotdf %>%
+									filter(CX_READ_DEPTH==30, CallSet=="High & Low confidence") %>%
+									inner_join(mostSensitiveAligner)) +
+			aes(x=bperror, y=rate) +
+			geom_bar(stat="identity") +
+			facet_grid(caller ~ eventtype)
+		return(p)
+	})
 })
