@@ -20,7 +20,7 @@ fulldatacallers <- c(
 knownaligners <- c("bowtie2", "bwa mem"="bwamem", "novoalign")
 ds <- c("Read Depth"="rd", "Read Length"="rl", "Fragment Size"="fs")
 dscol <- c("rd"="CX_READ_DEPTH", "rl"="CX_READ_LENGTH", "fs"="CX_READ_FRAGMENT_LENGTH")
-md <- lapply(ds, function (data) LoadCachedMetadata(paste0("../data.", data)))
+md <- lapply(ds, function (data) LoadCachedMetadata(paste0("../../data.", data)))
 names(md) <- ds
 withnames <- function(v, n) { names(v) <- n; return(v) }
 PrettyAligner <- function(ds) {

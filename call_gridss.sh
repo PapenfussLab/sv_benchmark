@@ -2,7 +2,7 @@
 #
 #
 . common.sh
-VERSION=0.11.5
+VERSION=0.11.7
 CALLER=gridss/$VERSION
 #FULL_JAR=~/bin/${CALLER/\//-}-jar-with-dependencies.jar
 FULL_JAR=~/bin/gridss-$VERSION-jar-with-dependencies.jar

@@ -2,6 +2,7 @@ library(GenomicRanges)
 library(StructuralVariantAnnotation) #install_github("d-cameron/StructuralVariantAnnotation")
 library(testthat)
 library(stringr)
+library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(R.cache)
@@ -264,11 +265,16 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 
 	calldf <- as.data.frame(callgr) %>%
 		dplyr::select(Id, QUAL, svLen, insLen, vcfId) %>%
-		mutate(tp=FALSE, duptp=FALSE, fp=FALSE, fn=FALSE, sizeerror=NA, bperror=NA) %>%
 		mutate(
-			includeFiltered=includeFiltered,
-			maxgap=maxgap,
-			ignore.strand=ignore.strand)
+			tp=rep(FALSE, nrow(.)),
+			duptp=rep(FALSE, nrow(.)),
+			fp=rep(FALSE, nrow(.)),
+			fn=rep(FALSE, nrow(.)),
+			sizeerror=rep(NA, nrow(.)),
+			bperror=rep(NA, nrow(.)),
+			includeFiltered=rep(includeFiltered, nrow(.)),
+			maxgap=rep(maxgap, nrow(.)),
+			ignore.strand=rep(ignore.strand, nrow(.)))
 	calldf$tp[hits$queryHits] <- TRUE
 	calldf$duptp[hits[duplicated(hits$subjectHits),]$queryHits] <- TRUE
 	calldf$fp <- !calldf$tp

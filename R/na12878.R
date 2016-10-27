@@ -11,7 +11,7 @@ minsize <- 51
 
 #####################################
 # hg19 blacklist
-encodeblacklist <- import(paste0(rootdir, "input.na12878/wgEncodeDacMapabilityConsensusExcludable.bed"))
+encodeblacklist <- import(paste0(rootdir, "scripts/input.na12878/wgEncodeDacMapabilityConsensusExcludable.bed"))
 
 #####################################
 # na12878 Moleculo/PacBio truth
@@ -102,7 +102,7 @@ lrcalls <- rbind_all(lapply(names(vcfs)[names(vcfs) %in% (metadata %>% filter(!i
 
   .hitCounts <- function(truthgr) {
     hitscounts <- rep(0, length(callgr))
-    hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=FALSE, sizemargin=sizemargin)
+    hits <- findMatchingBreakpoints(callgr, truthgr, maxgap=maxgap, ignore.strand=FALSE, sizemargin=sizemargin)
     hits$QUAL <- callgr$QUAL[hits$queryHits]
     # assign supporting evidence to the call with the highest QUAL
     hits <- hits %>%
@@ -155,6 +155,7 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
       mutate(precision=tp / (tp + fp), fdr=1-precision) %>%
       left_join(metadata) %>%
       mutate(caller=StripCallerVersion(CX_CALLER), CallSet=relevel(factor(CallSet), "High confidence only"))
+  write.csv(roc, paste0("na12878_roc_", label, "_error_", maxgap, "bp_", sizemargin, "x", ".csv"))
   ggplot(roc) +
     aes(group=paste(Id, CallSet), y=tp/2, x=fp/2, linetype=CallSet, color=caller) +
     geom_line() +

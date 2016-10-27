@@ -59,7 +59,7 @@ ggplot(mcalls %>%
     geom_point() +
     geom_line() +
     scale_x_svlen +
-    facet_grid(CX_CALLER ~ CX_REFERENCE_VCF_VARIANTS) + 
+    facet_grid(CX_CALLER ~ CX_REFERENCE_VCF_VARIANTS) +
     labs(title="Results sanity check", color="args")
 ggplot(mcalls %>%
          select(Id, CallSet, QUAL, tp, fp, fn) %>%
@@ -74,12 +74,12 @@ ggplot(mcalls %>%
     geom_line() +
     geom_point(alpha=0.1) +
     facet_grid(CX_CALLER ~ CX_REFERENCE_VCF_VARIANTS) +
-    scale_x_log10() + 
+    scale_x_log10() +
     labs(title="Results sanity check", color="args")
 
 # use aligner with best sensitivity
 sensAligner <- mcalls %>%
-  dplyr:::select(Id, CallSet, maxgap, ignore.strand, tp) %>%
+	dplyr:::select(Id, CallSet, maxgap, ignore.strand, tp) %>%
 	group_by(Id, CallSet, maxgap, ignore.strand) %>%
 	summarise(tp=sum(tp)) %>%
 	ungroup() %>%
@@ -126,7 +126,7 @@ roc <- roc %>%
       Id != lag(Id) | CallSet != lag(CallSet) |
       Id != lead(Id) | CallSet != lead(CallSet) |
       # slopes not equal dx1/dy1 != dx2/dy2 -> dx1*dy2 != dx2*dy1
-      (tp - lag(tp))*(lead(fp) - lag(fp)) != (lead(tp) - lag(tp))*(fp - lag(fp)) | 
+      (tp - lag(tp))*(lead(fp) - lag(fp)) != (lead(tp) - lag(tp))*(fp - lag(fp)) |
       # less than 10 calls wide
       lead(tp) - lag(tp) > 10 |
       # keep every 5th row
@@ -136,10 +136,11 @@ ggplot(es) +
   aes(group=paste(Id, CallSet), x=abs(svLen), y=sens, color=eventtype, linetype=CallSet) +
   geom_line(size=0.5) +
   scale_x_svlen +
-  facet_grid(caller ~ CX_READ_DEPTH, switch="y") + 
+  facet_grid(caller ~ CX_READ_DEPTH, switch="y") +
   labs(title="", y="Sensitivity", x="Event size", color="Event Type", linetype="Call set")
 saveplot(paste0("sim_per_caller_event_size_line"), width=600, height=300, units=c("mm"))
-ggplot(roc %>% arrange(desc(QUAL))) + 
+write.csv(es, "sim_per_caller_event_size_line.csv")
+ggplot(roc %>% arrange(desc(QUAL))) +
   aes(group=paste(Id, CallSet), y=sens, x=fp+1, linetype=CallSet, color=eventtype) +
   geom_line() +
   scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001, 100001),
@@ -149,31 +150,33 @@ ggplot(roc %>% arrange(desc(QUAL))) +
   facet_grid(caller ~ CX_READ_DEPTH) +
   labs(title="", y="Sensitivity", x="False Positives", color="Call set", linetype="Call set")
 saveplot(paste0("sim_per_caller_roc"), width=300, height=300, units=c("mm"))
-for (rd in unique(metadata$CX_READ_DEPTH)) {
+write.csv(roc %>% arrange(desc(QUAL)), "sim_per_caller_roc.csv")
+#for (rd in unique(metadata$CX_READ_DEPTH)) {
   ggplot(es) +
     aes(group=paste(Id, CallSet), x=abs(svLen), y=sens) +
-    geom_area(aes(fill=CallSet), position="identity") + 
-    geom_area(data=es[es$CallSet=="High confidence only",], aes(fill=CallSet), position="identity") + 
-    scale_fill_manual(values=c("#2166ac", "#67a9cf")) + 
+    geom_area(aes(fill=CallSet), position="identity") +
+    geom_area(data=es[es$CallSet=="High confidence only",], aes(fill=CallSet), position="identity") +
+    scale_fill_manual(values=c("#2166ac", "#67a9cf")) +
     scale_x_svlen_short +
-    facet_grid(caller ~ eventtype, switch="y") + 
+    facet_grid(caller ~ eventtype, switch="y") +
     labs(title="", y="Sensitivity", x="Event size", color="Call set", linetype="Call set")
   saveplot(paste0("sim_", rd, "x_per_caller_event_size_fill"), width=220, height=300, units=c("mm"))
   saveplot(paste0("ppt_sim_", rd, "x_per_caller_event_size_fill"), width=220*16/10, height=220, units=c("mm"))
+  write.csv(es, paste0("sim_", rd, "x_per_caller_event_size.csv"))
   ggplot(es) +
     aes(group=paste(Id, CallSet), x=abs(svLen), y=sens, color=eventtype, linetype=CallSet) +
     geom_line(size=0.5) +
     scale_x_svlen +
-    facet_grid(caller ~ ., switch="y") + 
+    facet_grid(caller ~ ., switch="y") +
     labs(title="", y="Sensitivity", x="Event size", color="Event Type", linetype="Call set")
   saveplot(paste0("sim_", rd, "x_per_caller_event_size_line"))
-  ggplot(roc %>% arrange(desc(QUAL))) + 
+  ggplot(roc %>% arrange(desc(QUAL))) +
     aes(group=paste(Id, CallSet), y=sens, x=fp+1, color=CallSet) +
-    scale_color_manual(values=c("#2166ac", "#67a9cf")) + 
-    #scale_color_brewer(palette="Paired") + 
+    scale_color_manual(values=c("#2166ac", "#67a9cf")) +
+    #scale_color_brewer(palette="Paired") +
     geom_line(size=0.2) +
     geom_point(size=0.5) +
-    geom_point(size=0.5, data=roc %>% arrange(desc(QUAL)) %>% filter(CallSet=="High confidence only")) + 
+    geom_point(size=0.5, data=roc %>% arrange(desc(QUAL)) %>% filter(CallSet=="High confidence only")) +
     scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001),
                        labels=c("", "10", "100", "1k", "10k"),
                        minor_breaks=c(),
@@ -182,7 +185,8 @@ for (rd in unique(metadata$CX_READ_DEPTH)) {
     labs(title="", y="Sensitivity", x="False Positives", color="Call set", linetype="Call set")
   saveplot(paste0("sim_", rd, "x_per_caller_roc"), width=300, height=300, units=c("mm"))
   saveplot(paste0("ppt_sim_", rd, "x_per_caller_roc"), width=220*16/10, height=220, units=c("mm"))
-}
+  write.csv(roc %>% arrange(desc(QUAL)), paste0("sim_", rd, "x_per_caller_roc.csv"))
+#}
 # table of maximum sensitivity
 roc %>%
   dplyr::select(caller, CallSet, eventtype, sens, fp) %>%
@@ -205,9 +209,9 @@ roccombined <- mcalls %>%
   summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
   ungroup() %>%
   mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events)
-ggplot(roccombined %>% arrange(desc(QUAL))) + 
+ggplot(roccombined %>% arrange(desc(QUAL))) +
   aes(group=paste(caller, CallSet), y=sens, x=fp+1, linetype=CallSet, color=CallSet) +
-  scale_color_manual(values=c("#000000", "#666666")) + 
+  scale_color_manual(values=c("#000000", "#666666")) +
   geom_line() +
   scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001, 100001),
                      labels=c("", "10", "100", "1k", "10k", "100k"),
@@ -216,4 +220,4 @@ ggplot(roccombined %>% arrange(desc(QUAL))) +
   facet_wrap(~ caller) +
   labs(title="", y="Sensitivity", x="False Positives", color="Call set", linetype="Call set")
 saveplot(paste0("sim_", rd, "x_per_caller_roc_combined"), width=300, height=300, units=c("mm"))
-
+write.csv(roccombined %>% arrange(desc(QUAL)), paste0("sim_", rd, "x_per_caller_roc_combined.csv"))

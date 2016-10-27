@@ -11,7 +11,7 @@ RefreshSimData <- function(input, olddata) {
 		mineventsize <- 0
 	}
 	LoadPlotData(
-  		datadir=paste0("../data.", input$data),
+  		datadir=paste0("../../data.", input$data),
   		maxgap=simoptions$maxgap,
   		ignore.strand=simoptions$ignore.strand,
   		sizemargin=simoptions$sizemargin,
