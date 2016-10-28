@@ -6,48 +6,48 @@
 #
 source("global.R")
 source("libplot.R")
-library(shiny)
 
-shinyUI(fluidPage(
-	titlePanel("Structural Variantion Benchmark Results"),
-	sidebarLayout(
-		sidebarPanel(
-			selectInput("sample", "Sample", ds),
-			checkboxGroupInput("events", "Event types",
-				choices=c("Deletion", "Insertion", "Inversion", "Tandem Duplication"),
-				selected=c("Deletion", "Insertion", "Inversion", "Tandem Duplication")),
-
-			checkboxGroupInput("events", "Event types",
-				choices=c("Deletion", "Insertion", "Inversion", "Tandem Duplication"),
-				selected=c("Deletion", "Insertion", "Inversion", "Tandem Duplication")),
-			# color = caller
-			# line type = aligner
-			selectInput("aligner", "Aligner", aligner)
-			# could facet on repeat region
-			# checkboxInput("repeat", "By repeat annotation", value=FALSE)
-		),
-		mainPanel(
-			# TODO what other plots should I have?
-			plotOutput("precisionRecallPlot", height=1200),
-			plotOutput("rocPlot", height=1200)
-			# event size histogram of TP and FP
-		)
-	),
-	sidebarLayout(
-		sidebarPanel(
-			selectInput("data", "Data Set", ds),
-			#TODO http://stackoverflow.com/questions/30502870/shiny-slider-on-logarithmic-scale
-			checkboxInput("smallevents", "Include <= 50bp", value=TRUE),
-			uiOutput("simulationControls"),
-			hr(),
-			selectInput("linetype", "Line Type", facets, "CallSet"),
-			selectInput("colour", "Colour", facets, "aligner"),
-		),
-		mainPanel(
-			tabsetPanel(
-				tabPanel("Event Size", plotOutput("eventSizePlot", height=1200)),
-				tabPanel("ROC", plotOutput("rocPlot", height=1200))
+# ui function (must be last in file)
+function(request) {
+	fluidPage( #TODO try navbarPage
+		titlePanel("Structural Variant Caller Benchmark"),
+		sidebarLayout(
+			sidebarPanel(
+				selectInput("lrdatadir", "Sample", lroptions$datadir),
+				checkboxGroupInput("events", "Event types",
+					choices = c("Deletion", "Insertion", "Inversion", "Tandem Duplication"),
+					selected = c("Deletion", "Insertion", "Inversion", "Tandem Duplication")),
+				checkboxGroupInput("lrcallset", "Call Set",
+					c("High confidence only", "High & Low confidence"),
+					"High & Low confidence"),
+				# line type = call set
+				# color = caller
+				#selectInput("aligner", "Aligner", knownaligners),
+				# could facet on repeat region
+				# checkboxInput("repeat", "By repeat annotation", value=FALSE)
+				selectInput("simdatadir", "Data Set", simoptions$datadir),
+				#TODO http://stackoverflow.com/questions/30502870/shiny-slider-on-logarithmic-scale
+				checkboxInput("simsmallevents", "Include <= 50bp", value = TRUE),
+				uiOutput("simControls"),
+				hr(),
+				selectInput("simlinetype", "Line Type", simfacets, "CallSet"),
+				selectInput("simcolour", "Colour", simfacets, "aligner"),
+				checkboxGroupInput("simcallset", "Call Set",
+					c("High confidence only", "High & Low confidence"),
+					"High & Low confidence")
+			),
+			mainPanel(
+				tabsetPanel(id = "mt",
+					tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = 1200)),
+					tabPanel("ROC", plotOutput("lrocPlot", height = 1200)),
+					tabPanel("Detected event sizes", plotOutput("lrEventSizeHistogram", height = 1200)),
+					tabPanel("Event Size", plotOutput("simEventSizePlot", height = 1200)),
+					tabPanel("ROC", plotOutput("simRocPlot", height = 1200))
+					)
+				# includeMarkdown("explaination.md")
+				# downloadButton('downloadPlot', 'Download Plot')
+				# http://stackoverflow.com/questions/14810409/save-plots-made-in-a-shiny-app
 			)
 		)
 	)
-))
+}

@@ -21,6 +21,7 @@ LoadPlotData <- function(
 		sizemargin,
 		ignore.duplicates,
 		ignore.interchromosomal,
+		requiredHits,
 		mineventsize,
 		maxeventsize,
 		vcftransform,
@@ -31,11 +32,11 @@ LoadPlotData <- function(
 	# set up all cache keys for all the data
 	truthhash <- NULL
 	if (!is.null(truthgr)) {
-	  truthhash <- getChecksum(truthgr)
+		truthhash <- getChecksum(truthgr)
 	}
 	keymetadata <- list(datadir)
 	keyvcfs <- list(keymetadata)
-	keycalls <- list(keyvcfs, maxgap, ignore.strand, sizemargin, truthhash) # TODO: vcftransform
+	keycalls <- list(keyvcfs, maxgap, ignore.strand, sizemargin, requiredHits, truthhash) # TODO: vcftransform
 	keydfs <- list(keycalls, ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize)
 	slice <- list(
 		datadir=datadir,
@@ -90,7 +91,7 @@ LoadPlotData <- function(
 							saveCache(slice$vcfs, key=keyvcfs, dirs=".Rcache/LoadPlotData/vcfs")
 						}
 					}
-					slice$calls <- LoadCallSets(slice$metadata, slice$vcfs, maxgap, ignore.strand, sizemargin, vcftransform, truthgr)
+					slice$calls <- LoadCallSets(slice$metadata, slice$vcfs, maxgap, ignore.strand, sizemargin, requiredHits, vcftransform, truthgr)
 					saveCache(slice$calls, key=keycalls, dirs=".Rcache/LoadPlotData/calls")
 				}
 			}
@@ -105,14 +106,17 @@ LoadVCFs <- function(datadir, metadata) {
 	vcfs <- LoadMinimalSVFromVCF(datadir, metadata=metadata)
 	return(vcfs)
 }
-LoadCallSets <- function(metadata, vcfs, maxgap, ignore.strand, sizemargin, vcftransform, truthgr) {
+LoadCallSets <- function(metadata, vcfs, maxgap, ignore.strand, sizemargin, requiredHits, vcftransform, truthgr) {
 	vcfs <- sapply(names(vcfs), vcftransform, metadata, vcfs, simplify=FALSE, USE.NAMES=TRUE)
 	mcalls <- NULL
 	for (includeFiltered in c(TRUE, FALSE)) {
-		calls <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, truthgr=truthgr)
-		calls$truth <- calls$truth %>% mutate(duptp=FALSE)
+		calls <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgr=truthgr)
 		calls$calls <- calls$calls%>% filter(!tp) # take the truth vcf version of tp calls since it has the actual event size
-		mergedcalls <- rbind(calls$calls, calls$truth)
+		mergedcalls <- calls$calls
+		if (!is.null(calls$truth)) {
+			calls$truth <- calls$truth %>% mutate(duptp = FALSE)
+			mergedcalls <- rbind(calls$calls, calls$truth)
+		}
 		if (includeFiltered) {
 			mergedcalls$CallSet <- "High & Low confidence"
 		} else {
@@ -151,26 +155,26 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 		distinct(CallSet, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF) %>%
 		select(Id, CallSet)
 	callsByEventSize <- calls %>%
-	  #filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
-	  filter(!fp) %>%
-	  filter(Id %in% md$Id[md$CX_REFERENCE_VCF_VARIANTS %in% c("hetDEL","hetINS","hetINV","hetDUP")]) %>%
-	  group_by(Id, CallSet, svLen) %>%
-	  summarise(sens=sum(tp)/sum(tp+fn)) %>%
-	  ungroup() %>%
-	  left_join(md)
+		#filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
+		filter(!fp) %>%
+		#filter(Id %in% md$Id[md$CX_REFERENCE_VCF_VARIANTS %in% c("hetDEL","hetINS","hetINV","hetDUP")]) %>%
+		group_by(Id, CallSet, svLen) %>%
+		summarise(sens=sum(tp)/sum(tp+fn)) %>%
+		ungroup() %>%
+		left_join(md)
 	roc <- calls %>%
-	  select(Id, CallSet, QUAL, tp, fp, fn) %>%
-	  rbind(calls %>% select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=max(calls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
-	  #filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
-	  group_by(Id, CallSet) %>%
-	  arrange(desc(QUAL)) %>%
-	  mutate(events=sum(tp) + sum(fn)) %>%
-	  mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
-	  group_by(Id, CallSet, QUAL, events) %>%
-	  summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
-	  ungroup() %>%
-	  mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events) %>%
-	  left_join(md)
+		select(Id, CallSet, QUAL, tp, fp, fn) %>%
+		rbind(calls %>% select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=max(calls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
+		#filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
+		group_by(Id, CallSet) %>%
+		arrange(desc(QUAL)) %>%
+		mutate(events=sum(tp) + sum(fn)) %>%
+		mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
+		group_by(Id, CallSet, QUAL, events) %>%
+		summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
+		ungroup() %>%
+		mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events) %>%
+		left_join(md)
 	# lossless reduction of roc plot points by elimination of points on straight lines
 	roc <- roc %>%
 		group_by(Id, CallSet) %>%
@@ -216,4 +220,21 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 							roc=roc,
 							bpErrorDistribution=bpErrorDistribution))
 }
-
+LoadLongReadTruthgr <- function(dir) {
+	cacheroot <- getCacheRootPath()
+	setCacheRootPath(dir)
+	key <- list(dir=dir)
+	gr <- loadCache(key = key, dirs = ".Rcache/LoadLongReadTruthgr")
+	if (is.null(gr)) {
+		gr <- .LoadLongReadTruthgr(dir)
+		saveCache(gr, key = key, dirs = ".Rcache/LoadLongReadTruthgr")
+	}
+	setCacheRootPath(cacheroot)
+	return(gr)
+}
+.LoadLongReadTruthgr <- function(dir) {
+	gr <- c(lapply(list.files(path = dir, pattern = ".bedpe.gz", full.names = TRUE), function(file) {
+		import.sv.bedpe(file)
+	}))
+	return (gr)
+}

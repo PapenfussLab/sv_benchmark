@@ -26,14 +26,14 @@ versions <- versions[order(versions$ReleaseDate),]
 versions <- versions[versions$Software!="MAQ",]
 
 earliest <- rbind(data.frame(Family=versions$Family, Date=versions$ReleaseDate),
-                  data.frame(Family=pubs$Family, Date=pubs$PublicationDate))
+									data.frame(Family=pubs$Family, Date=pubs$PublicationDate))
 earliest <- earliest[order(earliest$Date), ]
 earliest <- earliest[!duplicated(earliest$Family), ]
 earliest$Software <- earliest$Family
 earliest <- merge(earliest, pubs)
 
 events <- rbind(data.frame(Family=versions$Family, Date=versions$ReleaseDate, Type=rep("Software Release", nrow(versions))),
-                data.frame(Family=pubs$Family, Date=pubs$PublicationDate, Type=rep("Publication", nrow(pubs))))
+								data.frame(Family=pubs$Family, Date=pubs$PublicationDate, Type=rep("Publication", nrow(pubs))))
 
 
 
@@ -58,29 +58,29 @@ versions$Version[versions$Family=="CLEVER" & versions$Version %in% c("1.1") ] <-
 versions$Version[versions$Family=="RetroSeq" & versions$Version %in% c("1.31", "1.32", "1.33", "1.34", "1.41") ] <- NA
 
 
-ggplot(data=NULL, aes(y=ordinal)) +  
-  scale_x_date(limits=c(as.Date("2008-11-01"), as.Date("2013-10-01"))) +
-  geom_text(data=versions,aes(label=Version, x=ReleaseDate, vjust=1.1), size=3) + 
-  geom_text(data=pubs,aes(label=Software, x=PublicationDate, colour=Evidence, vjust=-0.4)) + 
-  geom_text(data=earliest, aes(label=Software, x=Date, colour=Evidence, hjust=1.2)) + 
-  geom_segment(data=earliest, aes(x=Date, y=ordinal, xend=as.Date("2013-10-01"), yend=ordinal), linetype=3) + 
-  geom_point(data=events, aes(x=Date, shape=Type), colour="black", fill="black") + 
-  scale_shape_manual(values=c(20, 25)) +
-  scale_y_continuous(breaks=NULL) + 
-  geom_hline(yintercept=7.5) + 
-  annotate("text", label="Specialised", x=as.Date("2008-10-15"), y=3) + 
-  annotate("text", label="Small indel", x=as.Date("2008-10-15"), y=38) + 
-  geom_hline(yintercept=33.5) + 
-  theme_bw() + theme(
-    axis.text.y=element_blank(),
-    axis.title.y=element_blank(),
-    axis.ticks.y=element_blank(),
-    panel.border = element_blank()) +
-  #theme(legend.position="none") +
-#  ggtitle("INDEL calling software") +
-  xlab("Release / Publication Date")
+ggplot(data=NULL, aes(y=ordinal)) +	
+	scale_x_date(limits=c(as.Date("2008-11-01"), as.Date("2013-10-01"))) +
+	geom_text(data=versions,aes(label=Version, x=ReleaseDate, vjust=1.1), size=3) + 
+	geom_text(data=pubs,aes(label=Software, x=PublicationDate, colour=Evidence, vjust=-0.4)) + 
+	geom_text(data=earliest, aes(label=Software, x=Date, colour=Evidence, hjust=1.2)) + 
+	geom_segment(data=earliest, aes(x=Date, y=ordinal, xend=as.Date("2013-10-01"), yend=ordinal), linetype=3) + 
+	geom_point(data=events, aes(x=Date, shape=Type), colour="black", fill="black") + 
+	scale_shape_manual(values=c(20, 25)) +
+	scale_y_continuous(breaks=NULL) + 
+	geom_hline(yintercept=7.5) + 
+	annotate("text", label="Specialised", x=as.Date("2008-10-15"), y=3) + 
+	annotate("text", label="Small indel", x=as.Date("2008-10-15"), y=38) + 
+	geom_hline(yintercept=33.5) + 
+	theme_bw() + theme(
+		axis.text.y=element_blank(),
+		axis.title.y=element_blank(),
+		axis.ticks.y=element_blank(),
+		panel.border = element_blank()) +
+	#theme(legend.position="none") +
+#	ggtitle("INDEL calling software") +
+	xlab("Release / Publication Date")
 
-  # TODO: add line from min(pub, version) to max(all(pub, version))
+	# TODO: add line from min(pub, version) to max(all(pub, version))
 ggsave("publication.jpg", width=18, height=18)
 ggsave("publication.pdf", width=18, height=18)
 
@@ -90,23 +90,23 @@ ggsave("publication.pdf", width=18, height=18)
 #library(proto)
 #library(grImport) #install.packages("grImport")
 # GeomPointImage <- proto(ggplot2:::Geom, {
-#   objname <- "point_image"
-#   desc <- "Custom grob"
-#   draw_groups <- function(., ...) .$draw(...)
-#   draw <- function(., data, scales, coordinates, just=c("centre", "centre"), ...) {
-#     picture <- readPicture("../assets/iconmonstr-download-icon.rgml.xml")
-#     pictureGrob(picture)
-#     #with(coordinates$transform(data, scales), pictureGrob(picture, x, y))
-#   }
-#   required_aes <- c("x", "y")
-#   default_aes <- function(.) aes(x=0.5, y=0.5)
-#   default_stat <- function(.) StatIdentity
-#   guide_geom <- function(.) "custom"
-#   draw_legend <- function(., data, ...) {  }
-#   icon <- function(.) {  }
-#   examples <- function() { }    
+#	 objname <- "point_image"
+#	 desc <- "Custom grob"
+#	 draw_groups <- function(., ...) .$draw(...)
+#	 draw <- function(., data, scales, coordinates, just=c("centre", "centre"), ...) {
+#		 picture <- readPicture("../assets/iconmonstr-download-icon.rgml.xml")
+#		 pictureGrob(picture)
+#		 #with(coordinates$transform(data, scales), pictureGrob(picture, x, y))
+#	 }
+#	 required_aes <- c("x", "y")
+#	 default_aes <- function(.) aes(x=0.5, y=0.5)
+#	 default_stat <- function(.) StatIdentity
+#	 guide_geom <- function(.) "custom"
+#	 draw_legend <- function(., data, ...) {	}
+#	 icon <- function(.) {	}
+#	 examples <- function() { }		
 # })
 # geom_point_image <- function (mapping = NULL, data = NULL, stat = "identity", position = "identity", na.rm = FALSE, ...) {
-#   GeomPointImage$new(mapping = mapping, data = data, stat = stat, position = position, na.rm = na.rm, ...)
+#	 GeomPointImage$new(mapping = mapping, data = data, stat = stat, position = position, na.rm = na.rm, ...)
 # }
 #

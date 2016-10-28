@@ -75,17 +75,17 @@ table(rnagr$gridss > 0, !is.na(rnagr$dnaindex))
 
 gr <- vcf[names(vcf) %in% c((rnacalls$calls %>% filter(tp & !duptp))$vcfId, (dnacalls$calls %>% filter(tp & !duptp))$vcfId)]
 bedpe <- data.frame(
-    chrom1=seqnames(gr),
-    start1=start(gr),
-    end1=end(gr),
-    chrom1=seqnames(partner(gr)),
-    start1=start(partner(gr)),
-    end1=end(partner(gr)),
-    name=names(gr),
-    score=gr$QUAL,
-    strand1=strand(gr),
-    strand2=strand(partner(gr))
-    )
+		chrom1=seqnames(gr),
+		start1=start(gr),
+		end1=end(gr),
+		chrom1=seqnames(partner(gr)),
+		start1=start(partner(gr)),
+		end1=end(partner(gr)),
+		name=names(gr),
+		score=gr$QUAL,
+		strand1=strand(gr),
+		strand2=strand(partner(gr))
+		)
 bedpe <- bedpe[str_detect(bedpe$name, "gridss[0-9]+o"),] # Just the lower of the two breakends
 write.table(bedpe, paste0(rootdir, "input.HCC1395/gridss.bedpe"), quote=FALSE, sep='\t', row.names=FALSE, col.names=FALSE)
 

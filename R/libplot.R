@@ -10,9 +10,9 @@ scale_y01_small <- scale_y_continuous(limits=c(0,1), breaks=c(0, 0.25, .5, .75, 
 
 scale_x_svlen <- scale_x_continuous(
 	breaks=2**(0:16),
-  labels=c("1", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1k", "2k", "4k", "8k", "16k", "32k", "64k"),
-  minor_breaks=c(1,2,3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 20, 24, 28, 32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 288, 320, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536),
-  trans="log10",
+	labels=c("1", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1k", "2k", "4k", "8k", "16k", "32k", "64k"),
+	minor_breaks=c(1,2,3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 20, 24, 28, 32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 288, 320, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536),
+	trans="log10",
 	expand = c(0,0))
 scale_x_svlen_short <- scale_x_continuous(
 	breaks=2**(0:16),
@@ -21,22 +21,22 @@ scale_x_svlen_short <- scale_x_continuous(
 	trans="log10",
 	expand = c(0,0))
 scale_x_svlen_medium <- scale_x_continuous(
-  breaks=2**(0:16),
-  labels=c("1", "2", "4", "8", "16", "32", "64", "128", "", "512", "", "2k", "", "8k", "", "32k", ""),
-  minor_breaks=c(1,2,3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 20, 24, 28, 32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 288, 320, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536),
-  trans="log10",
-  expand = c(0,0))
+	breaks=2**(0:16),
+	labels=c("1", "2", "4", "8", "16", "32", "64", "128", "", "512", "", "2k", "", "8k", "", "32k", ""),
+	minor_breaks=c(1,2,3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 20, 24, 28, 32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 288, 320, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536),
+	trans="log10",
+	expand = c(0,0))
 scale_x_log_fp <- scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001, 100001),
 	labels=c("0", "10", "100", "1k", "10k", "100k"),
 	minor_breaks=c(),
 	trans="log10")
 scale_x_log_fp_short <- scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001, 100001),
-  labels=c("0", "", "100", "", "10k", ""),
-  minor_breaks=c(),
-  trans="log10")
+	labels=c("0", "", "100", "", "10k", ""),
+	minor_breaks=c(),
+	trans="log10")
 
 
 saveplot <- function(file=file, ...) {
-  ggsave(paste0("png/", file, ".png"), ...)
-  ggsave(paste0("eps/", file, ".eps"), ...)
+	ggsave(paste0("png/", file, ".png"), ...)
+	ggsave(paste0("eps/", file, ".eps"), ...)
 }

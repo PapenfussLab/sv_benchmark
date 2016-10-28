@@ -37,6 +37,9 @@ LoadMetadata <- function(directory) {
 	})
 	metadata <- do.call(rbind, metadata)
 	metadata <- data.frame(lapply(metadata, as.character), stringsAsFactors=FALSE)
+	if (nrow(metadata) == 0) {
+		return(data.frame(Id=c()))
+	}
 	metadata <- spread(metadata, CX, V)
 	# convert data from older format
 	if (!is.null(metadata$CX_ALIGNER_SOFTCLIP)) {
@@ -90,7 +93,7 @@ StripCallerVersion <- function(caller, gridssfirst=TRUE) {
 	if (length(caller) == 0) return(caller)
 	caller <- paste0(str_extract(caller, "^([^/]+)"), str_match(caller, "^([^/]+)\\/[^/]+(/[^/]+)?")[,3] %na% "") %na% caller
 	if (gridssfirst && any(caller=="gridss")) {
-	  caller <- relevel(factor(caller), "gridss")
+		caller <- relevel(factor(caller), "gridss")
 	}
 	return(caller)
 }
@@ -105,29 +108,29 @@ PrettyVariants <- function(x) {
 }
 #' Loads a minimal structural variant GRanges from the VCF
 LoadMinimalSVs <- function(filename, caller, transform=NULL) {
-  key <- list(filename, caller, transform)
-  gr <- loadCache(key=key, dirs="LoadMinimalSVs")
-  if (is.null(gr)) {
-  	gr <- .LoadMinimalSVs(filename, caller, transform)
-  	saveCache(gr, key=key, dirs="LoadMinimalSVs")
-  }
+	key <- list(filename, caller, transform)
+	gr <- loadCache(key=key, dirs=".Rcache/LoadMinimalSVs")
+	if (is.null(gr)) {
+		gr <- .LoadMinimalSVs(filename, caller, transform)
+		saveCache(gr, key=key, dirs=".Rcache/LoadMinimalSVs")
+	}
 	return(gr)
 }
 .LoadMinimalSVs <- function(filename, caller, transform=NULL) {
-  vcf <- readVcf(filename, "hg19")
-  if (!is.null(transform)) {
-    vcf <- transform(vcf)
-  }
-  vcf <- withqual(vcf, caller)
-  gr <- breakpointRanges(vcf)
-  gr$paramRangeID <- NULL
-  gr$REF <- NULL
-  gr$ALT <- NULL
-  #gr$svtype <- NULL
-  #gr$svLen <- NULL
-  gr$insSeq <- NULL
-  #gr$insLen <- NULL
-  return(gr)
+	vcf <- readVcf(filename, "hg19")
+	if (!is.null(transform)) {
+		vcf <- transform(vcf)
+	}
+	vcf <- withqual(vcf, caller)
+	gr <- breakpointRanges(vcf)
+	gr$paramRangeID <- NULL
+	gr$REF <- NULL
+	gr$ALT <- NULL
+	#gr$svtype <- NULL
+	#gr$svLen <- NULL
+	gr$insSeq <- NULL
+	#gr$insLen <- NULL
+	return(gr)
 }
 #vcf <- readVcf("C:/dev/sv_benchmark/data.aligner/5afa7ffdf2cc32602476526d5b477c5c.vcf", "hg19")
 #' Loads structural variant GRanges from the VCFs in the given directory
@@ -184,72 +187,72 @@ LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, exi
 #'
 #'@export
 findMatchingBreakpoints <- function(query, subject, maxgap=0L, ignore.strand=FALSE, sizemargin=0.25, restrictMarginToSizeMultiple=0.5) {
-  hits <- findBreakpointOverlaps(query, subject, maxgap=maxgap, ignore.strand=ignore.strand)
-  # take into account confidence intervals when calculating event size
-  callwidth <- .distance(query, partner(query))
-  truthwidth <- .distance(subject, partner(subject))
-  callsize <- callwidth + (query$insLen %na% 0)
-  truthsize <- truthwidth + (subject$insLen %na% 0)
-  hits$sizeerror <- .distance(IRanges(start=callsize$min[hits$queryHits], end=callsize$max[hits$queryHits]),
-                              IRanges(start=truthsize$min[hits$subjectHits], end=truthsize$max[hits$subjectHits]))$min
-  # event sizes must be within sizemargin
-  hits <- hits[hits$sizeerror - 2 < sizemargin * pmin(callsize$max[hits$queryHits], truthsize$max[hits$subjectHits]),]
-  # further restrict breakpoint positions for small events
-  hits$localbperror <- .distance(query[hits$queryHits], subject[hits$subjectHits])$min
-  hits$remotebperror <- .distance(partner(query)[hits$queryHits], partner(subject)[hits$subjectHits])$min
-  if (!is.null(restrictMarginToSizeMultiple)) {
-    allowablePositionError <- (pmin(callsize$max[hits$queryHits], truthsize$max[hits$subjectHits]) * restrictMarginToSizeMultiple + 2)
-    hits <- hits[hits$localbperror <= allowablePositionError & hits$remotebperror <= allowablePositionError, ]
-  }
-  return(hits)
+	hits <- findBreakpointOverlaps(query, subject, maxgap=maxgap, ignore.strand=ignore.strand)
+	# take into account confidence intervals when calculating event size
+	callwidth <- .distance(query, partner(query))
+	truthwidth <- .distance(subject, partner(subject))
+	callsize <- callwidth + (query$insLen %na% 0)
+	truthsize <- truthwidth + (subject$insLen %na% 0)
+	hits$sizeerror <- .distance(IRanges(start=callsize$min[hits$queryHits], end=callsize$max[hits$queryHits]),
+															IRanges(start=truthsize$min[hits$subjectHits], end=truthsize$max[hits$subjectHits]))$min
+	# event sizes must be within sizemargin
+	hits <- hits[hits$sizeerror - 2 < sizemargin * pmin(callsize$max[hits$queryHits], truthsize$max[hits$subjectHits]),]
+	# further restrict breakpoint positions for small events
+	hits$localbperror <- .distance(query[hits$queryHits], subject[hits$subjectHits])$min
+	hits$remotebperror <- .distance(partner(query)[hits$queryHits], partner(subject)[hits$subjectHits])$min
+	if (!is.null(restrictMarginToSizeMultiple)) {
+		allowablePositionError <- (pmin(callsize$max[hits$queryHits], truthsize$max[hits$subjectHits]) * restrictMarginToSizeMultiple + 2)
+		hits <- hits[hits$localbperror <= allowablePositionError & hits$remotebperror <= allowablePositionError, ]
+	}
+	return(hits)
 }
 #' Finds pairs of query breakpoints that span a matching subject breakpoint
 findSpanningBreakpoints <- function(query, subject, maxgap=0L, ignore.strand=FALSE, sizemargin=0.25, restrictMarginToSizeMultiple=0.5, maxSpanningFragmentSize,
-                                    matchDirection=TRUE) {
-  # must be larger than min fragment size (if not, small indel + large event get matched to large event)
-  query <- query[is.na(query$svLen) | abs(query$svLen) >= maxSpanningFragmentSize]
-  # <A1-------A2>   <B1-----B2>
-  #             |-d-|
-  # find A2-B1 matches
-  # d must be < maxSpanningFragmentSize
-  spanningHits <- as.data.frame(findOverlaps(query, query, maxgap=maxSpanningFragmentSize, ignore.strand=TRUE))
-  # removes self-intersections and duplication due to picking up both sides
-  spanningHits <- spanningHits[spanningHits$subjectHits < spanningHits$queryHits,]
-  a2 <- query[spanningHits$subjectHits]
-  b1 <- query[spanningHits$queryHits]
-  spanningHits$fragmentSize <- abs((start(a2) + end(a2)) / 2 - (start(b1) + end(b1)) / 2)
-  # directions must be appropriate for a small fragment
-  if (matchDirection) {
-    spanningHits <- spanningHits[ifelse(paste0(strand(a2), strand(b1)) == "+-", start(a2) < end(b1),
-                                 ifelse(paste0(strand(b1), strand(a2)) == "+-", start(b1) < end(a2), FALSE)),]
-  }
-  # generate A1-B2 breakpoint gr
-  a1 <- partner(query)[spanningHits$subjectHits]
-  b2 <- partner(query)[spanningHits$queryHits]
-  spanninggr <- c(a1, b2)
-  spanninggr$partner <- c(names(b2), names(a1))
-  spanninggr$fragmentSize <- spanningHits$fragmentSize
-  # spanning against subject
-  hits <- findMatchingBreakpoints(spanninggr, subject, maxgap, ignore.strand, sizemargin, restrictMarginToSizeMultiple)
-  hits$localBreakend <- names(spanninggr)[hits$queryHits]
-  hits$remoteBreakend <- names(partner(spanninggr))[hits$queryHits]
-  hits$fragmentSize <- spanninggr$fragmentSize[hits$queryHits]
-  hits$queryHits <- NULL
-  return(hits)
+																		matchDirection=TRUE) {
+	# must be larger than min fragment size (if not, small indel + large event get matched to large event)
+	query <- query[is.na(query$svLen) | abs(query$svLen) >= maxSpanningFragmentSize]
+	# <A1-------A2>	 <B1-----B2>
+	#						 |-d-|
+	# find A2-B1 matches
+	# d must be < maxSpanningFragmentSize
+	spanningHits <- as.data.frame(findOverlaps(query, query, maxgap=maxSpanningFragmentSize, ignore.strand=TRUE))
+	# removes self-intersections and duplication due to picking up both sides
+	spanningHits <- spanningHits[spanningHits$subjectHits < spanningHits$queryHits,]
+	a2 <- query[spanningHits$subjectHits]
+	b1 <- query[spanningHits$queryHits]
+	spanningHits$fragmentSize <- abs((start(a2) + end(a2)) / 2 - (start(b1) + end(b1)) / 2)
+	# directions must be appropriate for a small fragment
+	if (matchDirection) {
+		spanningHits <- spanningHits[ifelse(paste0(strand(a2), strand(b1)) == "+-", start(a2) < end(b1),
+																 ifelse(paste0(strand(b1), strand(a2)) == "+-", start(b1) < end(a2), FALSE)),]
+	}
+	# generate A1-B2 breakpoint gr
+	a1 <- partner(query)[spanningHits$subjectHits]
+	b2 <- partner(query)[spanningHits$queryHits]
+	spanninggr <- c(a1, b2)
+	spanninggr$partner <- c(names(b2), names(a1))
+	spanninggr$fragmentSize <- spanningHits$fragmentSize
+	# spanning against subject
+	hits <- findMatchingBreakpoints(spanninggr, subject, maxgap, ignore.strand, sizemargin, restrictMarginToSizeMultiple)
+	hits$localBreakend <- names(spanninggr)[hits$queryHits]
+	hits$remoteBreakend <- names(partner(spanninggr))[hits$queryHits]
+	hits$fragmentSize <- spanninggr$fragmentSize[hits$queryHits]
+	hits$queryHits <- NULL
+	return(hits)
 }
 #' @param truthhash hash of truthgr if it is not the 'natural' truth to compare to
 ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id=NULL, requiredHits=1, truthhash=NULL) {
-  if (length(callgr) == 0) {
-    return(.ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id %null% NA_character_))
-  }
-  id <- id %null% callgr$Id[1]
-  key <- list(includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits, truthhash)
-  result <- loadCache(key=key, dirs="ScoreVariantsFromTruthVCF")
-  if (is.null(result)) {
-    result <- .ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits)
-    saveCache(result, key=key, dirs="ScoreVariantsFromTruthVCF")
-  }
-  return(result)
+	if (length(callgr) == 0) {
+		return(.ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id %null% NA_character_))
+	}
+	id <- id %null% callgr$Id[1]
+	key <- list(includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits, truthhash)
+	result <- loadCache(key=key, dirs=".Rcache/ScoreVariantsFromTruthVCF")
+	if (is.null(result)) {
+		result <- .ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits)
+		saveCache(result, key=key, dirs=".Rcache/ScoreVariantsFromTruthVCF")
+	}
+	return(result)
 }
 #' @param requiredHits number of matching truth hits before being considered a true positive.
 #' A value greater than 1 is useful when comparing directly to split long reads
@@ -306,11 +309,11 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	return(list(calls=calldf, truth=truthdf))
 }
 
-ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, truthgr=NULL) {
+ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, requiredHits=1, truthgr=NULL) {
 	ids <- metadata$Id[!is.na(metadata$CX_CALLER) & metadata$Id %in% names(vcfs)]
 	truthhash <- NULL
 	if (!is.null(truthgr)) {
-	  truthhash <- getChecksum(truthgr)
+		truthhash <- getChecksum(truthgr)
 	}
 	scores <- lapply(ids, function(id) {
 		write(paste0("ScoreVariantsFromTruth ", id), stderr())
@@ -322,7 +325,7 @@ ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap
 		if (is.null(truthgr)) {
 			stop("Missing truth for ", id)
 		}
-		return(ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, truthhash=truthhash))
+		return(ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits=requiredHits, truthhash=truthhash))
 	})
 	return(list(
 		calls=rbind_all(lapply(scores, function(x) x$calls)),

@@ -44,10 +44,10 @@ drsheetnames <- drsheetnames[str_detect(drsheetnames, stringr::fixed("(DR)"))]
 publishedgrs <- lapply(drsheetnames, function(sheetname) {
 	dt <- read.xlsx(neochromosome_supp3, sheetname)
 	gr <- GRanges(seqnames=c(dt$chrom1, dt$chrom2),
-                ranges=IRanges(start=c(dt$start1, dt$start2), width=1),
-                strand=c(as.character(dt$strand1), as.character(dt$strand2)),
-                partner=c(paste0("row", seq_along(dt$chrom1), "_bp2"), paste0("row", seq_along(dt$chrom2), "_bp1")),
-                QUAL=dt$nreads)
+								ranges=IRanges(start=c(dt$start1, dt$start2), width=1),
+								strand=c(as.character(dt$strand1), as.character(dt$strand2)),
+								partner=c(paste0("row", seq_along(dt$chrom1), "_bp2"), paste0("row", seq_along(dt$chrom2), "_bp1")),
+								QUAL=dt$nreads)
 	names(gr) <- c(paste0("row", seq_along(dt$chrom1), "_bp1"), paste0("row", seq_along(dt$chrom2), "_bp2"))
 	gr$insLen <- 0
 	gr$svLen <- NA_integer_
@@ -66,8 +66,8 @@ publishedgrs <- sapply(names(publishedgrs), function(sample) {
 # Load VCFs
 metadata <- LoadMetadata(paste0(rootdir, "data.neo"))
 metadata$samplename <- metadata$CX_SAMPLE %na% toupper(str_match(metadata$CX_BAM, "([^/]+).s..bam$")[,2] %na%
-  # hack to match on fragment size
-  (metadata %>% left_join(metadata %>% filter(Id %in% c("778", "got3", "t1000")), by="CX_READ_FRAGMENT_LENGTH"))$Id.y)
+	# hack to match on fragment size
+	(metadata %>% left_join(metadata %>% filter(Id %in% c("778", "got3", "t1000")), by="CX_READ_FRAGMENT_LENGTH"))$Id.y)
 vcfs <- LoadMinimalSVFromVCF(paste0(rootdir, "data.neo"), metadata=metadata, existingList=vcfs)
 vcfs <- sapply(names(vcfs), function(id) {
 	sample <- (metadata %>% filter(Id==id))$samplename
@@ -99,23 +99,23 @@ vcfs <- sapply(names(vcfs), function(id) {
 	misses <- !calls$calls$tp & !callsgridss$calls$tp & gr$bothgr & (is.na(gr$svLen) | abs(gr$svLen) >= minimumEventSize)
 
 	callsummary <- data.frame(
-	  Id=id,
-	  pubmatches=sum(calls$truth$tp) / 2,
-	  gridssmatches=sum(callsgridss$truth$tp) / 2,
-	  misses=sum(misses) / 2,
-	  pubcount=length(pubgr) / 2,
-	  gridsscount=length(gridssgr) / 2
-	  #spanning=nrow(spanninghits) / 2,
-	  #spanningMeanFragmentSize=mean(spanninghits$fragmentSize)
+		Id=id,
+		pubmatches=sum(calls$truth$tp) / 2,
+		gridssmatches=sum(callsgridss$truth$tp) / 2,
+		misses=sum(misses) / 2,
+		pubcount=length(pubgr) / 2,
+		gridsscount=length(gridssgr) / 2
+		#spanning=nrow(spanninghits) / 2,
+		#spanningMeanFragmentSize=mean(spanninghits$fragmentSize)
 	)
 	return(callsummary)
 }
 summarylist <- lapply((metadata %>% filter(!is.na(CX_CALLER) & Id %in% names(vcfs)))$Id, function(id) .summarymatches(id, TRUE))
 summarydf <- rbind_all(summarylist) %>%
-  left_join(metadata %>% select(Id, CX_CALLER, CX_ALIGNER)) %>%
-  mutate(caller=StripCallerVersion(CX_CALLER))
+	left_join(metadata %>% select(Id, CX_CALLER, CX_ALIGNER)) %>%
+	mutate(caller=StripCallerVersion(CX_CALLER))
 summary <- summarydf %>% group_by(CX_CALLER, CX_ALIGNER) %>%
-  summarise(pubsens=sum(pubmatches)/sum(pubcount), gridsssens=sum(gridssmatches)/sum(gridsscount), misses=sum(misses))
+	summarise(pubsens=sum(pubmatches)/sum(pubcount), gridsssens=sum(gridssmatches)/sum(gridsscount), misses=sum(misses))
 
 
 # Events identified spanning callers
