@@ -37,7 +37,7 @@ RefreshlrData <- function(input, olddata) {
         maxeventsize = lroptions$maxeventsize,
         requiredHits = lroptions$requiredHits,
 				vcftransform = lroptions$vcftransform,
-				truthgr = LoadLongReadTruthgr(paste0(dataLocation, "input.", input$lrdatadir)),
+				truthgr = LoadLongReadTruthgr(paste0(dataLocation, "input.", input$lrdatadir, "/longread")),
         existingCache = olddata)
 }
 PrettyFormatSimPlotdf <- function(input, simdata, plotdf) {

@@ -233,8 +233,9 @@ LoadLongReadTruthgr <- function(dir) {
 	return(gr)
 }
 .LoadLongReadTruthgr <- function(dir) {
-	gr <- c(lapply(list.files(path = dir, pattern = ".bedpe.gz", full.names = TRUE), function(file) {
-		import.sv.bedpe(file)
-	}))
+	gr <- NULL
+	for (file in list.files(path = dir, pattern = ".bedpe.gz", full.names = TRUE)) {
+		gr <- c(gr, import.sv.bedpe(file))
+	}
 	return (gr)
 }

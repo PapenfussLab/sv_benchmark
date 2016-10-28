@@ -2,7 +2,7 @@ source("global.R")
 
 plotdata <- NULL
 # cache the results for all the knobs that can be turned in the UI
-for (datadir in simoptions$datadir) {
+for (datadir in dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir]) {
 	for (maxgap in simoptions$maxgap) {
 		for (ignore.strand in simoptions$ignore.strand) {
 			for (sizemargin in simoptions$sizemargin) {
@@ -32,7 +32,7 @@ for (datadir in simoptions$datadir) {
 	}
 }
 for (datadir in lroptions$datadir) {
-	truthgr <- LoadLongReadTruthgr(paste0(dataLocation, "input.", datadir))
+	truthgr <- LoadLongReadTruthgr(paste0(dataLocation, "input.", datadir, "/longread"))
 	for (maxgap in lroptions$maxgap) {
 		for (ignore.strand in lroptions$ignore.strand) {
 			for (sizemargin in lroptions$sizemargin) {
@@ -51,7 +51,7 @@ for (datadir in lroptions$datadir) {
 										maxeventsize = lroptions$maxeventsize,
 										vcftransform = lroptions$vcftransform,
 										requiredHits = requiredHits,
-										truthgr = NULL,
+										truthgr = truthgr,
 										existingCache = plotdata)
 							}
 						}
