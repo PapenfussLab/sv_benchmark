@@ -238,20 +238,23 @@ findSpanningBreakpoints <- function(query, subject, maxgap=0L, ignore.strand=FAL
   return(hits)
 }
 #' @param truthhash hash of truthgr if it is not the 'natural' truth to compare to
-ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id=NULL, truthhash=NULL) {
+ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id=NULL, requiredHits=1, truthhash=NULL) {
   if (length(callgr) == 0) {
     return(.ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id %null% NA_character_))
   }
   id <- id %null% callgr$Id[1]
-  key <- list(includeFiltered, maxgap, ignore.strand, sizemargin, id, truthhash)
+  key <- list(includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits, truthhash)
   result <- loadCache(key=key, dirs="ScoreVariantsFromTruthVCF")
   if (is.null(result)) {
-    result <- .ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id)
+    result <- .ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits)
     saveCache(result, key=key, dirs="ScoreVariantsFromTruthVCF")
   }
   return(result)
 }
-.ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id) {
+#' @param requiredHits number of matching truth hits before being considered a true positive.
+#' A value greater than 1 is useful when comparing directly to split long reads
+#' and long read indels
+.ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits=1) {
 	if (!includeFiltered) {
 		callgr <- callgr[callgr$FILTER %in% c("PASS", "."),]
 	}
@@ -262,6 +265,10 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 
 	hits$QUAL <- callgr$QUAL[hits$queryHits]
 	hits <- hits[order(-hits$QUAL),]
+	hits$dup <- duplicated(hits$subjectHits)
+	hitcount <- hits %>%
+		group_by(queryHits) %>%
+		summarise(besthits=sum(!dup), allhits=n())
 
 	calldf <- as.data.frame(callgr) %>%
 		dplyr::select(Id, QUAL, svLen, insLen, vcfId) %>%
@@ -275,24 +282,27 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 			includeFiltered=rep(includeFiltered, nrow(.)),
 			maxgap=rep(maxgap, nrow(.)),
 			ignore.strand=rep(ignore.strand, nrow(.)))
-	calldf$tp[hits$queryHits] <- TRUE
-	calldf$duptp[hits[duplicated(hits$subjectHits),]$queryHits] <- TRUE
+	calldf$tp[hitcount$queryHits[hitcount$besthits >= requiredHits]] <- TRUE
+	calldf$duptp[hitcount$queryHits[hitcount$allhits >= requiredHits]] <- TRUE
 	calldf$fp <- !calldf$tp
-	truthdf <- as.data.frame(truthgr) %>%
-		dplyr::select(svLen, insLen, vcfId) %>%
-		mutate(Id=id, QUAL=0, tp=FALSE, fp=FALSE, fn=FALSE, sizeerror=NA, bperror=NA) %>%
-		mutate(
-			includeFiltered=includeFiltered,
-			maxgap=maxgap,
-			ignore.strand=ignore.strand)
-	truthdf$tp[hits$subjectHits] <- TRUE
-	truthdf$fn <- !truthdf$tp
 
-	truthdf$QUAL[hits$subjectHits] <- hits$QUAL
+	truthdf <- NULL
+	if (requiredHits == 1) {
+		truthdf <- as.data.frame(truthgr) %>%
+			dplyr::select(svLen, insLen, vcfId) %>%
+			mutate(Id=id, QUAL=0, tp=FALSE, fp=FALSE, fn=FALSE, sizeerror=NA, bperror=NA) %>%
+			mutate(
+				includeFiltered=includeFiltered,
+				maxgap=maxgap,
+				ignore.strand=ignore.strand)
+		truthdf$tp[hits$subjectHits] <- TRUE
+		truthdf$fn <- !truthdf$tp
+		truthdf$QUAL[hits$subjectHits] <- hits$QUAL
+		truthdf$bperror[hits$subjectHits] <- hits$localbperror
+		truthdf$sizeerror[hits$subjectHits] <- hits$sizeerror
+	}
 	calldf$bperror[hits$queryHits] <- hits$localbperror
-	truthdf$bperror[hits$subjectHits] <- hits$localbperror
 	calldf$sizeerror[hits$queryHits] <- hits$sizeerror
-	truthdf$sizeerror[hits$subjectHits] <- hits$sizeerror
 	return(list(calls=calldf, truth=truthdf))
 }
 
@@ -326,3 +336,17 @@ subsetbed <- function(gr, bed, maxgap) {
 	gr <- gr[gr$partner %in% names(gr)]
 	return(gr)
 }
+#' imports SVs in BEDPE breakpoint format
+import.sv.bedpe <- function(file, placeholderName="bedpe") {
+	df <- read.table(file, col.names=c("chr1", "start1", "end1", "chr2", "start2", "end2", "id", "score", "strand1", "strand2", "info"), stringsAsFactors=FALSE)
+	# ensure row names are unique
+	row.names(df) <- ifelse(duplicated(df$id), paste0(placeholderName, seq_along(df$chr1)), df$id)
+	gro <- GRanges(seqnames=df$chr1, strand=df$strand1, ranges=IRanges(df$start1, df$end1), id=df$id, score=df$score, info=df$info)
+	grh <- GRanges(seqnames=df$chr2, strand=df$strand2, ranges=IRanges(df$start2, df$end2), id=df$id, score=df$score, info=df$info)
+	names(gro) <- paste0(row.names(df), "_1")
+	names(grh) <- paste0(row.names(df), "_2")
+	gro$partner <- names(grh)
+	grh$partner <- names(gro)
+	return(c(gro, grh))
+}
+

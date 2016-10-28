@@ -9,7 +9,30 @@ source("libplot.R")
 library(shiny)
 
 shinyUI(fluidPage(
-	titlePanel("Simulated heterzygous simple events"),
+	titlePanel("Structural Variantion Benchmark Results"),
+	sidebarLayout(
+		sidebarPanel(
+			selectInput("sample", "Sample", ds),
+			checkboxGroupInput("events", "Event types",
+				choices=c("Deletion", "Insertion", "Inversion", "Tandem Duplication"),
+				selected=c("Deletion", "Insertion", "Inversion", "Tandem Duplication")),
+
+			checkboxGroupInput("events", "Event types",
+				choices=c("Deletion", "Insertion", "Inversion", "Tandem Duplication"),
+				selected=c("Deletion", "Insertion", "Inversion", "Tandem Duplication")),
+			# color = caller
+			# line type = aligner
+			selectInput("aligner", "Aligner", aligner)
+			# could facet on repeat region
+			# checkboxInput("repeat", "By repeat annotation", value=FALSE)
+		),
+		mainPanel(
+			# TODO what other plots should I have?
+			plotOutput("precisionRecallPlot", height=1200),
+			plotOutput("rocPlot", height=1200)
+			# event size histogram of TP and FP
+		)
+	),
 	sidebarLayout(
 		sidebarPanel(
 			selectInput("data", "Data Set", ds),
@@ -19,14 +42,11 @@ shinyUI(fluidPage(
 			hr(),
 			selectInput("linetype", "Line Type", facets, "CallSet"),
 			selectInput("colour", "Colour", facets, "aligner"),
-			width=3
 		),
-		# Show a plot of the generated distribution
 		mainPanel(
 			tabsetPanel(
-			  tabPanel("Event Size", plotOutput("eventSizePlot", height=1200)),
-				tabPanel("ROC",
-					plotOutput("rocPlot", height=1200))
+				tabPanel("Event Size", plotOutput("eventSizePlot", height=1200)),
+				tabPanel("ROC", plotOutput("rocPlot", height=1200))
 			)
 		)
 	)
