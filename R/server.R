@@ -145,7 +145,7 @@ function(input, output, session) {
 	# long read plots
 	output$lrPrecRecallPlot <- renderPlot({
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
-		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$roc)
+		plotdf <- cachedlrdata$dfs$roc #PrettyFormatSimPlotdf(input, cachedsimdata, cachedlrdata$dfs$roc)
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
 						aes(group = paste(Id, CallSet), y = sens, x = fp + 1) +

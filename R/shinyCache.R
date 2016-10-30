@@ -111,18 +111,13 @@ LoadCallSets <- function(metadata, vcfs, maxgap, ignore.strand, sizemargin, requ
 	mcalls <- NULL
 	for (includeFiltered in c(TRUE, FALSE)) {
 		calls <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgr=truthgr)
-		calls$calls <- calls$calls%>% filter(!tp) # take the truth vcf version of tp calls since it has the actual event size
 		mergedcalls <- calls$calls
 		if (!is.null(calls$truth)) {
+			calls$calls <- calls$calls%>% filter(!tp) # take the truth vcf version of tp calls since it has the actual event size
 			calls$truth <- calls$truth %>% mutate(duptp = FALSE)
 			mergedcalls <- rbind(calls$calls, calls$truth)
 		}
-		if (includeFiltered) {
-			mergedcalls$CallSet <- "High & Low confidence"
-		} else {
-			mergedcalls$CallSet <- "High confidence only"
-		}
-		mcalls <- rbind(mcalls, mergedcalls)
+		mcalls <- rbind(mcalls, mergedcalls %>% mutate(CallSet = ifelse(includeFiltered, "High & Low confidence", "High confidence only")))
 	}
 	return(mcalls)
 }
@@ -142,9 +137,18 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 	if (is.null(metadata$CX_MULTIMAPPING_LOCATIONS)) {
 		metadata$CX_MULTIMAPPING_LOCATIONS <- NA_integer_
 	}
+
 	md <- metadata %>%
-		select(Id, CX_ALIGNER, CX_ALIGNER_MODE, CX_MULTIMAPPING_LOCATIONS, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF_VARIANTS, CX_REFERENCE_VCF) %>%
-		mutate(eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS))
+		select(Id, CX_ALIGNER, CX_ALIGNER_MODE, CX_MULTIMAPPING_LOCATIONS, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH)
+	if (!is.null(metadata$CX_REFERENCE_VCF_VARIANTS)) {
+		md$CX_REFERENCE_VCF_VARIANTS <- metadata$CX_REFERENCE_VCF_VARIANTS
+		md$eventtype <- PrettyVariants(md$CX_REFERENCE_VCF_VARIANTS)
+	}
+	if (!is.null(metadata$CX_REFERENCE_VCF)) {
+		md$CX_REFERENCE_VCF <- metadata$CX_REFERENCE_VCF
+	} else {
+		md$CX_REFERENCE_VCF <- "longread"
+	}
 	mostSensitiveAligner <- calls %>%
 		select(Id, CallSet, tp) %>%
 		group_by(Id, CallSet) %>%
@@ -152,7 +156,7 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 		ungroup() %>%
 		arrange(desc(tp)) %>%
 		left_join(md) %>%
-		distinct(CallSet, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF) %>%
+		distinct(CallSet, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF, .keep_all = TRUE) %>%
 		select(Id, CallSet)
 	callsByEventSize <- calls %>%
 		#filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
@@ -214,7 +218,6 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 		mutate(rate=n/count) %>%
 		select(-count) %>%
 		left_join(md)
-	ggplot(data$calls, aes(x=sizeerror)) + facet_grid(CX_CALLER)
 	return(list(mostSensitiveAligner=mostSensitiveAligner,
 							callsByEventSize=callsByEventSize,
 							roc=roc,
@@ -235,7 +238,13 @@ LoadLongReadTruthgr <- function(dir) {
 .LoadLongReadTruthgr <- function(dir) {
 	gr <- NULL
 	for (file in list.files(path = dir, pattern = ".bedpe.gz", full.names = TRUE)) {
-		gr <- c(gr, import.sv.bedpe(file))
+		gr2 <- import.sv.bedpe(file)
+		if (is.null(gr)) {
+			gr <- gr2
+		} else {
+			gr <- c(gr, gr2)
+		}
 	}
+	seqlevelsStyle(gr) <- "UCSC"
 	return (gr)
 }

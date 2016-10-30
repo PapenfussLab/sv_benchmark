@@ -85,7 +85,7 @@ sensAligner <- mcalls %>%
 	ungroup() %>%
 	arrange(desc(tp)) %>%
 	left_join(metadata) %>%
-	distinct(CallSet, StripCallerVersion(CX_CALLER), CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF)
+	distinct(CallSet, StripCallerVersion(CX_CALLER), CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF, keep_all = TRUE)
 
 #####################
 # Fixed read depth plots

@@ -13,9 +13,11 @@ function(request) {
 		titlePanel("Structural Variant Caller Benchmark"),
 		sidebarLayout(
 			sidebarPanel(
+				checkboxInput("TODO1", "ENCODE blacklist filter real data", value = FALSE),
+				checkboxInput("TODO2", "infer event type from breakend orientations", value = FALSE),
 				selectInput("lrdatadir", "Sample", lroptions$datadir),
 				checkboxGroupInput("events", "Event types",
-					choices = c("Deletion", "Insertion", "Inversion", "Tandem Duplication"),
+					choices = c("Deletion"="DEL", "Insertion"="INS", "Inversion"="INV", "Tandem Duplication"="DUP"),
 					selected = c("Deletion", "Insertion", "Inversion", "Tandem Duplication")),
 				checkboxGroupInput("lrcallset", "Call Set",
 					c("High confidence only", "High & Low confidence"),

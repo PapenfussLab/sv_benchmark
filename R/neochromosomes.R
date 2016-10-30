@@ -111,7 +111,7 @@ vcfs <- sapply(names(vcfs), function(id) {
 	return(callsummary)
 }
 summarylist <- lapply((metadata %>% filter(!is.na(CX_CALLER) & Id %in% names(vcfs)))$Id, function(id) .summarymatches(id, TRUE))
-summarydf <- rbind_all(summarylist) %>%
+summarydf <- bind_rows(summarylist) %>%
 	left_join(metadata %>% select(Id, CX_CALLER, CX_ALIGNER)) %>%
 	mutate(caller=StripCallerVersion(CX_CALLER))
 summary <- summarydf %>% group_by(CX_CALLER, CX_ALIGNER) %>%

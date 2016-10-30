@@ -114,6 +114,7 @@ LoadMinimalSVs <- function(filename, caller, transform=NULL) {
 		gr <- .LoadMinimalSVs(filename, caller, transform)
 		saveCache(gr, key=key, dirs=".Rcache/LoadMinimalSVs")
 	}
+	seqlevelsStyle(gr) <- "UCSC"
 	return(gr)
 }
 .LoadMinimalSVs <- function(filename, caller, transform=NULL) {
@@ -325,11 +326,18 @@ ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap
 		if (is.null(truthgr)) {
 			stop("Missing truth for ", id)
 		}
+		if (length(callgr) == 0) {
+			return(list(calls=NULL))
+		}
 		return(ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits=requiredHits, truthhash=truthhash))
 	})
-	return(list(
-		calls=rbind_all(lapply(scores, function(x) x$calls)),
-		truth=rbind_all(lapply(scores, function(x) x$truth))))
+	result <- list(
+		calls=bind_rows(lapply(scores, function(x) x$calls)),
+		truth=bind_rows(lapply(scores, function(x) x$truth)))
+	if (length(result$truth) == 0) {
+		result$truth <- NULL
+	}
+	return(result)
 }
 
 #' subsets the breakpoints to only include breakpoints in which both breakends

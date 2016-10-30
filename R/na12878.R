@@ -88,7 +88,7 @@ mcalls$tp[mcalls$duptp] <- FALSE
 
 #####################################
 # Long read
-lrcalls <- rbind_all(lapply(names(vcfs)[names(vcfs) %in% (metadata %>% filter(!is.na(CX_CALLER)))$Id], function(id) {
+lrcalls <- bind_rows(lapply(names(vcfs)[names(vcfs) %in% (metadata %>% filter(!is.na(CX_CALLER)))$Id], function(id) {
 	write(paste0("Processing ", id), stderr())
 	callgr <- vcfs[[id]]
 	result <- data.frame(
@@ -107,7 +107,7 @@ lrcalls <- rbind_all(lapply(names(vcfs)[names(vcfs) %in% (metadata %>% filter(!i
 		# assign supporting evidence to the call with the highest QUAL
 		hits <- hits %>%
 			arrange(desc(QUAL), queryHits) %>%
-			distinct(subjectHits) %>%
+			distinct(subjectHits, keep_all = TRUE) %>%
 			group_by(queryHits) %>%
 			summarise(n=n())
 		hitscounts[hits$queryHits] <- hits$n
@@ -133,7 +133,7 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
 		ungroup() %>%
 		arrange(desc(tp)) %>%
 		left_join(metadata) %>%
-		distinct(CallSet, StripCallerVersion(CX_CALLER)) %>%
+		distinct(CallSet, StripCallerVersion(CX_CALLER), keep_all = TRUE) %>%
 		filter(is.null(callers) | StripCallerVersion(CX_CALLER) %in% callers) %>%
 		dplyr::select(Id, CallSet)
 }
@@ -168,7 +168,7 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
 			# add in horizontal line to the y axis
 			filter(tp > 0) %>%
 			arrange(tp) %>%
-			distinct(caller, CallSet) %>%
+			distinct(caller, CallSet, keep_all = TRUE) %>%
 			mutate(tp=0))) +
 		aes(group=paste(Id, CallSet), x=tp/2, y=precision, linetype=CallSet, color=caller) +
 		geom_line() +
@@ -183,7 +183,7 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
 								 # add in horizontal line to the y axis
 								 filter(tp > 0) %>%
 								 arrange(tp) %>%
-								 distinct(caller, CallSet) %>%
+								 distinct(caller, CallSet, keep_all = TRUE) %>%
 								 mutate(tp=0)) %>%
 								mutate(caller=StripCallerVersion(CX_CALLER)) %>%
 								filter(CallSet=="High confidence only")) +
@@ -205,7 +205,7 @@ ggplot(lrcalls %>%
 			 						 	ungroup() %>%
 			 						 	arrange(desc(tp)) %>%
 			 						 	left_join(metadata) %>%
-			 						 	distinct(CallSet, StripCallerVersion(CX_CALLER)) %>%
+			 						 	distinct(CallSet, StripCallerVersion(CX_CALLER), keep_all = TRUE) %>%
 			 						 	dplyr::select(Id, CallSet)
 			 						 	) %>%
 			 	left_join(metadata) %>%
