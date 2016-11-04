@@ -58,6 +58,11 @@ dataoptions$maxeventsize <- NULL
 dataoptions$requiredHits <- 1
 dataoptions$datadir <- names(md)
 dataoptions$grtransform <- function(gr, metadata) {
+	if (length(gr) > 0) {
+		seqlevelsStyle(gr) <- "UCSC"
+		# filter to primary chromosomes
+		gr <- gr[seqnames(gr) %in% paste0("chr", c(1:22, "X", "Y")) & seqnames(partner(gr)) %in% paste0("chr", c(1:22, "X", "Y")),]
+	}
     return(gr)
 }
 simoptions <- dataoptions
@@ -69,6 +74,8 @@ lroptions <- dataoptions
 lroptions$requiredHits <- 3
 lroptions$datadir <- lroptions$datadir[!(lroptions$datadir %in% simoptions$datadir)]
 lroptions$grtransform <- c(dataoptions$grtransform, function(gr, metadata) {
-    return(gr[!overlapsAny(gr, lrblacklistgr) & !overlapsAny(partner(gr), lrblacklistgr)])
+	gr <- dataoptions$grtransform(gr, metadata)
+	gr <- gr[!overlapsAny(gr, lrblacklistgr) & !overlapsAny(partner(gr), lrblacklistgr),]
+    return(gr)
 })
 

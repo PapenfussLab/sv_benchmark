@@ -27,9 +27,9 @@ RefreshSimData <- function(input, olddata) {
 		existingCache = olddata)
 }
 RefreshlrData <- function(input, olddata) {
-	bl <- lroptions[[1]]
+	bl <- lroptions$grtransform[[1]]
 	if (input$rlblacklist) {
-		bl <- lroptions[[2]]
+		bl <- lroptions$grtransform[[2]]
 	}
     LoadPlotData(
         datadir = paste0(dataLocation, "data.", input$lrdatadir),
