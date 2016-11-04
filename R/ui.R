@@ -9,46 +9,57 @@ source("libplot.R")
 
 # ui function (must be last in file)
 function(request) {
-	fluidPage( #TODO try navbarPage
+	fluidPage(
 		titlePanel("Structural Variant Caller Benchmark"),
 		sidebarLayout(
 			sidebarPanel(
-				checkboxInput("TODO1", "ENCODE blacklist filter real data", value = FALSE),
-				checkboxInput("TODO2", "infer event type from breakend orientations", value = FALSE),
-				selectInput("lrdatadir", "Sample", lroptions$datadir),
-				checkboxGroupInput("events", "Event types",
-					choices = c("Deletion"="DEL", "Insertion"="INS", "Inversion"="INV", "Tandem Duplication"="DUP"),
-					selected = c("Deletion", "Insertion", "Inversion", "Tandem Duplication")),
-				checkboxGroupInput("lrcallset", "Call Set",
-					c("High confidence only", "High & Low confidence"),
-					"High & Low confidence"),
-				# line type = call set
-				# color = caller
-				#selectInput("aligner", "Aligner", knownaligners),
-				# could facet on repeat region
-				# checkboxInput("repeat", "By repeat annotation", value=FALSE)
-				selectInput("simdatadir", "Data Set", simoptions$datadir),
-				#TODO http://stackoverflow.com/questions/30502870/shiny-slider-on-logarithmic-scale
-				checkboxInput("simsmallevents", "Include <= 50bp", value = TRUE),
-				uiOutput("simControls"),
-				hr(),
-				selectInput("simlinetype", "Line Type", simfacets, "CallSet"),
-				selectInput("simcolour", "Colour", simfacets, "aligner"),
-				checkboxGroupInput("simcallset", "Call Set",
-					c("High confidence only", "High & Low confidence"),
-					"High & Low confidence")
+				selectInput("datasettype", "Data set", choices=c("Genome in a Bottle"="lr", "Simulation"="sim"), selected="lr"),
+				conditionalPanel("input.datasettype == 'lr'",
+					selectInput("lrdatadir", "Sample", lroptions$datadir),
+					checkboxGroupInput("events", "Event types",
+						choices = c("Deletion"="DEL", "Insertion"="INS", "Inversion"="INV", "Tandem Duplication"="DUP"),
+						selected = c("DEL", "INS", "INV", "DUP")),
+					selectInput("lrcallset", "Call Set",
+						c("High confidence only", "High & Low confidence"),
+						"High & Low confidence"),
+					checkboxInput("rlblacklist", "Use ENCODE DAC blacklist", value = TRUE),
+					uiOutput("lrControls")
+					# line type = call set
+					# color = caller
+					#selectInput("aligner", "Aligner", knownaligners),
+					# could facet on repeat region
+					# checkboxInput("repeat", "By repeat annotation", value=FALSE)
+				),
+				conditionalPanel("input.datasettype == 'sim'",
+					selectInput("simdatadir", "Data Set", simoptions$datadir),
+					#TODO http://stackoverflow.com/questions/30502870/shiny-slider-on-logarithmic-scale
+					checkboxInput("simsmallevents", "Include <= 50bp", value = TRUE),
+					uiOutput("simControls"),
+					hr(),
+					selectInput("simlinetype", "Line Type", simfacets, "CallSet"),
+					selectInput("simcolour", "Colour", simfacets, "aligner"),
+					checkboxGroupInput("simcallset", "Call Set",
+						c("High confidence only", "High & Low confidence"),
+						"High & Low confidence")
+				)
 			),
 			mainPanel(
-				tabsetPanel(id = "mt",
-					tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = 1200)),
-					tabPanel("ROC", plotOutput("lrocPlot", height = 1200)),
-					tabPanel("Detected event sizes", plotOutput("lrEventSizeHistogram", height = 1200)),
-					tabPanel("Event Size", plotOutput("simEventSizePlot", height = 1200)),
-					tabPanel("ROC", plotOutput("simRocPlot", height = 1200))
+				conditionalPanel("input.datasettype == 'lr'",
+					tabsetPanel(id = "mt",
+						tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = 1200)),
+						tabPanel("ROC", plotOutput("lrocPlot", height = 1200)),
+						tabPanel("Detected event sizes", plotOutput("lrEventSizeHistogram", height = 1200))
+						)
+					# includeMarkdown("explaination.md")
+					# downloadButton('downloadPlot', 'Download Plot')
+					# http://stackoverflow.com/questions/14810409/save-plots-made-in-a-shiny-app
+				),
+				conditionalPanel("input.datasettype == 'sim'",
+					tabsetPanel(id = "mtsim",
+						tabPanel("Event Size", plotOutput("simEventSizePlot", height = 1200)),
+						tabPanel("ROC", plotOutput("simRocPlot", height = 1200))
 					)
-				# includeMarkdown("explaination.md")
-				# downloadButton('downloadPlot', 'Download Plot')
-				# http://stackoverflow.com/questions/14810409/save-plots-made-in-a-shiny-app
+				)
 			)
 		)
 	)

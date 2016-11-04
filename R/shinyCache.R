@@ -24,7 +24,7 @@ LoadPlotData <- function(
 		requiredHits,
 		mineventsize,
 		maxeventsize,
-		vcftransform,
+		grtransform,
 		truthgr,
 		existingCache) {
 	cacheroot <- getCacheRootPath()
@@ -36,7 +36,7 @@ LoadPlotData <- function(
 	}
 	keymetadata <- list(datadir)
 	keyvcfs <- list(keymetadata)
-	keycalls <- list(keyvcfs, maxgap, ignore.strand, sizemargin, requiredHits, truthhash) # TODO: vcftransform
+	keycalls <- list(keyvcfs, maxgap, ignore.strand, sizemargin, requiredHits, truthhash, grtransform)
 	keydfs <- list(keycalls, ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize)
 	slice <- list(
 		datadir=datadir,
@@ -57,7 +57,7 @@ LoadPlotData <- function(
 		slice$metadata <- existingCache$metadata
 	}
 	if (getChecksum(keyvcfs) == getChecksum(existingCache$keyvcfs)) {
-		slice$vcfs <- existingCache$vcfs
+		slice$callgrlist <- existingCache$callgrlist
 	}
 	if (getChecksum(keycalls) == getChecksum(existingCache$keycalls)) {
 		slice$calls <- existingCache$calls
@@ -77,22 +77,21 @@ LoadPlotData <- function(
 			# To recalculate the graph we need the call set
 			if (is.null(slice$calls)) {
 				# Load call set
-				slice$calls <- loadCache(key=keycalls, dirs=".Rcache/LoadPlotData/calls")
+				slice$calls <- loadCache(key=keycalls, dirs=".Rcache/LoadPlotData/calldf")
 				if (is.null(slice$calls)) {
 					write("Recalculating calls", stderr())
-					# To recalculate the call set we need the vcfs
-					write("Recalculating calls", stderr())
-					if (is.null(slice$vcfs)) {
-						slice$vcfs <- loadCache(key=keyvcfs, dirs=".Rcache/LoadPlotData/vcfs")
-						if (is.null(slice$vcfs)) {
+					# To recalculate the call set we need the SV grs from the vcfs
+					if (is.null(slice$callgrlist)) {
+						slice$callgrlist <- loadCache(key=keyvcfs, dirs=".Rcache/LoadPlotData/callgr")
+						if (is.null(slice$callgrlist)) {
 							# metadata is always loaded so we're fine
 							write("Loading vcfs", stderr())
-							slice$vcfs <- LoadMinimalSVFromVCF(datadir, metadata=slice$metadata)
-							saveCache(slice$vcfs, key=keyvcfs, dirs=".Rcache/LoadPlotData/vcfs")
+							slice$callgrlist <- LoadVCFs(datadir, metadata=slice$metadata)
+							saveCache(slice$callgrlist, key=keyvcfs, dirs=".Rcache/LoadPlotData/callgr")
 						}
 					}
-					slice$calls <- LoadCallSets(slice$metadata, slice$vcfs, maxgap, ignore.strand, sizemargin, requiredHits, vcftransform, truthgr)
-					saveCache(slice$calls, key=keycalls, dirs=".Rcache/LoadPlotData/calls")
+					slice$calls <- LoadCallSets(slice$metadata, slice$callgrlist, maxgap, ignore.strand, sizemargin, requiredHits, grtransform, truthgr)
+					saveCache(slice$calls, key=keycalls, dirs=".Rcache/LoadPlotData/calldf")
 				}
 			}
 			slice$dfs <- LoadGraphDataFrames(slice$metadata, slice$calls, ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize)
@@ -103,18 +102,22 @@ LoadPlotData <- function(
 	return(slice)
 }
 LoadVCFs <- function(datadir, metadata) {
-	vcfs <- LoadMinimalSVFromVCF(datadir, metadata=metadata)
-	return(vcfs)
+	callgrlist <- LoadMinimalSVFromVCF(datadir, metadata=metadata)
+	return(callgrlist)
 }
-LoadCallSets <- function(metadata, vcfs, maxgap, ignore.strand, sizemargin, requiredHits, vcftransform, truthgr) {
-	vcfs <- sapply(names(vcfs), vcftransform, metadata, vcfs, simplify=FALSE, USE.NAMES=TRUE)
+LoadCallSets <- function(metadata, callgrlist, maxgap, ignore.strand, sizemargin, requiredHits, grtransform, truthgr) {
+	if (!is.null(grtransform)) {
+		callgrlist <- sapply(names(callgrlist), function(id, metadata, callgrlist) {
+				return(grtransform(callgrlist[[id]], metadata %>% filter(Id == id)))
+			}, metadata, callgrlist, simplify=FALSE, USE.NAMES=TRUE)
+	}
 	mcalls <- NULL
 	for (includeFiltered in c(TRUE, FALSE)) {
-		calls <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgr=truthgr)
+		calls <- ScoreVariantsFromTruth(callgrlist, metadata, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgr=truthgr)
 		mergedcalls <- calls$calls
 		if (!is.null(calls$truth)) {
-			calls$calls <- calls$calls%>% filter(!tp) # take the truth vcf version of tp calls since it has the actual event size
 			calls$truth <- calls$truth %>% mutate(duptp = FALSE)
+			calls$calls <- calls$calls%>% filter(!tp) # take the truth vcf version of tp calls since it has the actual event size
 			mergedcalls <- rbind(calls$calls, calls$truth)
 		}
 		mcalls <- rbind(mcalls, mergedcalls %>% mutate(CallSet = ifelse(includeFiltered, "High & Low confidence", "High confidence only")))

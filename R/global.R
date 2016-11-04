@@ -12,9 +12,13 @@ options("R.cache::compress" = TRUE)
 md <- lapply(list.files(dataLocation, pattern = "data.*", full.names = TRUE), function(dir) LoadCachedMetadata(dir))
 names(md) <- str_replace(list.files(dataLocation, pattern = "data.*"), "data.", "")
 
+# load blacklist bed
+lrblacklistgr <- import(paste0(dataLocation, "/input.common/wgEncodeDacMapabilityConsensusExcludable.bed"))
+seqlevelsStyle(lrblacklistgr) <- "UCSC"
+
 # helper functions
-PrettyAligner <- function(simdatadirs) {
-    dataaligners <- unique(md[[ds]]$CX_ALIGNER)
+PrettyAligner <- function(dataaligners) {
+    dataaligners <- unique(dataaligners)
     dataaligners <- dataaligners[!is.na(dataaligners)]
     ka <- knownaligners[knownaligners %in% dataaligners]
     return(c("Most sensitive" = "best", ka, "N/A" = ""))
@@ -47,35 +51,24 @@ dataoptions <- list()
 dataoptions$maxgap <- 200
 dataoptions$ignore.strand <- TRUE
 dataoptions$sizemargin <- 0.25
-dataoptions$ignore.duplicates <- TRUE
+dataoptions$ignore.duplicates <- FALSE
 dataoptions$ignore.interchromosomal <- TRUE
 dataoptions$mineventsize <-51
 dataoptions$maxeventsize <- NULL
 dataoptions$requiredHits <- 1
 dataoptions$datadir <- names(md)
-dataoptions$vcftransform <- function(id, metadata, vcfs) {
-    gr <- vcfs[[id]]
-    if (!is.na((metadata %>% filter(Id == id))$CX_CALLER)) {
-        # only looking at intrachromosomal calls
-        gr <- gr[!is.na(gr$svLen),]
-    }
+dataoptions$grtransform <- function(gr, metadata) {
     return(gr)
 }
 simoptions <- dataoptions
 simoptions$datadir <- c("Read Depth" = "rd", "Read Length" = "rl", "Fragment Size" = "fs")
 simoptions$datasetslicecol <- c("rd" = "CX_READ_DEPTH", "rl" = "CX_READ_LENGTH", "fs" = "CX_READ_FRAGMENT_LENGTH")
 simoptions$mineventsize <- c(0, 51)
-simoptions$vcftransform <- function(id, metadata, vcfs) {
-    gr <- dataoptions$vcftransform(id, metadata, vcfs)
-    if (!is.na((metadata %>% filter(Id == id))$CX_CALLER)) {
-        #if (str_detect((metadata %>% filter(Id == id))$CX_REFERENCE_VCF_VARIANTS, "BP")) {
-            # filtering small events calls to remove spurious indels caused by sequence homology around breakpoints
-        #	gr <- gr[abs(gr$svLen) >= 50,]
-        #}
-    }
-    return(gr)
-}
+# simoptions$grtransform <- # filter small events calls on breakpoint data sets to remove spurious indels caused by sequence homology around breakpoints?
 lroptions <- dataoptions
 lroptions$requiredHits <- 3
 lroptions$datadir <- lroptions$datadir[!(lroptions$datadir %in% simoptions$datadir)]
+lroptions$grtransform <- c(dataoptions$grtransform, function(gr, metadata) {
+    return(gr[!overlapsAny(gr, lrblacklistgr) & !overlapsAny(partner(gr), lrblacklistgr)])
+})
 

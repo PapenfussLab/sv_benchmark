@@ -21,11 +21,16 @@ RefreshSimData <- function(input, olddata) {
 		mineventsize=mineventsize,
 		maxeventsize = simoptions$maxeventsize,
 		requiredHits=1,
-		vcftransform=simoptions$vcftransform,
+		grtransform=simoptions$grtransform,
 		truthgr=NULL,
+		FALSE,
 		existingCache = olddata)
 }
 RefreshlrData <- function(input, olddata) {
+	bl <- lroptions[[1]]
+	if (input$rlblacklist) {
+		bl <- lroptions[[2]]
+	}
     LoadPlotData(
         datadir = paste0(dataLocation, "data.", input$lrdatadir),
         maxgap = lroptions$maxgap,
@@ -36,8 +41,8 @@ RefreshlrData <- function(input, olddata) {
         mineventsize = lroptions$mineventsize,
         maxeventsize = lroptions$maxeventsize,
         requiredHits = lroptions$requiredHits,
-				vcftransform = lroptions$vcftransform,
-				truthgr = LoadLongReadTruthgr(paste0(dataLocation, "input.", input$lrdatadir, "/longread")),
+        grtransform = bl,
+        truthgr = LoadLongReadTruthgr(paste0(dataLocation, "input.", input$lrdatadir, "/longread")),
         existingCache = olddata)
 }
 PrettyFormatSimPlotdf <- function(input, simdata, plotdf) {
@@ -74,6 +79,8 @@ function(input, output, session) {
 	onBookmarked(function(url) {
 		updateQueryString(url)
 	})
+	#####
+	# sim
 	output$simControls <- renderUI({
 		return(span(
 			selectInput("eventtype", "Event Type",
@@ -89,15 +96,13 @@ function(input, output, session) {
 					sort(unique(md[[input$simdatadir]]$CX_READ_FRAGMENT_LENGTH)),
 					sort(unique(md[[input$simdatadir]]$CX_READ_FRAGMENT_LENGTH))),
 				checkboxGroupInput("aligner", "Aligner",
-					PrettyAligner(input$simdatadir),
+					PrettyAligner(md[[input$simdatadir]]$CX_ALIGNER),
 					"best"),
 				checkboxGroupInput("caller", "Software",
 					sort(as.character(unique(StripCallerVersion(md[[input$simdatadir]]$CX_CALLER)))),
 					sort(as.character(unique(StripCallerVersion(md[[input$simdatadir]]$CX_CALLER)))))
 			))
 	})
-	#####
-	# sim plots
 	output$simEventSizePlot <- renderPlot({
 		cachedsimdata <- RefreshSimData(input, cachedsimdata)
 		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$callsByEventSize)
@@ -143,15 +148,24 @@ function(input, output, session) {
 	})
 	#####
 	# long read plots
+	output$lrControls <- renderUI({
+		return(span(
+			checkboxGroupInput("aligner", "Aligner",
+				PrettyAligner(md[[input$lrdatadir]]$CX_ALIGNER),
+				"best"),
+			checkboxGroupInput("caller", "Software",
+				sort(as.character(StripCallerVersion(unique(md[[input$lrdatadir]]$CX_CALLER)))),
+				sort(as.character(StripCallerVersion(unique(md[[input$lrdatadir]]$CX_CALLER)))))
+		))
+	})
 	output$lrPrecRecallPlot <- renderPlot({
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
-		plotdf <- cachedlrdata$dfs$roc #PrettyFormatSimPlotdf(input, cachedsimdata, cachedlrdata$dfs$roc)
+		plotdf <- cachedlrdata$dfs$roc
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-						aes(group = paste(Id, CallSet), y = sens, x = fp + 1) +
-						geom_line() +
-						scale_x_log_fp +
-						labs(title = "", y = "Sensitivity", x = "False Positives")
+						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=CX_CALLER, linetype=CX_ALIGNER) +
+						geom_line(size=1) +
+						labs(title = "", y = "Precision", x = "Recall (true positive count)", colour="Software", linetype = "Aligner")
 		return(p)
 	})
 }

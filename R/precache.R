@@ -10,19 +10,21 @@ for (datadir in dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir]
 					for (ignore.interchromosomal in simoptions$ignore.interchromosomal) {
 						for (requiredHits in lroptions$requiredHits) {
 							for (mineventsize in simoptions$mineventsize) {
-								plotdata <- LoadPlotData(
-										datadir = paste0(dataLocation, "data.", datadir),
-										maxgap = maxgap,
-										ignore.strand = ignore.strand,
-										sizemargin = sizemargin,
-										ignore.duplicates = ignore.duplicates,
-										ignore.interchromosomal = ignore.interchromosomal,
-										mineventsize = mineventsize,
-										maxeventsize = simoptions$maxeventsize,
-										vcftransform = simoptions$vcftransform,
-										requiredHits = requiredHits,
-										truthgr = NULL,
-										existingCache = plotdata)
+								for (transform in lroptions$grtransform) {
+									plotdata <- LoadPlotData(
+											datadir = paste0(dataLocation, "data.", datadir),
+											maxgap = maxgap,
+											ignore.strand = ignore.strand,
+											sizemargin = sizemargin,
+											ignore.duplicates = ignore.duplicates,
+											ignore.interchromosomal = ignore.interchromosomal,
+											mineventsize = mineventsize,
+											maxeventsize = simoptions$maxeventsize,
+											grtransform = transform,
+											requiredHits = requiredHits,
+											truthgr = NULL,
+											existingCache = plotdata)
+								}
 							}
 						}
 					}
@@ -40,19 +42,21 @@ for (datadir in lroptions$datadir) {
 					for (ignore.interchromosomal in lroptions$ignore.interchromosomal) {
 						for (mineventsize in lroptions$mineventsize) {
 							for (requiredHits in lroptions$requiredHits) {
-								plotdata <- LoadPlotData(
-										datadir = paste0(dataLocation, "data.", datadir),
-										maxgap = maxgap,
-										ignore.strand = ignore.strand,
-										sizemargin = sizemargin,
-										ignore.duplicates = ignore.duplicates,
-										ignore.interchromosomal = ignore.interchromosomal,
-										mineventsize = mineventsize,
-										maxeventsize = lroptions$maxeventsize,
-										vcftransform = lroptions$vcftransform,
-										requiredHits = requiredHits,
-										truthgr = truthgr,
-										existingCache = plotdata)
+								for (transform in lroptions$grtransform) {
+									plotdata <- LoadPlotData(
+											datadir = paste0(dataLocation, "data.", datadir),
+											maxgap = maxgap,
+											ignore.strand = ignore.strand,
+											sizemargin = sizemargin,
+											ignore.duplicates = ignore.duplicates,
+											ignore.interchromosomal = ignore.interchromosomal,
+											mineventsize = mineventsize,
+											maxeventsize = lroptions$maxeventsize,
+											grtransform = transform,
+											requiredHits = requiredHits,
+											truthgr = truthgr,
+											existingCache = plotdata)
+								}
 							}
 						}
 					}

@@ -114,7 +114,9 @@ LoadMinimalSVs <- function(filename, caller, transform=NULL) {
 		gr <- .LoadMinimalSVs(filename, caller, transform)
 		saveCache(gr, key=key, dirs=".Rcache/LoadMinimalSVs")
 	}
-	seqlevelsStyle(gr) <- "UCSC"
+	if (length(gr) > 0) {
+		seqlevelsStyle(gr) <- "UCSC"
+	}
 	return(gr)
 }
 .LoadMinimalSVs <- function(filename, caller, transform=NULL) {
@@ -288,8 +290,8 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 			ignore.strand=rep(ignore.strand, nrow(.)))
 	calldf$tp[hitcount$queryHits[hitcount$besthits >= requiredHits]] <- TRUE
 	calldf$duptp[hitcount$queryHits[hitcount$allhits >= requiredHits]] <- TRUE
+	calldf$duptp <- calldf$duptp & !calldf$tp
 	calldf$fp <- !calldf$tp
-
 	truthdf <- NULL
 	if (requiredHits == 1) {
 		truthdf <- as.data.frame(truthgr) %>%
