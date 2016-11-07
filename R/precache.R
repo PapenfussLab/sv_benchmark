@@ -23,6 +23,7 @@ for (datadir in dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir]
 											grtransform = transform,
 											requiredHits = requiredHits,
 											truthgr = NULL,
+											eventtypes=NULL,
 											existingCache = plotdata)
 								}
 							}
@@ -43,19 +44,23 @@ for (datadir in lroptions$datadir) {
 						for (mineventsize in lroptions$mineventsize) {
 							for (requiredHits in lroptions$requiredHits) {
 								for (transform in lroptions$grtransform) {
-									plotdata <- LoadPlotData(
-											datadir = paste0(dataLocation, "data.", datadir),
-											maxgap = maxgap,
-											ignore.strand = ignore.strand,
-											sizemargin = sizemargin,
-											ignore.duplicates = ignore.duplicates,
-											ignore.interchromosomal = ignore.interchromosomal,
-											mineventsize = mineventsize,
-											maxeventsize = lroptions$maxeventsize,
-											grtransform = transform,
-											requiredHits = requiredHits,
-											truthgr = truthgr,
-											existingCache = plotdata)
+									for (i in 1:(2**length(eventtypes)-1)) { # all possible event type combinations
+										et <- eventtypes[as.logical(intToBits(i))[1:length(eventtypes)]]
+										plotdata <- LoadPlotData(
+												datadir = paste0(dataLocation, "data.", datadir),
+												maxgap = maxgap,
+												ignore.strand = ignore.strand,
+												sizemargin = sizemargin,
+												ignore.duplicates = ignore.duplicates,
+												ignore.interchromosomal = ignore.interchromosomal,
+												mineventsize = mineventsize,
+												maxeventsize = lroptions$maxeventsize,
+												grtransform = transform,
+												requiredHits = requiredHits,
+												truthgr = truthgr,
+												eventtypes=et,
+												existingCache = plotdata)
+									}
 								}
 							}
 						}
@@ -65,3 +70,4 @@ for (datadir in lroptions$datadir) {
 		}
 	}
 }
+

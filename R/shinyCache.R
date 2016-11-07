@@ -26,6 +26,7 @@ LoadPlotData <- function(
 		maxeventsize,
 		grtransform,
 		truthgr,
+		eventtypes,
 		existingCache) {
 	cacheroot <- getCacheRootPath()
 	setCacheRootPath(datadir)
@@ -37,7 +38,7 @@ LoadPlotData <- function(
 	keymetadata <- list(datadir)
 	keyvcfs <- list(keymetadata)
 	keycalls <- list(keyvcfs, maxgap, ignore.strand, sizemargin, requiredHits, truthhash, grtransform)
-	keydfs <- list(keycalls, ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize)
+	keydfs <- list(keycalls, ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes)
 	slice <- list(
 		datadir=datadir,
 		keymetadata=keymetadata,
@@ -94,7 +95,7 @@ LoadPlotData <- function(
 					saveCache(slice$calls, key=keycalls, dirs=".Rcache/LoadPlotData/calldf")
 				}
 			}
-			slice$dfs <- LoadGraphDataFrames(slice$metadata, slice$calls, ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize)
+			slice$dfs <- LoadGraphDataFrames(slice$metadata, slice$calls, ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes)
 			saveCache(slice$dfs, key=keydfs, dirs=".Rcache/LoadPlotData/dfs")
 		}
 	}
@@ -124,7 +125,7 @@ LoadCallSets <- function(metadata, callgrlist, maxgap, ignore.strand, sizemargin
 	}
 	return(mcalls)
 }
-LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.interchromosomal=TRUE, mineventsize=NULL, maxeventsize=NULL) {
+LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.interchromosomal=TRUE, mineventsize=NULL, maxeventsize=NULL, eventtypes=NULL) {
 	if (ignore.duplicates) {
 		calls <- calls %>% filter(!duptp)
 	}
@@ -139,6 +140,9 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 	}
 	if (is.null(metadata$CX_MULTIMAPPING_LOCATIONS)) {
 		metadata$CX_MULTIMAPPING_LOCATIONS <- NA_integer_
+	}
+	if (!is.null(eventtypes)) {
+		calls <- calls %>% filter(simpleEvent %in% eventtypes)
 	}
 
 	md <- metadata %>%
@@ -211,6 +215,49 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 			) %>%
 			ungroup()
 	}
+	rocbyrepeat <- calls %>%
+		select(Id, CallSet, repeatClass, QUAL, tp, fp, fn) %>%
+		rbind(calls %>% select(Id, CallSet, repeatClass) %>% distinct(Id, CallSet, repeatClass) %>% mutate(QUAL=max(calls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
+		#filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
+		group_by(Id, CallSet, repeatClass) %>%
+		arrange(desc(QUAL)) %>%
+		mutate(events=sum(tp) + sum(fn)) %>%
+		mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
+		group_by(Id, CallSet, repeatClass, QUAL, events) %>%
+		summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
+		ungroup() %>%
+		mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events) %>%
+		left_join(md)
+	# lossless reduction of roc plot points by elimination of points on straight lines
+	rocbyrepeat <- rocbyrepeat %>%
+		group_by(Id, CallSet, repeatClass) %>%
+		arrange(tp + fp) %>%
+		filter(
+			# keep start/end
+			is.na(lag(tp)) | is.na(lead(tp)) |
+			# keep group transitions (TODO: is there a way to make lead/lag across group_by return NA?)
+			Id != lag(Id) | CallSet != lag(CallSet) | repeatClass != lag(repeatClass) |
+			Id != lead(Id) | CallSet != lead(CallSet) | repeatClass != lead(repeatClass) |
+			# slopes not equal dx1/dy1 != dx2/dy2 -> dx1*dy2 != dx2*dy1
+			(tp - lag(tp))*(lead(fp) - lag(fp)) != (lead(tp) - lag(tp))*(fp - lag(fp))) %>%
+		ungroup()
+	# lossy removal of points with least change
+	for (n in c(4, 16, 32, 64)) {
+		rocbyrepeat <- rocbyrepeat %>%
+			group_by(Id, CallSet, repeatClass) %>%
+			arrange(tp + fp) %>%
+			filter(
+				is.na(lag(tp)) | is.na(lead(tp)) |
+				Id != lag(Id) | CallSet != lag(CallSet) | repeatClass != lag(repeatClass) |
+				Id != lead(Id) | CallSet != lead(CallSet) | repeatClass != lead(repeatClass) |
+				# remove points with least amount of change
+				lead(tp) - lag(tp) + lead(fp) - lag(fp) > n |
+				# keep every 5th to prevent removal of large segments
+				row_number() %% 5 == 0
+			) %>%
+			ungroup()
+	}
+
 	bpErrorDistribution <- calls %>%
 		filter(tp) %>%
 		select(Id, CallSet, bperror) %>%
@@ -224,6 +271,7 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 	return(list(mostSensitiveAligner=mostSensitiveAligner,
 							callsByEventSize=callsByEventSize,
 							roc=roc,
+							rocbyrepeat=rocbyrepeat,
 							bpErrorDistribution=bpErrorDistribution))
 }
 LoadLongReadTruthgr <- function(dir) {

@@ -13,8 +13,20 @@ md <- lapply(list.files(dataLocation, pattern = "data.*", full.names = TRUE), fu
 names(md) <- str_replace(list.files(dataLocation, pattern = "data.*"), "data.", "")
 
 # load blacklist bed
-lrblacklistgr <- import(paste0(dataLocation, "/input.common/wgEncodeDacMapabilityConsensusExcludable.bed"))
-seqlevelsStyle(lrblacklistgr) <- "UCSC"
+if (!exists("lrblacklistgr")) {
+	lrblacklistgr <- import(paste0(dataLocation, "/input.common/wgEncodeHg19ConsensusSignalArtifactRegions.bed"))
+	seqlevelsStyle(lrblacklistgr) <- "UCSC"
+}
+
+# load repeatmasker annotations
+if (!exists("grrm")) {
+	key = list(repeatmaskerdir=paste0(referenceLocation, "/UCSC/repeatmasker/"))
+	grrm <- loadCache(key=key)
+	if (is.null(grrm)) {
+		grrm <- import.repeatmasker.fa.out(key$repeatmaskerdir)
+		saveCache(grrm, key=key)
+	}
+}
 
 # helper functions
 PrettyAligner <- function(dataaligners) {
@@ -24,6 +36,24 @@ PrettyAligner <- function(dataaligners) {
     return(c("Most sensitive" = "best", ka, "N/A" = ""))
 }
 withnames <- function(v, n) { names(v) <- n; return(v) }
+.primaryHumanOnly <- function(gr, metadata) {
+	if (length(gr) > 0) {
+		seqlevelsStyle(gr) <- "UCSC"
+		# filter to primary chromosomes
+		gr <- gr[seqnames(gr) %in% paste0("chr", c(1:22, "X", "Y")) & seqnames(partner(gr)) %in% paste0("chr", c(1:22, "X", "Y")),]
+	}
+	repeatHits <- findOverlaps(gr, grrm, select="first")
+	gr$repeatClass <- ifelse(is.na(repeatHits), "", grrm[repeatHits %na% 1]$repeatClass)
+    return(gr)
+}
+.primaryHumanOnly_blacklist <- function(gr, metadata) {
+	gr <- .primaryHumanOnly(gr, metadata)
+	gr <- gr[!overlapsAny(gr, lrblacklistgr) & !overlapsAny(partner(gr), lrblacklistgr),]
+    return(gr)
+}
+
+
+
 
 # callers that have data points for all simulation conditions and NA12878
 # TODO: replace this with a computed field that tells us what
@@ -40,6 +70,7 @@ fulldatacallers <- c(
 	"pindel",
 	"socrates"
 )
+eventtypes = c("Deletion"="DEL", "Insertion"="INS", "Inversion"="INV", "Tandem Duplication"="DUP") # "BP"
 knownaligners <- c("bowtie2", "bwa mem"="bwamem", "novoalign")
 simfacets <- c(
 				"Read Length"="CX_READ_LENGTH",
@@ -57,14 +88,7 @@ dataoptions$mineventsize <-51
 dataoptions$maxeventsize <- NULL
 dataoptions$requiredHits <- 1
 dataoptions$datadir <- names(md)
-dataoptions$grtransform <- function(gr, metadata) {
-	if (length(gr) > 0) {
-		seqlevelsStyle(gr) <- "UCSC"
-		# filter to primary chromosomes
-		gr <- gr[seqnames(gr) %in% paste0("chr", c(1:22, "X", "Y")) & seqnames(partner(gr)) %in% paste0("chr", c(1:22, "X", "Y")),]
-	}
-    return(gr)
-}
+dataoptions$grtransform <- .primaryHumanOnly
 simoptions <- dataoptions
 simoptions$datadir <- c("Read Depth" = "rd", "Read Length" = "rl", "Fragment Size" = "fs")
 simoptions$datasetslicecol <- c("rd" = "CX_READ_DEPTH", "rl" = "CX_READ_LENGTH", "fs" = "CX_READ_FRAGMENT_LENGTH")
@@ -73,9 +97,5 @@ simoptions$mineventsize <- c(0, 51)
 lroptions <- dataoptions
 lroptions$requiredHits <- 3
 lroptions$datadir <- lroptions$datadir[!(lroptions$datadir %in% simoptions$datadir)]
-lroptions$grtransform <- c(dataoptions$grtransform, function(gr, metadata) {
-	gr <- dataoptions$grtransform(gr, metadata)
-	gr <- gr[!overlapsAny(gr, lrblacklistgr) & !overlapsAny(partner(gr), lrblacklistgr),]
-    return(gr)
-})
+lroptions$grtransform <- c(.primaryHumanOnly, .primaryHumanOnly_blacklist)
 

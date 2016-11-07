@@ -267,6 +267,9 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	if (is.null(truthgr)) {
 		stop(paste("Missing truth ", truthid, " for ", id))
 	}
+	if (!all(callgr$partner %in% names(callgr))) {
+		browser()
+	}
 	hits <- findMatchingBreakpoints(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin)
 
 	hits$QUAL <- callgr$QUAL[hits$queryHits]
@@ -309,6 +312,13 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	}
 	calldf$bperror[hits$queryHits] <- hits$localbperror
 	calldf$sizeerror[hits$queryHits] <- hits$sizeerror
+	calldf$simpleEvent <-
+		ifelse(seqnames(callgr) != seqnames(partner(callgr)), "BP",
+		ifelse(callgr$insLen >= abs(callgr$svLen) * 0.7, "INS",
+		ifelse(strand(callgr) == strand(partner(callgr)), "INV",
+		ifelse(xor(start(callgr) < start(partner(callgr)), strand(callgr) == "-"), "DEL",
+		"DUP"))))
+	calldf$repeatClass <- callgr$repeatClass
 	return(list(calls=calldf, truth=truthdf))
 }
 
@@ -363,3 +373,17 @@ import.sv.bedpe <- function(file, placeholderName="bedpe") {
 	return(c(gro, grh))
 }
 
+import.repeatmasker.fa.out <- function(directory) {
+	rmdt <- bind_rows(lapply(
+	  list.files(paste0(referenceLocation, "/UCSC/repeatmasker/"), pattern="*.fa.out", recursive=TRUE, full.names=TRUE),
+	  function (file) {
+	    read.table(file=file, sep="", quote="", skip=3)
+	}))
+	grrm <- GRanges(
+	  seqnames=rmdt$V5,
+	  ranges=IRanges(start=rmdt$V6 + 1, end=rmdt$V7),
+	  repeatType=rmdt$V10,
+	  repeatClass=rmdt$V11)
+	grrm$repeatClass <- str_replace(str_replace(grrm$repeatClass, "[?]", ""), "/.*", "")
+	return(grrm)
+}

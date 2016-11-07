@@ -23,7 +23,7 @@ RefreshSimData <- function(input, olddata) {
 		requiredHits=1,
 		grtransform=simoptions$grtransform,
 		truthgr=NULL,
-		FALSE,
+		eventtypes=NULL,
 		existingCache = olddata)
 }
 RefreshlrData <- function(input, olddata) {
@@ -31,7 +31,7 @@ RefreshlrData <- function(input, olddata) {
 	if (input$rlblacklist) {
 		bl <- lroptions$grtransform[[2]]
 	}
-    LoadPlotData(
+    pd <- LoadPlotData(
         datadir = paste0(dataLocation, "data.", input$lrdatadir),
         maxgap = lroptions$maxgap,
         ignore.strand = lroptions$ignore.strand,
@@ -43,7 +43,26 @@ RefreshlrData <- function(input, olddata) {
         requiredHits = lroptions$requiredHits,
         grtransform = bl,
         truthgr = LoadLongReadTruthgr(paste0(dataLocation, "input.", input$lrdatadir, "/longread")),
+    	eventtypes=input$lrevents,
         existingCache = olddata)
+}
+PrettyFormatLrPlotdf <- function(input, lrdata, plotdf) {
+	plotdf <- plotdf %>%
+		filter(
+			StripCallerVersion(CX_CALLER, FALSE) %in% input$lrcaller &
+			CallSet %in% input$lrcallset)
+		# aligner filters
+		alignerIdCallSet <- plotdf %>%
+				select(Id, CallSet, CX_ALIGNER) %>%
+				filter(CX_ALIGNER %in% input$lraligner | (is.na(CX_ALIGNER) & "" %in% input$lraligner)) %>%
+				select(Id, CallSet) %>%
+				rbind(lrdata$dfs$mostSensitiveAligner[rep("best" %in% input$lraligner, nrow(lrdata$dfs$mostSensitiveAligner)),]) %>%
+				distinct()
+		plotdf <- plotdf %>% inner_join(alignerIdCallSet)
+		plotdf <- plotdf %>% mutate(
+			caller=StripCallerVersion(CX_CALLER, FALSE),
+			aligner=CX_ALIGNER %na% rep("N/A", nrow(plotdf)))
+	return(plotdf)
 }
 PrettyFormatSimPlotdf <- function(input, simdata, plotdf) {
 	plotdf <- plotdf %>%
@@ -148,24 +167,48 @@ function(input, output, session) {
 	})
 	#####
 	# long read plots
-	output$lrControls <- renderUI({
-		return(span(
-			checkboxGroupInput("aligner", "Aligner",
-				PrettyAligner(md[[input$lrdatadir]]$CX_ALIGNER),
-				"best"),
-			checkboxGroupInput("caller", "Software",
-				sort(as.character(StripCallerVersion(unique(md[[input$lrdatadir]]$CX_CALLER)))),
-				sort(as.character(StripCallerVersion(unique(md[[input$lrdatadir]]$CX_CALLER)))))
-		))
-	})
 	output$lrPrecRecallPlot <- renderPlot({
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
-		plotdf <- cachedlrdata$dfs$roc
+		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=CX_CALLER, linetype=CX_ALIGNER) +
+						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=aligner) +
 						geom_line(size=1) +
-						labs(title = "", y = "Precision", x = "Recall (true positive count)", colour="Software", linetype = "Aligner")
+						labs(title = "", y = "Precision", x = "Recall (true positive count)")
+		return(p)
+	})
+	output$lrRocPlot <- renderPlot({
+		cachedlrdata <- RefreshlrData(input, cachedlrdata)
+		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
+		if (nrow(plotdf) == 0) return(NULL)
+		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
+						aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=aligner) +
+						geom_line(size=1) +
+						coord_cartesian(ylim=c(0, max(plotdf$tp)), xlim=c(0, max(plotdf$tp))) +
+						labs(title = "", y = "True Positives", x = "False positives")
+		return(p)
+	})
+	output$lrPrecRecallRepeatPlot <- renderPlot({
+		cachedlrdata <- RefreshlrData(input, cachedlrdata)
+		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
+		if (nrow(plotdf) == 0) return(NULL)
+		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
+						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=aligner) +
+						geom_line(size=1) +
+						facet_wrap(~ repeatClass) +
+						labs(title = "Precision-Recall by RepeatMasker repeat class", y = "Precision", x = "Recall (true positive count)")
+		return(p)
+	})
+	output$lrRocRepeatPlot <- renderPlot({
+		cachedlrdata <- RefreshlrData(input, cachedlrdata)
+		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
+		if (nrow(plotdf) == 0) return(NULL)
+		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
+						aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=aligner) +
+						geom_line(size=1) +
+						facet_wrap(~ repeatClass) +
+						coord_cartesian(ylim=c(0, max(plotdf$tp)), xlim=c(0, max(plotdf$tp))) +
+						labs(title = "", y = "True Positives", x = "False positives")
 		return(p)
 	})
 }

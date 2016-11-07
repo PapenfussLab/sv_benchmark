@@ -16,14 +16,19 @@ function(request) {
 				selectInput("datasettype", "Data set", choices=c("Genome in a Bottle"="lr", "Simulation"="sim"), selected="lr"),
 				conditionalPanel("input.datasettype == 'lr'",
 					selectInput("lrdatadir", "Sample", lroptions$datadir),
-					checkboxGroupInput("events", "Event types",
-						choices = c("Deletion"="DEL", "Insertion"="INS", "Inversion"="INV", "Tandem Duplication"="DUP"),
-						selected = c("DEL", "INS", "INV", "DUP")),
+					checkboxGroupInput("lrevents", "Event types",
+						choices = eventtypes,
+						selected = eventtypes),
 					selectInput("lrcallset", "Call Set",
 						c("High confidence only", "High & Low confidence"),
 						"High & Low confidence"),
 					checkboxInput("rlblacklist", "Use ENCODE DAC blacklist", value = TRUE),
-					uiOutput("lrControls")
+					checkboxGroupInput("lraligner", "Aligner",
+						PrettyAligner((bind_rows(md) %>% distinct(CX_ALIGNER) %>% filter(!is.na(CX_ALIGNER)))$CX_ALIGNER),
+						"best"),
+					checkboxGroupInput("lrcaller", "Software",
+						sort(as.character(StripCallerVersion((bind_rows(md) %>% distinct(CX_CALLER) %>% filter(!is.na(CX_CALLER)))$CX_CALLER))),
+						sort(as.character(StripCallerVersion((bind_rows(md) %>% distinct(CX_CALLER) %>% filter(!is.na(CX_CALLER)))$CX_CALLER))))
 					# line type = call set
 					# color = caller
 					#selectInput("aligner", "Aligner", knownaligners),
@@ -47,8 +52,10 @@ function(request) {
 				conditionalPanel("input.datasettype == 'lr'",
 					tabsetPanel(id = "mt",
 						tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = 1200)),
-						tabPanel("ROC", plotOutput("lrocPlot", height = 1200)),
-						tabPanel("Detected event sizes", plotOutput("lrEventSizeHistogram", height = 1200))
+						tabPanel("ROC", plotOutput("lrRocPlot", height = 1200)),
+						tabPanel("Precision Recall by repeat", plotOutput("lrPrecRecallRepeatPlot", height = 1200)),
+						tabPanel("ROC by repeat", plotOutput("lrRocRepeatPlot", height = 1200))
+						#tabPanel("Detected event sizes", plotOutput("lrEventSizeHistogram", height = 1200))
 						)
 					# includeMarkdown("explaination.md")
 					# downloadButton('downloadPlot', 'Download Plot')
