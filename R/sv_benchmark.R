@@ -373,11 +373,11 @@ import.sv.bedpe <- function(file, placeholderName="bedpe") {
 	return(c(gro, grh))
 }
 
-import.repeatmasker.fa.out <- function(directory) {
-	rmdt <- bind_rows(lapply(
-	  list.files(paste0(referenceLocation, "/UCSC/repeatmasker/"), pattern="*.fa.out", recursive=TRUE, full.names=TRUE),
-	  function (file) {
-	    read.table(file=file, sep="", quote="", skip=3)
+# find . -name '*.fa.out' -exec tail -n +4 {} \;  > merged.fa.out
+# list.files(paste0(referenceLocation, "/UCSC/repeatmasker/"), pattern="*.fa.out", recursive=TRUE, full.names=TRUE),
+import.repeatmasker.fa.out <- function(repeatmasker.fa.out) {
+	rmdt <- bind_rows(lapply(repeatmasker.fa.out, function (file) {
+		read.table(file=file, sep="", quote="", skip=3)
 	}))
 	grrm <- GRanges(
 	  seqnames=rmdt$V5,

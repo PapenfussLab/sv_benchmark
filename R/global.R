@@ -20,10 +20,10 @@ if (!exists("lrblacklistgr")) {
 
 # load repeatmasker annotations
 if (!exists("grrm")) {
-	key = list(repeatmaskerdir=paste0(referenceLocation, "/UCSC/repeatmasker/"))
+	key = list(repeatmaskermergedfile=paste0(dataLocation, "/input.common/repeatmasker-hg19.fa.out.gz"))
 	grrm <- loadCache(key=key)
 	if (is.null(grrm)) {
-		grrm <- import.repeatmasker.fa.out(key$repeatmaskerdir)
+		grrm <- import.repeatmasker.fa.out(key$repeatmaskermergedfile)
 		saveCache(grrm, key=key)
 	}
 }
