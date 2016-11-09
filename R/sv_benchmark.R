@@ -252,8 +252,11 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	key <- list(includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits, truthhash)
 	result <- loadCache(key=key, dirs=".Rcache/ScoreVariantsFromTruthVCF")
 	if (is.null(result)) {
+		write(paste0("ScoreVariantsFromTruth ", id), stderr())
 		result <- .ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits)
 		saveCache(result, key=key, dirs=".Rcache/ScoreVariantsFromTruthVCF")
+	} else {
+		write(".", stderr())
 	}
 	return(result)
 }
@@ -329,7 +332,6 @@ ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap
 		truthhash <- getChecksum(truthgr)
 	}
 	scores <- lapply(ids, function(id) {
-		write(paste0("ScoreVariantsFromTruth ", id), stderr())
 		callgr <- vcfs[[id]]
 		if (is.null(truthgr)) {
 			truthid <- GetId((metadata %>% filter(Id==id))$CX_REFERENCE_VCF)

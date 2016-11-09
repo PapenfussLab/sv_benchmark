@@ -1,4 +1,12 @@
+#!/usr/bin/env Rscript
 source("global.R")
+
+if (!interactive()) {
+	# check command-line args and only process that data subset
+	args <- commandArgs(trailingOnly=TRUE)
+	simoptions$datadir <- simoptions$datadir[simoptions$datadir %in% args]
+	lroptions$datadir <- lroptions$datadir[lroptions$datadir %in% args]
+}
 
 plotdata <- NULL
 # cache the results for all the knobs that can be turned in the UI
