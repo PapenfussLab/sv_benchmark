@@ -13,22 +13,27 @@ function(request) {
 		titlePanel("Structural Variant Caller Benchmark"),
 		sidebarLayout(
 			sidebarPanel(
-				selectInput("datasettype", "Data set", choices=c("Genome in a Bottle"="lr", "Simulation"="sim"), selected="lr"),
+				selectInput("datasettype", "Data set", choices=c("Genome in a Bottle"="lr", "Simulation"="sim"), selected="sim"),
 				conditionalPanel("input.datasettype == 'lr'",
 					selectInput("lrdatadir", "Sample", lroptions$datadir),
-					checkboxGroupInput("lrevents", "Event types",
-						choices = eventtypes,
-						selected = eventtypes),
-					selectInput("lrcallset", "Call Set",
-						c("High confidence only", "High & Low confidence"),
-						"High & Low confidence"),
-					checkboxInput("rlblacklist", "Use ENCODE DAC blacklist", value = TRUE),
-					checkboxGroupInput("lraligner", "Aligner",
-						PrettyAligner((bind_rows(md) %>% distinct(CX_ALIGNER) %>% filter(!is.na(CX_ALIGNER)))$CX_ALIGNER),
-						"best"),
+					selectInput("lrevents", "Event types",
+						eventtypes,
+						"DEL"),
+					#selectInput("lrcallset", "Call Set",
+					#	c("High confidence only", "High & Low confidence"),
+					#	"High & Low confidence"),
+					selectInput("lrblacklist", "Blacklist",
+            c("None", "ENCODE DAC blacklist"="DAC", "ENCODE Duke blacklist"="Duke"),
+            "DAC"),
+					conditionalPanel("input.datasettype == 'hidden'",
+					  # hide aligner as an option because we haven't realigned the real data with multiple aligners
+  					checkboxGroupInput("lraligner", "Aligner",
+  						PrettyAligner((bind_rows(md) %>% distinct(CX_ALIGNER) %>% filter(!is.na(CX_ALIGNER)))$CX_ALIGNER),
+  						"best")
+					),
 					checkboxGroupInput("lrcaller", "Software",
-						sort(as.character(StripCallerVersion((bind_rows(md) %>% distinct(CX_CALLER) %>% filter(!is.na(CX_CALLER)))$CX_CALLER))),
-						sort(as.character(StripCallerVersion((bind_rows(md) %>% distinct(CX_CALLER) %>% filter(!is.na(CX_CALLER)))$CX_CALLER))))
+						unique(sort(as.character(StripCallerVersion((bind_rows(md) %>% distinct(CX_CALLER) %>% filter(!is.na(CX_CALLER)))$CX_CALLER)))),
+						       unique(sort(as.character(StripCallerVersion((bind_rows(md) %>% distinct(CX_CALLER) %>% filter(!is.na(CX_CALLER)))$CX_CALLER)))))
 					# line type = call set
 					# color = caller
 					#selectInput("aligner", "Aligner", knownaligners),

@@ -6,7 +6,7 @@ library(dplyr)
 cachedsimdata <- NULL
 cachedlrdata <- NULL
 RefreshSimData <- function(input, olddata) {
-	if (!input$smallevents) {
+	if (!input$simsmallevents) {
 		mineventsize <- 51
 	} else {
 		mineventsize <- 0
@@ -20,17 +20,13 @@ RefreshSimData <- function(input, olddata) {
 		ignore.interchromosomal=simoptions$ignore.interchromosomal,
 		mineventsize=mineventsize,
 		maxeventsize = simoptions$maxeventsize,
-		requiredHits=1,
+		requiredHits=simoptions$requiredHits,
 		grtransform=simoptions$grtransform,
 		truthgr=NULL,
 		eventtypes=NULL,
 		existingCache = olddata)
 }
 RefreshlrData <- function(input, olddata) {
-	bl <- lroptions$grtransform[[1]]
-	if (input$rlblacklist) {
-		bl <- lroptions$grtransform[[2]]
-	}
     pd <- LoadPlotData(
         datadir = paste0(dataLocation, "data.", input$lrdatadir),
         maxgap = lroptions$maxgap,
@@ -41,16 +37,14 @@ RefreshlrData <- function(input, olddata) {
         mineventsize = lroptions$mineventsize,
         maxeventsize = lroptions$maxeventsize,
         requiredHits = lroptions$requiredHits,
-        grtransform = bl,
+        grtransform = lroptions$grtransform[[input$lrblacklist]],
         truthgr = LoadLongReadTruthgr(paste0(dataLocation, "input.", input$lrdatadir, "/longread")),
     	eventtypes=input$lrevents,
         existingCache = olddata)
 }
 PrettyFormatLrPlotdf <- function(input, lrdata, plotdf) {
 	plotdf <- plotdf %>%
-		filter(
-			StripCallerVersion(CX_CALLER, FALSE) %in% input$lrcaller &
-			CallSet %in% input$lrcallset)
+		filter(StripCallerVersion(CX_CALLER, FALSE) %in% input$lrcaller)
 		# aligner filters
 		alignerIdCallSet <- plotdf %>%
 				select(Id, CallSet, CX_ALIGNER) %>%
@@ -67,18 +61,18 @@ PrettyFormatLrPlotdf <- function(input, lrdata, plotdf) {
 PrettyFormatSimPlotdf <- function(input, simdata, plotdf) {
 	plotdf <- plotdf %>%
 			filter(
-				StripCallerVersion(CX_CALLER, FALSE) %in% input$caller &
-				CallSet %in% input$callset &
-				CX_REFERENCE_VCF_VARIANTS %in% input$eventtype &
-				CX_READ_LENGTH %in% as.numeric(input$readlength) &
-				CX_READ_DEPTH %in% as.numeric(input$depth) &
-				CX_READ_FRAGMENT_LENGTH %in% as.numeric(input$fragsize))
+				StripCallerVersion(CX_CALLER, FALSE) %in% input$simcaller &
+				CallSet %in% input$simcallset &
+				CX_REFERENCE_VCF_VARIANTS %in% input$simeventtype &
+				CX_READ_LENGTH %in% as.numeric(input$simreadlength) &
+				CX_READ_DEPTH %in% as.numeric(input$simdepth) &
+				CX_READ_FRAGMENT_LENGTH %in% as.numeric(input$simfragsize))
 		# aligner filters
 		alignerIdCallSet <- plotdf %>%
 				select(Id, CallSet, CX_ALIGNER) %>%
-				filter(CX_ALIGNER %in% input$aligner | (is.na(CX_ALIGNER) & "" %in% input$aligner)) %>%
+				filter(CX_ALIGNER %in% input$simaligner | (is.na(CX_ALIGNER) & "" %in% input$simaligner)) %>%
 				select(Id, CallSet) %>%
-				rbind(simdata$dfs$mostSensitiveAligner[rep("best" %in% input$aligner, nrow(simdata$dfs$mostSensitiveAligner)),]) %>%
+				rbind(simdata$dfs$mostSensitiveAligner[rep("best" %in% input$simaligner, nrow(simdata$dfs$mostSensitiveAligner)),]) %>%
 				distinct()
 		plotdf <- plotdf %>% inner_join(alignerIdCallSet)
 		plotdf <- plotdf %>% mutate(
@@ -102,22 +96,22 @@ function(input, output, session) {
 	# sim
 	output$simControls <- renderUI({
 		return(span(
-			selectInput("eventtype", "Event Type",
+			selectInput("simeventtype", "Event Type",
 					withnames(sort(unique(md[[input$simdatadir]]$CX_REFERENCE_VCF_VARIANTS)), PrettyVariants(sort(unique(md[[input$simdatadir]]$CX_REFERENCE_VCF_VARIANTS)))),
 					"hetDEL"),
-				checkboxGroupInput("readlength", "Read Length (paired-end)",
+				checkboxGroupInput("simreadlength", "Read Length (paired-end)",
 					sort(unique(md[[input$simdatadir]]$CX_READ_LENGTH)),
 					sort(unique(md[[input$simdatadir]]$CX_READ_LENGTH))),
-				checkboxGroupInput("depth", "Read Depth (coverage)",
+				checkboxGroupInput("simdepth", "Read Depth (coverage)",
 					sort(unique(md[[input$simdatadir]]$CX_READ_DEPTH)),
 					sort(unique(md[[input$simdatadir]]$CX_READ_DEPTH))),
-				checkboxGroupInput("fragsize", "Mean Library Fragment Size",
+				checkboxGroupInput("simfragsize", "Mean Library Fragment Size",
 					sort(unique(md[[input$simdatadir]]$CX_READ_FRAGMENT_LENGTH)),
 					sort(unique(md[[input$simdatadir]]$CX_READ_FRAGMENT_LENGTH))),
-				checkboxGroupInput("aligner", "Aligner",
+				checkboxGroupInput("simaligner", "Aligner",
 					PrettyAligner(md[[input$simdatadir]]$CX_ALIGNER),
 					"best"),
-				checkboxGroupInput("caller", "Software",
+				checkboxGroupInput("simcaller", "Software",
 					sort(as.character(unique(StripCallerVersion(md[[input$simdatadir]]$CX_CALLER)))),
 					sort(as.character(unique(StripCallerVersion(md[[input$simdatadir]]$CX_CALLER)))))
 			))
@@ -128,14 +122,15 @@ function(input, output, session) {
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf) +
 			aes(group=paste(Id, CallSet), x=abs(svLen), y=sens) +
-			aes_string(linetype=paste0("as.factor(", input$linetype, ")"), colour=paste0("as.factor(", input$colour, ")")) +
+			aes_string(linetype=paste0("as.factor(", input$simlinetype, ")"), colour=paste0("as.factor(", input$simcolour, ")")) +
 			geom_line(size=0.5) +
 			scale_x_svlen +
 			# simfacets for the fields not displayed in linetype or colour
-			facet_grid(eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$linetype, input$colour))], collapse=" + "))))) +
+			facet_grid(eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + "))))) +
 			labs(title="", y="Sensitivity", x="Event size",
-				linetype=names(simfacets)[simfacets==input$linetype],
-				colour=names(simfacets)[simfacets==input$colour])
+				linetype=names(simfacets)[simfacets==input$simlinetype],
+				colour=names(simfacets)[simfacets==input$simcolour])
+		browser()
 		return(p)
 	})
 	output$simRocPlot <- renderPlot({
@@ -144,13 +139,14 @@ function(input, output, session) {
 			if (nrow(plotdf) == 0) return(NULL)
 			p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
 				aes(group=paste(Id, CallSet), y=sens, x=fp+1) +
-				aes_string(linetype=paste0("as.factor(", input$linetype, ")"), colour=paste0("as.factor(", input$colour, ")")) +
+				aes_string(linetype=paste0("as.factor(", input$simlinetype, ")"), colour=paste0("as.factor(", input$simcolour, ")")) +
 				geom_line() +
 				scale_x_log_fp +
-				facet_grid(eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$linetype, input$colour))], collapse=" + "))))) +
+				facet_grid(eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + "))))) +
 				labs(title="", y="Sensitivity", x="False Positives",
-					linetype=names(simfacets)[simfacets==input$linetype],
-					colour=names(simfacets)[simfacets==input$colour])
+					linetype=names(simfacets)[simfacets==input$simlinetype],
+					colour=names(simfacets)[simfacets==input$simcolour])
+			browser()
 			return(p)
 		})
 	output$simbpErrorDistributionPlot <- renderPlot({
@@ -163,6 +159,7 @@ function(input, output, session) {
 			aes(x=bperror, y=rate) +
 			geom_bar(stat="identity") +
 			facet_grid(caller ~ eventtype)
+		browser()
 		return(p)
 	})
 	#####
@@ -172,8 +169,9 @@ function(input, output, session) {
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=aligner) +
+						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
 						geom_line(size=1) +
+		        scale_colour_brewer(palette = "Paired") +
 						labs(title = "", y = "Precision", x = "Recall (true positive count)")
 		return(p)
 	})
@@ -182,9 +180,10 @@ function(input, output, session) {
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-						aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=aligner) +
+						aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=CallSet) +
 						geom_line(size=1) +
 						coord_cartesian(ylim=c(0, max(plotdf$tp)), xlim=c(0, max(plotdf$tp))) +
+		        scale_colour_brewer(palette = "Paired") +
 						labs(title = "", y = "True Positives", x = "False positives")
 		return(p)
 	})
@@ -193,9 +192,10 @@ function(input, output, session) {
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=aligner) +
+						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
 						geom_line(size=1) +
-						facet_wrap(~ repeatClass) +
+						facet_wrap(~ repeatClass, scales="free") +
+		        scale_colour_brewer(palette = "Paired") +
 						labs(title = "Precision-Recall by RepeatMasker repeat class", y = "Precision", x = "Recall (true positive count)")
 		return(p)
 	})
@@ -204,10 +204,11 @@ function(input, output, session) {
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-						aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=aligner) +
+						aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=CallSet) +
 						geom_line(size=1) +
 						facet_wrap(~ repeatClass) +
 						coord_cartesian(ylim=c(0, max(plotdf$tp)), xlim=c(0, max(plotdf$tp))) +
+		        scale_colour_brewer(palette = "Paired") +
 						labs(title = "", y = "True Positives", x = "False positives")
 		return(p)
 	})

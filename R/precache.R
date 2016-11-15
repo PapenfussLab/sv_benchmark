@@ -16,24 +16,23 @@ for (datadir in dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir]
 			for (sizemargin in simoptions$sizemargin) {
 				for (ignore.duplicates in simoptions$ignore.duplicates) {
 					for (ignore.interchromosomal in simoptions$ignore.interchromosomal) {
-						for (requiredHits in lroptions$requiredHits) {
+						for (requiredHits in simoptions$requiredHits) {
 							for (mineventsize in simoptions$mineventsize) {
-								for (transform in lroptions$grtransform) {
-									plotdata <- LoadPlotData(
-											datadir = paste0(dataLocation, "data.", datadir),
-											maxgap = maxgap,
-											ignore.strand = ignore.strand,
-											sizemargin = sizemargin,
-											ignore.duplicates = ignore.duplicates,
-											ignore.interchromosomal = ignore.interchromosomal,
-											mineventsize = mineventsize,
-											maxeventsize = simoptions$maxeventsize,
-											grtransform = transform,
-											requiredHits = requiredHits,
-											truthgr = NULL,
-											eventtypes=NULL,
-											existingCache = plotdata)
-								}
+								transform <- simoptions$grtransform
+								plotdata <- LoadPlotData(
+										datadir = paste0(dataLocation, "data.", datadir),
+										maxgap = maxgap,
+										ignore.strand = ignore.strand,
+										sizemargin = sizemargin,
+										ignore.duplicates = ignore.duplicates,
+										ignore.interchromosomal = ignore.interchromosomal,
+										mineventsize = mineventsize,
+										maxeventsize = simoptions$maxeventsize,
+										grtransform = transform,
+										requiredHits = requiredHits,
+										truthgr = NULL,
+										eventtypes=NULL,
+										existingCache = plotdata)
 							}
 						}
 					}
@@ -52,8 +51,11 @@ for (datadir in lroptions$datadir) {
 						for (mineventsize in lroptions$mineventsize) {
 							for (requiredHits in lroptions$requiredHits) {
 								for (transform in lroptions$grtransform) {
-									for (i in 1:(2**length(eventtypes)-1)) { # all possible event type combinations
-										et <- eventtypes[as.logical(intToBits(i))[1:length(eventtypes)]]
+								  # UI now drop-down so only need for each event type
+								  # all possible event type combinations
+									#for (i in 1:(2**length(eventtypes)-1)) { 
+								  #et <- eventtypes[as.logical(intToBits(i))[1:length(eventtypes)]]
+								  for (et in eventtypes) {
 										plotdata <- LoadPlotData(
 												datadir = paste0(dataLocation, "data.", datadir),
 												maxgap = maxgap,

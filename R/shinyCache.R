@@ -28,6 +28,7 @@ LoadPlotData <- function(
 		truthgr,
 		eventtypes,
 		existingCache) {
+  eventtypes <- as.character(sort(eventtypes)) # order does not matter; strip names that were confusing the cache
 	cacheroot <- getCacheRootPath()
 	setCacheRootPath(datadir)
 	# set up all cache keys for all the data
@@ -46,6 +47,20 @@ LoadPlotData <- function(
 		keycalls=keycalls,
 		keydfs=keydfs
 		)
+	# # Debug cache missing
+	# write(sprintf("datadir=%s", datadir), stderr())
+	# write(sprintf("keymetadata=%s", getChecksum(keymetadata)), stderr())
+	# write(sprintf("keyvcfs=%s", getChecksum(keyvcfs)), stderr())
+	# write(sprintf("keycalls=%s", getChecksum(keycalls)), stderr())
+	# write(sprintf(".keyvcfs=%s", getChecksum(keyvcfs)), stderr())
+	# write(sprintf(".maxgap=%s", getChecksum(maxgap)), stderr())
+	# write(sprintf(".ignore.strand=%s", getChecksum(ignore.strand)), stderr())
+	# write(sprintf(".sizemargin=%s", getChecksum(sizemargin)), stderr())
+	# write(sprintf(".requiredHits=%s:%s", getChecksum(requiredHits), requiredHits), stderr())
+	# write(sprintf(".truthhash=%s", getChecksum(truthhash)), stderr())
+	# write(sprintf(".grtransform=%s", getChecksum(grtransform)), stderr())
+	# write(sprintf("keydfs=%s", getChecksum(keydfs)), stderr())
+	# stop()
 	if (is.null(existingCache)) {
 		existingCache <- slice
 	}
@@ -72,21 +87,22 @@ LoadPlotData <- function(
 	}
 	# Load graphs, loading from R.cache whenever possible to avoid recalculation
 	if (is.null(slice$dfs)) {
+	  write(sprintf("Loading dfs (%s)", getChecksum(keydfs)), stderr())
 		slice$dfs <- loadCache(key=keydfs, dirs=".Rcache/LoadPlotData/dfs")
 		if (is.null(slice$dfs)) {
-			write("Recalculating dfs", stderr())
+			write(sprintf("Recalculating dfs (%s)", getChecksum(keydfs)), stderr())
 			# To recalculate the graph we need the call set
 			if (is.null(slice$calls)) {
 				# Load call set
 				slice$calls <- loadCache(key=keycalls, dirs=".Rcache/LoadPlotData/calldf")
 				if (is.null(slice$calls)) {
-					write("Recalculating calls", stderr())
+					write(sprintf("Recalculating calls (%s)", getChecksum(keycalls)), stderr())
 					# To recalculate the call set we need the SV grs from the vcfs
 					if (is.null(slice$callgrlist)) {
 						slice$callgrlist <- loadCache(key=keyvcfs, dirs=".Rcache/LoadPlotData/callgr")
 						if (is.null(slice$callgrlist)) {
 							# metadata is always loaded so we're fine
-							write("Loading vcfs", stderr())
+						  write(sprintf("Loading vcfs (%s)", getChecksum(keyvcfs)), stderr())
 							slice$callgrlist <- LoadVCFs(datadir, metadata=slice$metadata)
 							saveCache(slice$callgrlist, key=keyvcfs, dirs=".Rcache/LoadPlotData/callgr")
 						}
@@ -118,7 +134,7 @@ LoadCallSets <- function(metadata, callgrlist, maxgap, ignore.strand, sizemargin
 		mergedcalls <- calls$calls
 		if (!is.null(calls$truth)) {
 			calls$truth <- calls$truth %>% mutate(duptp = FALSE)
-			calls$calls <- calls$calls%>% filter(!tp) # take the truth vcf version of tp calls since it has the actual event size
+			calls$calls <- calls$calls %>% filter(!tp) # take the truth vcf version of tp calls since it has the actual event size
 			mergedcalls <- rbind(calls$calls, calls$truth)
 		}
 		mcalls <- rbind(mcalls, mergedcalls %>% mutate(CallSet = ifelse(includeFiltered, "High & Low confidence", "High confidence only")))

@@ -256,7 +256,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 		result <- .ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits)
 		saveCache(result, key=key, dirs=".Rcache/ScoreVariantsFromTruthVCF")
 	} else {
-		write(".", stderr())
+		cat(".", file=stderr())
 	}
 	return(result)
 }
@@ -298,6 +298,11 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	calldf$duptp[hitcount$queryHits[hitcount$allhits >= requiredHits]] <- TRUE
 	calldf$duptp <- calldf$duptp & !calldf$tp
 	calldf$fp <- !calldf$tp
+	calldf$bperror[hits$queryHits] <- hits$localbperror
+	calldf$sizeerror[hits$queryHits] <- hits$sizeerror
+	calldf$simpleEvent <- simpleEventType(callgr)
+	calldf$repeatClass <- callgr$repeatClass
+	
 	truthdf <- NULL
 	if (requiredHits == 1) {
 		truthdf <- as.data.frame(truthgr) %>%
@@ -312,17 +317,17 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 		truthdf$QUAL[hits$subjectHits] <- hits$QUAL
 		truthdf$bperror[hits$subjectHits] <- hits$localbperror
 		truthdf$sizeerror[hits$subjectHits] <- hits$sizeerror
+		truthdf$simpleEvent <- simpleEventType(truthgr)
+		truthdf$repeatClass <- truthgr$repeatClass
 	}
-	calldf$bperror[hits$queryHits] <- hits$localbperror
-	calldf$sizeerror[hits$queryHits] <- hits$sizeerror
-	calldf$simpleEvent <-
-		ifelse(seqnames(callgr) != seqnames(partner(callgr)), "BP",
-		ifelse(callgr$insLen >= abs(callgr$svLen) * 0.7, "INS",
-		ifelse(strand(callgr) == strand(partner(callgr)), "INV",
-		ifelse(xor(start(callgr) < start(partner(callgr)), strand(callgr) == "-"), "DEL",
-		"DUP"))))
-	calldf$repeatClass <- callgr$repeatClass
 	return(list(calls=calldf, truth=truthdf))
+}
+simpleEventType <- function(gr) {
+  return(ifelse(seqnames(gr) != seqnames(partner(gr)), "BP",
+          ifelse(gr$insLen >= abs(gr$svLen) * 0.7, "INS",
+           ifelse(strand(gr) == strand(partner(gr)), "INV",
+            ifelse(xor(start(gr) < start(partner(gr)), strand(gr) == "-"), "DEL",
+             "DUP")))))
 }
 
 ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, requiredHits=1, truthgr=NULL) {

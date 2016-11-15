@@ -11,11 +11,20 @@ options("R.cache::compress" = TRUE)
 # load all metadata
 md <- lapply(list.files(dataLocation, pattern = "data.*", full.names = TRUE), function(dir) LoadCachedMetadata(dir))
 names(md) <- str_replace(list.files(dataLocation, pattern = "data.*"), "data.", "")
+# hack fix for:
+# Error: incompatible type (data index: 4, column: 'CX_MULTIMAPPING_LOCATIONS', was collecting: integer (dplyr::Collecter_Impl<13>), incompatible with data of type: character
+md <- lapply(md, function(x) { x$CX_MULTIMAPPING_LOCATIONS <- as.integer(x$CX_MULTIMAPPING_LOCATIONS) ; x})
 
 # load blacklist bed
 if (!exists("lrblacklistgr")) {
-	lrblacklistgr <- import(paste0(dataLocation, "/input.common/wgEncodeHg19ConsensusSignalArtifactRegions.bed"))
-	seqlevelsStyle(lrblacklistgr) <- "UCSC"
+  write("Loading blacklist", stderr())
+  lrblacklistgr <- list(
+    None=GRanges(),
+    DAC=import(paste0(dataLocation, "/input.common/wgEncodeHg19ConsensusSignalArtifactRegions.bed")),
+    Duke=import(paste0(dataLocation, "/input.common/wgEncodeDukeMapabilityRegionsExcludable.bed"))
+  )
+	seqlevelsStyle(lrblacklistgr$DAC) <- "UCSC"
+	seqlevelsStyle(lrblacklistgr$Duke) <- "UCSC"
 }
 
 # load repeatmasker annotations
@@ -23,6 +32,7 @@ if (!exists("grrm")) {
 	key = list(repeatmaskermergedfile=paste0(dataLocation, "/input.common/repeatmasker-hg19.fa.out.gz"))
 	grrm <- loadCache(key=key)
 	if (is.null(grrm)) {
+	  write(paste("Loading ", key$repeatmaskermergedfile), stderr())
 		grrm <- import.repeatmasker.fa.out(key$repeatmaskermergedfile)
 		saveCache(grrm, key=key)
 	}
@@ -46,14 +56,12 @@ withnames <- function(v, n) { names(v) <- n; return(v) }
 	gr$repeatClass <- ifelse(is.na(repeatHits), "", grrm[repeatHits %na% 1]$repeatClass)
     return(gr)
 }
-.primaryHumanOnly_blacklist <- function(gr, metadata) {
+.primaryHumanOnly_blacklist <- function(gr, metadata, blacklist) {
+  blacklistgr <- lrblacklistgr[[blacklist]]
 	gr <- .primaryHumanOnly(gr, metadata)
-	gr <- gr[!overlapsAny(gr, lrblacklistgr) & !overlapsAny(partner(gr), lrblacklistgr),]
-    return(gr)
+	gr <- gr[!overlapsAny(gr, blacklistgr) & !overlapsAny(partner(gr), blacklistgr),]
+  return(gr)
 }
-
-
-
 
 # callers that have data points for all simulation conditions and NA12878
 # TODO: replace this with a computed field that tells us what
@@ -63,6 +71,7 @@ fulldatacallers <- c(
 	"cortex",
 	"crest",
 	"delly",
+	"gasv",
 	"gridss",
 	"hydra",
 	"lumpy",
@@ -97,5 +106,11 @@ simoptions$mineventsize <- c(0, 51)
 lroptions <- dataoptions
 lroptions$requiredHits <- 3
 lroptions$datadir <- lroptions$datadir[!(lroptions$datadir %in% simoptions$datadir)]
-lroptions$grtransform <- c(.primaryHumanOnly, .primaryHumanOnly_blacklist)
-
+# lapply doesn't quite work since it doesn't play nicely with R.cache
+#lroptions$grtransform <- lapply(names(lrblacklistgr), function(blacklist) function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, blacklist))
+lroptions$grtransform <- list(
+  None=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "None"),
+  DAC=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "DAC"),
+  Duke=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "Duke"))
+                                
+                                
