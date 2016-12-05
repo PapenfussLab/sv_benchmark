@@ -6,12 +6,13 @@ library(dplyr)
 cachedsimdata <- NULL
 cachedlrdata <- NULL
 RefreshSimData <- function(input, olddata) {
+  write("RefreshSimData", stderr())
 	if (!input$simsmallevents) {
 		mineventsize <- 51
 	} else {
 		mineventsize <- 0
 	}
-	LoadPlotData(
+	pd <- LoadPlotData(
 		datadir=paste0(dataLocation, "data.", input$simdatadir),
 		maxgap=simoptions$maxgap,
 		ignore.strand=simoptions$ignore.strand,
@@ -25,8 +26,10 @@ RefreshSimData <- function(input, olddata) {
 		truthgr=NULL,
 		eventtypes=NULL,
 		existingCache = olddata)
+	return(pd)
 }
 RefreshlrData <- function(input, olddata) {
+  write("RefreshlrData", stderr())
     pd <- LoadPlotData(
         datadir = paste0(dataLocation, "data.", input$lrdatadir),
         maxgap = lroptions$maxgap,
@@ -41,6 +44,7 @@ RefreshlrData <- function(input, olddata) {
         truthgr = LoadLongReadTruthgr(paste0(dataLocation, "input.", input$lrdatadir, "/longread")),
     	eventtypes=input$lrevents,
         existingCache = olddata)
+    return(pd)
 }
 PrettyFormatLrPlotdf <- function(input, lrdata, plotdf) {
 	plotdf <- plotdf %>%
@@ -117,9 +121,13 @@ function(input, output, session) {
 			))
 	})
 	output$simEventSizePlot <- renderPlot({
+	  write("simEventSizePlot", stderr())
 		cachedsimdata <- RefreshSimData(input, cachedsimdata)
 		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$callsByEventSize)
-		if (nrow(plotdf) == 0) return(NULL)
+		if (nrow(plotdf) == 0) {
+		  write("simEventSizePlot: no data!", stderr())
+		  return(NULL)
+		}
 		p <- ggplot(plotdf) +
 			aes(group=paste(Id, CallSet), x=abs(svLen), y=sens) +
 			aes_string(linetype=paste0("as.factor(", input$simlinetype, ")"), colour=paste0("as.factor(", input$simcolour, ")")) +
@@ -130,26 +138,29 @@ function(input, output, session) {
 			labs(title="", y="Sensitivity", x="Event size",
 				linetype=names(simfacets)[simfacets==input$simlinetype],
 				colour=names(simfacets)[simfacets==input$simcolour])
-		browser()
 		return(p)
 	})
 	output$simRocPlot <- renderPlot({
+	  write("simRocPlot", stderr())
 		cachedsimdata <- RefreshSimData(input, cachedsimdata)
 		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$roc)
-			if (nrow(plotdf) == 0) return(NULL)
-			p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-				aes(group=paste(Id, CallSet), y=sens, x=fp+1) +
-				aes_string(linetype=paste0("as.factor(", input$simlinetype, ")"), colour=paste0("as.factor(", input$simcolour, ")")) +
-				geom_line() +
-				scale_x_log_fp +
-				facet_grid(eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + "))))) +
-				labs(title="", y="Sensitivity", x="False Positives",
-					linetype=names(simfacets)[simfacets==input$simlinetype],
-					colour=names(simfacets)[simfacets==input$simcolour])
-			browser()
-			return(p)
-		})
+		if (nrow(plotdf) == 0) {
+		  write("simRocPlot: no data!", stderr())
+		  return(NULL)
+		}
+		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
+			aes(group=paste(Id, CallSet), y=sens, x=fp+1) +
+			aes_string(linetype=paste0("as.factor(", input$simlinetype, ")"), colour=paste0("as.factor(", input$simcolour, ")")) +
+			geom_line() +
+			scale_x_log_fp +
+			facet_grid(eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + "))))) +
+			labs(title="", y="Sensitivity", x="False Positives",
+				linetype=names(simfacets)[simfacets==input$simlinetype],
+				colour=names(simfacets)[simfacets==input$simcolour])
+		return(p)
+	})
 	output$simbpErrorDistributionPlot <- renderPlot({
+	  write("simbpErrorDistributionPlot", stderr())
 		cachedsimdata <- RefreshSimData(input, cachedsimdata)
 		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$bpErrorDistribution)
 		# TODO: incorporate error margin only for truth calls
@@ -159,12 +170,13 @@ function(input, output, session) {
 			aes(x=bperror, y=rate) +
 			geom_bar(stat="identity") +
 			facet_grid(caller ~ eventtype)
-		browser()
+		write("simbpErrorDistributionPlot complete", stderr())
 		return(p)
 	})
 	#####
 	# long read plots
 	output$lrPrecRecallPlot <- renderPlot({
+	  write("lrPrecRecallPlot", stderr())
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
 		if (nrow(plotdf) == 0) return(NULL)
@@ -176,6 +188,7 @@ function(input, output, session) {
 		return(p)
 	})
 	output$lrRocPlot <- renderPlot({
+	  write("lrRocPlot", stderr())
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
 		if (nrow(plotdf) == 0) return(NULL)
@@ -188,6 +201,7 @@ function(input, output, session) {
 		return(p)
 	})
 	output$lrPrecRecallRepeatPlot <- renderPlot({
+	  write("lrPrecRecallRepeatPlot", stderr())
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
 		if (nrow(plotdf) == 0) return(NULL)
@@ -200,6 +214,7 @@ function(input, output, session) {
 		return(p)
 	})
 	output$lrRocRepeatPlot <- renderPlot({
+	  write("lrRocRepeatPlot", stderr())
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
 		if (nrow(plotdf) == 0) return(NULL)

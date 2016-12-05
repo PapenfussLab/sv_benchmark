@@ -54,24 +54,24 @@ function(request) {
 				)
 			),
 			mainPanel(
-				conditionalPanel("input.datasettype == 'lr'",
-					tabsetPanel(id = "mt",
-						tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = 1200)),
-						tabPanel("ROC", plotOutput("lrRocPlot", height = 1200)),
-						tabPanel("Precision Recall by repeat", plotOutput("lrPrecRecallRepeatPlot", height = 1200)),
-						tabPanel("ROC by repeat", plotOutput("lrRocRepeatPlot", height = 1200))
-						#tabPanel("Detected event sizes", plotOutput("lrEventSizeHistogram", height = 1200))
-						)
+			  conditionalPanel("input.datasettype == 'sim'", 
+			   tabsetPanel(#id = "mtsim",
+			     tabPanel("Event Size", plotOutput("simEventSizePlot", height = 1200)),
+			     tabPanel("ROC", plotOutput("simRocPlot", height = 1200))
+			   )
+			  ),
+			  conditionalPanel("input.datasettype != 'sim'", 
+			   tabsetPanel(#id = "mtsim",
+			     tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = 1200)),
+			     tabPanel("ROC", plotOutput("lrRocPlot", height = 1200)),
+			     tabPanel("Precision Recall by repeat", plotOutput("lrPrecRecallRepeatPlot", height = 1200)),
+			     tabPanel("ROC by repeat", plotOutput("lrRocRepeatPlot", height = 1200))
+			   )
+			  )
+			  #conditionalPanel("input.datasettype == 'sim'",
 					# includeMarkdown("explaination.md")
 					# downloadButton('downloadPlot', 'Download Plot')
 					# http://stackoverflow.com/questions/14810409/save-plots-made-in-a-shiny-app
-				),
-				conditionalPanel("input.datasettype == 'sim'",
-					tabsetPanel(id = "mtsim",
-						tabPanel("Event Size", plotOutput("simEventSizePlot", height = 1200)),
-						tabPanel("ROC", plotOutput("simRocPlot", height = 1200))
-					)
-				)
 			)
 		)
 	)

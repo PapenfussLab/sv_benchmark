@@ -28,7 +28,10 @@ LoadPlotData <- function(
 		truthgr,
 		eventtypes,
 		existingCache) {
-  eventtypes <- as.character(sort(eventtypes)) # order does not matter; strip names that were confusing the cache
+  if (!is.null(eventtypes)) {
+    # order does not matter; strip names that were confusing the cache
+    eventtypes <- as.character(sort(eventtypes))
+  }
 	cacheroot <- getCacheRootPath()
 	setCacheRootPath(datadir)
 	# set up all cache keys for all the data
