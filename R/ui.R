@@ -13,7 +13,7 @@ function(request) {
 		titlePanel("Structural Variant Caller Benchmark"),
 		sidebarLayout(
 			sidebarPanel(
-				selectInput("datasettype", "Data set", choices=c("Genome in a Bottle"="lr", "Simulation"="sim"), selected="sim"),
+				selectInput("datasettype", "Data set", choices=c("Genome in a Bottle"="lr", "Simulation"="sim"), selected="lr"),
 				conditionalPanel("input.datasettype == 'lr'",
 					selectInput("lrdatadir", "Sample", lroptions$datadir),
 					selectInput("lrevents", "Event types",
@@ -43,7 +43,7 @@ function(request) {
 				conditionalPanel("input.datasettype == 'sim'",
 					selectInput("simdatadir", "Data Set", simoptions$datadir),
 					#TODO http://stackoverflow.com/questions/30502870/shiny-slider-on-logarithmic-scale
-					checkboxInput("simsmallevents", "Include <= 50bp", value = TRUE),
+					checkboxInput("simsmallevents", "Include <= 50bp", value = FALSE),
 					uiOutput("simControls"),
 					hr(),
 					selectInput("simlinetype", "Line Type", simfacets, "CallSet"),
@@ -51,16 +51,17 @@ function(request) {
 					checkboxGroupInput("simcallset", "Call Set",
 						c("High confidence only", "High & Low confidence"),
 						"High & Low confidence")
-				)
+				),
+				submitButton("refresh", "Refresh")
 			),
 			mainPanel(
-			  conditionalPanel("input.datasettype == 'sim'", 
+			  conditionalPanel("input.datasettype == 'sim'",
 			   tabsetPanel(#id = "mtsim",
 			     tabPanel("Event Size", plotOutput("simEventSizePlot", height = 1200)),
 			     tabPanel("ROC", plotOutput("simRocPlot", height = 1200))
 			   )
 			  ),
-			  conditionalPanel("input.datasettype != 'sim'", 
+			  conditionalPanel("input.datasettype != 'sim'",
 			   tabsetPanel(#id = "mtsim",
 			     tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = 1200)),
 			     tabPanel("ROC", plotOutput("lrRocPlot", height = 1200)),

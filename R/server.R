@@ -22,8 +22,9 @@ RefreshSimData <- function(input, olddata) {
 		mineventsize=mineventsize,
 		maxeventsize = simoptions$maxeventsize,
 		requiredHits=simoptions$requiredHits,
-		grtransform=simoptions$grtransform,
-		truthgr=NULL,
+		grtransformName="PrimaryHumanOnly",
+		grtransform=simoptions$grtransform[["PrimaryHumanOnly"]],
+		truthbedpedir=NULL,
 		eventtypes=NULL,
 		existingCache = olddata)
 	return(pd)
@@ -40,8 +41,9 @@ RefreshlrData <- function(input, olddata) {
         mineventsize = lroptions$mineventsize,
         maxeventsize = lroptions$maxeventsize,
         requiredHits = lroptions$requiredHits,
+        grtransformName = unname(input$lrblacklist),
         grtransform = lroptions$grtransform[[input$lrblacklist]],
-        truthgr = LoadLongReadTruthgr(paste0(dataLocation, "input.", input$lrdatadir, "/longread")),
+        truthbedpedir = paste0(dataLocation, "input.", input$lrdatadir, "/longread"),
     	eventtypes=input$lrevents,
         existingCache = olddata)
     return(pd)
@@ -87,6 +89,8 @@ PrettyFormatSimPlotdf <- function(input, simdata, plotdf) {
 
 # server function (must be last in file)
 function(input, output, session) {
+	#####
+	# Bookmarking
 	setBookmarkExclude(c("bookmark"))
 	observe({
 		# Trigger this observer every time an input changes
@@ -122,12 +126,19 @@ function(input, output, session) {
 	})
 	output$simEventSizePlot <- renderPlot({
 	  write("simEventSizePlot", stderr())
+		progress <- shiny::Progress$new()
+		on.exit(progress$close())
+
+		progress$set(message = "Loading data", value = 0)
 		cachedsimdata <- RefreshSimData(input, cachedsimdata)
+		progress$set(message = "Formatting data", value = 0.5)
 		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$callsByEventSize)
 		if (nrow(plotdf) == 0) {
 		  write("simEventSizePlot: no data!", stderr())
+			#browser()
 		  return(NULL)
 		}
+		progress$set(message = "Generating plot", value = 0.8)
 		p <- ggplot(plotdf) +
 			aes(group=paste(Id, CallSet), x=abs(svLen), y=sens) +
 			aes_string(linetype=paste0("as.factor(", input$simlinetype, ")"), colour=paste0("as.factor(", input$simcolour, ")")) +
@@ -177,14 +188,21 @@ function(input, output, session) {
 	# long read plots
 	output$lrPrecRecallPlot <- renderPlot({
 	  write("lrPrecRecallPlot", stderr())
+		progress <- shiny::Progress$new()
+		on.exit(progress$close())
+
+		progress$set(message = "Loading data", value = 0)
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
+		progress$set(message = "Formatting data", value = 0.5)
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
 		if (nrow(plotdf) == 0) return(NULL)
+		progress$set(message = "Generating plot", value = 0.8)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
 						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
 						geom_line(size=1) +
 		        scale_colour_brewer(palette = "Paired") +
 						labs(title = "", y = "Precision", x = "Recall (true positive count)")
+		#shiny::stopApp()
 		return(p)
 	})
 	output$lrRocPlot <- renderPlot({

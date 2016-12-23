@@ -54,7 +54,7 @@ withnames <- function(v, n) { names(v) <- n; return(v) }
 	}
 	repeatHits <- findOverlaps(gr, grrm, select="first")
 	gr$repeatClass <- ifelse(is.na(repeatHits), "", grrm[repeatHits %na% 1]$repeatClass)
-    return(gr)
+	return(gr)
 }
 .primaryHumanOnly_blacklist <- function(gr, metadata, blacklist) {
   blacklistgr <- lrblacklistgr[[blacklist]]
@@ -97,7 +97,7 @@ dataoptions$mineventsize <-51
 dataoptions$maxeventsize <- NULL
 dataoptions$requiredHits <- 1
 dataoptions$datadir <- names(md)
-dataoptions$grtransform <- .primaryHumanOnly
+dataoptions$grtransform <- list(PrimaryHumanOnly=.primaryHumanOnly)
 simoptions <- dataoptions
 simoptions$datadir <- c("Read Depth" = "rd", "Read Length" = "rl", "Fragment Size" = "fs")
 simoptions$datasetslicecol <- c("rd" = "CX_READ_DEPTH", "rl" = "CX_READ_LENGTH", "fs" = "CX_READ_FRAGMENT_LENGTH")
@@ -112,5 +112,4 @@ lroptions$grtransform <- list(
   None=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "None"),
   DAC=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "DAC"),
   Duke=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "Duke"))
-                                
-                                
+

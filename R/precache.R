@@ -18,7 +18,8 @@ for (datadir in dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir]
 					for (ignore.interchromosomal in simoptions$ignore.interchromosomal) {
 						for (requiredHits in simoptions$requiredHits) {
 							for (mineventsize in simoptions$mineventsize) {
-								transform <- simoptions$grtransform
+								transformName <- "PrimaryHumanOnly"
+								transform <- simoptions$grtransform[["PrimaryHumanOnly"]]
 								plotdata <- LoadPlotData(
 										datadir = paste0(dataLocation, "data.", datadir),
 										maxgap = maxgap,
@@ -28,11 +29,13 @@ for (datadir in dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir]
 										ignore.interchromosomal = ignore.interchromosomal,
 										mineventsize = mineventsize,
 										maxeventsize = simoptions$maxeventsize,
+										grtransformName = transformName,
 										grtransform = transform,
 										requiredHits = requiredHits,
-										truthgr = NULL,
+										truthbedpedir = NULL,
 										eventtypes=NULL,
-										existingCache = plotdata)
+										existingCache = plotdata,
+										loadFromCacheOnly=FALSE)
 							}
 						}
 					}
@@ -42,7 +45,7 @@ for (datadir in dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir]
 	}
 }
 for (datadir in lroptions$datadir) {
-	truthgr <- LoadLongReadTruthgr(paste0(dataLocation, "input.", datadir, "/longread"))
+	truthbedpedir <- paste0(dataLocation, "input.", datadir, "/longread")
 	for (maxgap in lroptions$maxgap) {
 		for (ignore.strand in lroptions$ignore.strand) {
 			for (sizemargin in lroptions$sizemargin) {
@@ -50,11 +53,9 @@ for (datadir in lroptions$datadir) {
 					for (ignore.interchromosomal in lroptions$ignore.interchromosomal) {
 						for (mineventsize in lroptions$mineventsize) {
 							for (requiredHits in lroptions$requiredHits) {
-								for (transform in lroptions$grtransform) {
-								  # UI now drop-down so only need for each event type
-								  # all possible event type combinations
-									#for (i in 1:(2**length(eventtypes)-1)) { 
-								  #et <- eventtypes[as.logical(intToBits(i))[1:length(eventtypes)]]
+								for (transformName in names(lroptions$grtransform)) {
+									transform <- lroptions$grtransform[[transformName]]
+									# UI now drop-down so only need for each event type
 								  for (et in eventtypes) {
 										plotdata <- LoadPlotData(
 												datadir = paste0(dataLocation, "data.", datadir),
@@ -65,11 +66,13 @@ for (datadir in lroptions$datadir) {
 												ignore.interchromosomal = ignore.interchromosomal,
 												mineventsize = mineventsize,
 												maxeventsize = lroptions$maxeventsize,
+												grtransformName = transformName,
 												grtransform = transform,
 												requiredHits = requiredHits,
-												truthgr = truthgr,
+												truthbedpedir = truthbedpedir,
 												eventtypes=et,
-												existingCache = plotdata)
+												existingCache = plotdata,
+												loadFromCacheOnly=FALSE)
 									}
 								}
 							}
