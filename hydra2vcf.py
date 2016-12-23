@@ -1,4 +1,4 @@
-#!/usr/local/bioinf/bin/python
+#!/usr/bin/env python
 #
 # converts HYDRA output into VCF
 #

@@ -24,7 +24,6 @@ for BAM in $DATA_DIR/*.sq.bam ; do
 	CX_CALLER=$CALLER
 	# TODO: use --use_xa --sorted flags if SAM XA field is written (ie: BWA)
 	cx_save
-	XC_MEMORY=1024
 	XC_OUTPUT=$CX.vcf
 	# Clever does not write the VCF SV headers - we need to add them ourselves
 	XC_SCRIPT="module add bwa ; rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX

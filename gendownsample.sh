@@ -20,7 +20,6 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 				cx_save
 				PR=$(echo "scale=4; $CX_READ_DEPTH / $SRC_DEPTH" | bc) 
 				XC_OUTPUT=$CX.sc.bam
-				XC_MEMORY=3072
 				XC_SCRIPT="
 				DownsampleSam I=$BAM O=$CX.sc.downsample.bam PROBABILITY=$PR &&\
 				SortSam I=$CX.sc.downsample.bam O=$CX.sq.bam SO=queryname &&\

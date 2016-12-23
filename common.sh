@@ -12,6 +12,10 @@ if [[ ! -f settings.$CONFIG ]] ; then
 	echo "Missing settings.$CONFIG"
 	exit 1
 fi
+QSUBARGS=""
+if [[ "$2" != "" ]] ; then
+	QSUBARGS="-q $2"
+fi
 mkdir -p data.$CONFIG
 
 # default settings
@@ -29,14 +33,13 @@ GRIDSS_METHODS=Positional
 GRIDSS_KMER=25
 GRIDSS_MODEL=FastEmpiricalReferenceLikelihood
 GRIDSS_EXCLUSION=None 
-GRIDSS_PER_CHR=true
-GRIDSS_ALIGNER="bwa bowtie2"
+GRIDSS_ALIGNER="bwa" # TODO: update script so more than just bwa works
 # override default settings
 source settings.$CONFIG
 
 EXECUTION_CONTEXT=torque #can be one of {local, torque, slurm}
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-DATA_DIR=$BASE_DIR/data.$CONFIG
+DATA_DIR=$BASE_DIR/../data.$CONFIG
 mkdir -p $DATA_DIR
 
 trap "exit 1" TERM
@@ -124,8 +127,6 @@ function xc_flush {
 	# removes all variables starting with CX_
 	unset -v $(set | grep -E '^XC_' | cut -s -d '=' -f 1)
 	# requires cluster head to match CPU specs of cluster nodes
-	XC_CORES=$MAX_CORES
-	XC_MEMORY=$MAX_MEMORY
 }
 # XC - execution context
 # when running any given script, instead of running it directly
@@ -134,13 +135,14 @@ function xc_flush {
 # XC Variants
 # XC_SCRIPT commands to execute
 # XC_TRAP clean-up commands to execute when exiting
-# XC_CORES number of core available
 # XC_MULTICORE set iff process is multithreaded
 # XC_NOCLUSTER set iff process is unable to run on the cluster
-# XC_MEMORY expected maximum memory in MB
 # XC_OUTPUT output file. If this file exists, the script will not be rerun
 MAX_CORES=$(( $(nproc) / 2 + 1))
 MAX_MEMORY=$(free -m | gawk '{ if (NR == 2) { print $2 } } ')
+
+MAX_CORES=40
+MAX_MEMORY=120000
 
 # Executes the current execution script
 function xc_exec {
@@ -166,36 +168,38 @@ function write_xc_exec_scripts {
 #!/bin/bash
 $XC_SCRIPT
 EOF
-	local RES="mem=${XC_MEMORY}mb"
-	if [[ "$XC_MULTICORE" != "" || $((XC_MEMORY * 2)) -gt $MAX_MEMORY ]] ; then
+	local RES=""
+	if [[ "$XC_MULTICORE" != "" ]] ; then
 		# reserve the entire node for multicore or high-memory jobs
-		RES="nodes=1:ppn=${MAX_CORES}"
+		RES="#PBS -n"
 	fi
-	# TODO: XC_CORES and XC_MEMORY
 	cat > $CX$XC_SUFFIX.sh << EOF
 #!/bin/bash
 #PBS -S /bin/bash
 #PBS -e $CX$XC_SUFFIX.stderr
 #PBS -o $CX$XC_SUFFIX.stdout
-#PBS -N indel$(basename $CX)
+#PBS -N $(basename $CX)
 #PBS -V
-#PBS -l $RES
+$RES
 set -o pipefail
-#renice 20 -p \$\$
+renice 20 -p \$\$
+module use /stornext/System/data/modulefiles/bioinf/its 2>/dev/null
 
 if mkdir $CX.lock/running 2>/dev/null ; then
 	if pidof $CX$XC_SUFFIX.script.sh ; then
-		echo "Found running process $CX$XC_SUFFIX.script.sh: not processing"
+		echo "Found running process $CX$XC_SUFFIX.script.sh: not processing" > $CX$XC_SUFFIX.stdouterr
 		exit 1
 	fi
 else
-	echo "Found $CX.lock/running ($(cat $CX.lock/lock 2>/dev/null)): not processing"
+	echo "Found $CX.lock/running ($(cat $CX.lock/lock 2>/dev/null)): not processing" > $CX$XC_SUFFIX.stdouterr
 	exit 1
 fi
 killall -p $CX$XC_SUFFIX.script.sh 2>/dev/null
 trap "{ rm -rf $CX.lock ; ${XC_TRAP:-true}; exit 255; }" EXIT
 cd "$BASE_DIR"
-/usr/bin/time -f "user	%U	elapsed	%e	sys	%S	maxResMemKb	%M	avgTotMemKb	%K I	%I	O	%O	exit	%x" -o $CX$XC_SUFFIX.time $CX$XC_SUFFIX.script.sh
+/usr/bin/time -f "user	%U	elapsed	%e	sys	%S	maxResMemKb	%M	avgTotMemKb	%K I	%I	O	%O	exit	%x" \
+	-o $CX$XC_SUFFIX.time \
+	$CX$XC_SUFFIX.script.sh > $CX$XC_SUFFIX.stdouterr 2>&1
 EOF
 	chmod +x $CX$XC_SUFFIX.sh $CX$XC_SUFFIX.script.sh
 }
@@ -209,14 +213,14 @@ function xc_exec_local {
 	echo $LOCKKEY > $CX.lock/lock
 	write_xc_exec_scripts
 	chmod a+x $CX$XC_SUFFIX.sh
-	( $CX$XC_SUFFIX.sh >(tee $CX$XC_SUFFIX.stdout) 2> >(tee $CX$XC_SUFFIX.stderr >&2) )
+	( $CX$XC_SUFFIX.sh >(tee $CX$XC_SUFFIX.stdouterr) 2>&1 )
 	# run the clean up code since trap is ineffective when we source the script
 	rm -rf $CX.lock; ${XC_TRAP:-true}
 }
 # Executes the current execution script on a cluster
 function xc_exec_torque {
 	if which qsub >/dev/null 2>&1 ; then
-		if [ "$XC_NOCLUSTER" != "" ] ; then
+		if [[ "$XC_NOCLUSTER" != "" ]] ; then
 			echo "$(tput setaf 3)$(basename $CX): Not scheduling as it has been flagged NOCLUSTER$(tput sgr0)"
 			xc_flush
 			return
@@ -225,7 +229,10 @@ function xc_exec_torque {
 		#if [ "$XC_MULTICORE" != "" ] ; then
 		write_xc_exec_scripts
 		rm -f $CX$XC_SUFFIX.stderr $CX$XC_SUFFIX.stdout
-		qsub $CX$XC_SUFFIX.sh | tee $CX.lock/lock
+		qsub $QSUBARGS $CX$XC_SUFFIX.sh > $CX.lock/lock || rm -r $CX.lock
+		if [[ -f $CX.lock/lock ]] ; then
+			cat $CX.lock/lock
+		fi
 	else
 		# fall back to local execution if qsub not available
 		echo "qsub not found. Executing locally."

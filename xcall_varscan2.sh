@@ -11,7 +11,6 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 	CX_CALLER_FLAGS="--p-value 0.99"
 	cx_save
 	XC_OUTPUT=$CX.vcf
-	XC_MEMORY=1024
 	XC_SCRIPT="module add $CALLER ; rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
 	samtools mpileup -f $CX_REFERENCE $CX_BAM | \
 	java -jar \\$VARSCAN_JAR mpileup2indel $CX_CALLER_FLAGS > $CX/out && \

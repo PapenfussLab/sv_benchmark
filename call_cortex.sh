@@ -18,8 +18,8 @@ export PERL5LIB=$CORTEX_DIR/scripts/calling:$PERL5LIB
 # stampy.py -G hg19 hg19.fa && stampy.py -g hg19 -H hg19
 # cd $CX_REFERENCE.split
 # ls -1 $CX_REFERENCE.split/*.fa > $CX_REFERENCE).splitfile_listing_fasta
-# cortex_var_31_c1 --kmer_size 31 --mem_height 27 --mem_width 100 --se_list file_listing_fasta --max_read_len 10000 --dump_binary ref.k31.ctx --sample_id REF
-# cortex_var_63_c1 --kmer_size 61 --mem_height 27 --mem_width 100 --se_list file_listing_fasta --max_read_len 10000 --dump_binary ref.k61.ctx --sample_id REF
+# cortex_var_31_c1 --kmer_size 31 --mem_height 27 --mem_width 100 --se_list file_listing_fasta --max_read_len 10000 --dump_binary $(basename $CX_REFERENCE).k31.ctx --sample_id REF
+# cortex_var_63_c1 --kmer_size 61 --mem_height 27 --mem_width 100 --se_list file_listing_fasta --max_read_len 10000 --dump_binary $(basename $CX_REFERENCE).k61.ctx --sample_id REF
 
 for FQ1 in $DATA_DIR/*.1.fq ; do
 	cx_load $FQ1

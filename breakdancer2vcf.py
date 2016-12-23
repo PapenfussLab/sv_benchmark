@@ -1,4 +1,4 @@
-#!/usr/local/bioinf/bin/python
+#!/usr/bin/env python
 #
 # converts breakdancer output into pseudo-VCF
 #
@@ -67,20 +67,19 @@ for line in sys.stdin:
 	numreads = int(input[9])
 	if type == "ITX":
 		print (
-			"{0}	{1}	{10}a	N	N[{3}:{4}[	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}b;EVENT={6}{10}\n" +
-			"{3}	{4}	{10}b	N	]{0}:{11}]N	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}a;EVENT={6}{10}\n" + 
-			"{3}	{4}	{10}c	N	N[{0}:{1}[	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}d;EVENT={6}{10}\n" +
-			"{0}	{11}	{10}d	N	]{3}:{4}]N	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}c;EVENT={6}{10}" +
-			commonInfo
+			"{0}	{1}	{10}a	N	N[{3}:{4}[	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}b;EVENT={6}{10}\n" + commonInfo +
+			"{3}	{4}	{10}b	N	]{0}:{11}]N	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}a;EVENT={6}{10}\n" + commonInfo + 
+			"{3}	{4}	{10}c	N	N[{0}:{1}[	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}d;EVENT={6}{10}\n" + commonInfo +
+			"{0}	{11}	{10}d	N	]{3}:{4}]N	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}c;EVENT={6}{10}" + commonInfo
 			).format(
 			leftChr, leftPos, leftOrientation, rightChr, rightPos, rightOrientation, type, size, score, numreads, # 0-9
 			id, #10
 			leftPos + size) # 11
 	elif type == "CTX":
 		print (
-			"{0}	{1}	{10}o	N	{11}	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}h;EVENT={6}{10}\n" +
-			"{3}	{4}	{10}h	N	{12}	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}o;EVENT={6}{10}" +
-			commonInfo).format(
+			"{0}	{1}	{10}o	N	{11}	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}h;EVENT={6}{10}\n" + commonInfo
+			"{3}	{4}	{10}h	N	{12}	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}o;EVENT={6}{10}" + commonInfo
+			).format(
 			leftChr, leftPos, leftOrientation, rightChr, rightPos, rightOrientation, type, size, score, numreads, # 0-9
 			id, #10
 			toVcfBreakend(leftChr, leftPos, isRefToBreakend(leftOrientation), rightChr, rightPos, isRefToBreakend(rightOrientation)), #11

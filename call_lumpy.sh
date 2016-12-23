@@ -4,6 +4,7 @@
 #
 . common.sh
 CALLER=lumpy/0.2.11
+export PATH=$BASE_DIR/tools/$CALLER:$PATH
 for BAM in $DATA_DIR/*.sc.bam ; do
 	cx_load $BAM
 	if [[ -f ${BAM/.bam/.sr.bam} ]] ; then
@@ -18,8 +19,8 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 			continue
 		fi
 	else
-		echo "Skipping $BAM as not aligned with bwa (or missing bwa @PG header)"
-		continue
+		echo "$BAM as not aligned with bwa (or missing bwa @PG header) - trying anyway"
+		#continue
 	fi
 	BLACKLIST=""
 	if [[ "$CX_BLACKLIST" != "" ]] ; then
@@ -29,7 +30,9 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 	CX_CALLER=$CALLER
 	cx_save
 	XC_OUTPUT=$CX.vcf
-	XC_SCRIPT="module add $CALLER; rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
+	XC_SCRIPT="rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
+	module remove samtools
+	module add samtools/0.1.19 samblaster perl
 	samtools view -b -F 1294 $BAM > $CX/discordants.unsorted.bam
 	samtools view -h $BAM \
 		| ~/src/$CALLER/scripts/extractSplitReads_BwaMem -i stdin \

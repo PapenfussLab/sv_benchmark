@@ -1,12 +1,17 @@
 #!/bin/bash
 #
-# runs breakdancer against bams
+# runs CREST against bams
 #
-unset PERL5LIB # temp hack until environment gets fixed
 . common.sh
 CALLER=crest/0.0.1
-export PATH=/usr/local/bioinfsoftware/blat/blat_34x12/bin:$PATH 
-export PERL5LIB=/usr/local/bioinfsoftware/CREST/current/lib
+export PATH=$BASE_DIR/tools/blat/34x12/bin:$PATH 
+export PATH=$BASE_DIR/tools/cap3/2010827:$PATH 
+export PATH=$BASE_DIR/tools/$CALLER:$PATH 
+export PERL5LIB=$BASE_DIR/tools/$CALLER
+# TODO: missing BioPerl
+# cpan
+# install Bio::DB::Sam
+
 BLAT_PORT=24513
 BLAT_POLL_INTERVAL=10
 for BAM in $DATA_DIR/*.sc.bam ; do
@@ -22,7 +27,8 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 	BLAT_TMP_FILE=/tmp/crest.blat.$BLAT_PORT.$(basename $CX).lock
 	XC_OUTPUT=$CX.vcf
 	XC_TRAP="rm $BLAT_TMP_FILE ; if ls /tmp/crest.blat.$BLAT_PORT.*.lock 2>/dev/null ; then echo 'Additional instance using blat server' ; else gfServer stop localhost $BLAT_PORT 2>/dev/null; pkill -s 0 gfServer; echo 'Blat server terminated' ; fi "
-	XC_SCRIPT="module add cap3 ucsc-tools $CALLER ; rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
+	XC_SCRIPT="rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
+	module add samtools ucsc-tools perl
 	ln -s $BAM $CX/in.bam
 	ln -s $BAM.bai $CX/in.bam.bai
 	echo > $BLAT_TMP_FILE

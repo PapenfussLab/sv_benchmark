@@ -9,7 +9,7 @@ if [[ "$1" == "" ]] ; then
 fi
 
 echo "Archiving $1"
-
+cd ..
 for DATA in data.* ; do
 #for DATA in data.model ; do
 	echo "echo Processing $DATA"

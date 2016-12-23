@@ -1,4 +1,4 @@
-#!/usr/local/bioinf/bin/python
+#!/usr/bin/env python
 # Daniel Cameron
 #
 # converts socrates paired output to VCF breakpoints

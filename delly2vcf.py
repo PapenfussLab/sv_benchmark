@@ -1,4 +1,4 @@
-#!/usr/local/bioinf/bin/python
+#!/usr/bin/env python
 #
 # converts delly output into pseudo-VCF
 # Delly format: http://www.embl.de/~rausch/delly.html

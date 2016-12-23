@@ -29,7 +29,7 @@ function align_subread {
 	XC_MULTICORE=1
 	XC_OUTPUT=$CX.su.bam
 	XC_SCRIPT="module add subread
-	subread-align -T $XC_CORES -i $INDEX -r $1 -R $2 |
+	subread-align -T \$(nproc) -i $INDEX -r $1 -R $2 |
 		AddOrReplaceReadGroups I=/dev/stdin O=$CX.tmp.bam $READ_GROUP_PARAMS &&
 	mv $CX.tmp.bam $XC_OUTPUT
 	"
@@ -60,7 +60,7 @@ function align_bwa {
 	XC_MULTICORE=1
 	XC_OUTPUT=$CX.su.bam
 	XC_SCRIPT="
-	bwa mem -t $XC_CORES $ARGS $INDEX $1 $2 |
+	bwa mem -t \$(nproc) $ARGS $INDEX $1 $2 |
 		AddOrReplaceReadGroups I=/dev/stdin O=$CX.tmp.bam $READ_GROUP_PARAMS &&
 	mv $CX.tmp.bam $XC_OUTPUT
 	"
@@ -95,7 +95,7 @@ function align_bowtie2 {
 	XC_MULTICORE=1
 	XC_OUTPUT=$CX.su.bam
 	XC_SCRIPT="
-	bowtie2 --threads $XC_CORES --mm $ALIGNER_FLAGS -x $INDEX -1 $1 -2 $2 |
+	bowtie2 --threads \$(nproc) --mm $ALIGNER_FLAGS -x $INDEX -1 $1 -2 $2 |
 		AddOrReplaceReadGroups I=/dev/stdin O=$CX.tmp.bam $READ_GROUP_PARAMS &&
 	mv $CX.tmp.bam $XC_OUTPUT
 	"
@@ -132,7 +132,7 @@ function align_novoalign {
 	XC_MULTICORE=1
 	XC_OUTPUT=$CX.su.bam
 	XC_SCRIPT="
-	novoalign -c $XC_CORES -o SAM $ALIGNER_FLAGS -F STDFQ -i PE $CX_READ_FRAGMENT_LENGTH,$CX_READ_FRAGMENT_STDDEV -d $INDEX -f $1 $2 |
+	novoalign -c \$(nproc) -o SAM $ALIGNER_FLAGS -F STDFQ -i PE $CX_READ_FRAGMENT_LENGTH,$CX_READ_FRAGMENT_STDDEV -d $INDEX -f $1 $2 |
 		AddOrReplaceReadGroups I=/dev/stdin O=$CX.tmp.bam $READ_GROUP_PARAMS &&
 	mv $CX.tmp.bam $XC_OUTPUT
 	"
@@ -163,6 +163,7 @@ function align_mrfast {
 	# however chunk size of 500,000 reads (250,000 pairs) is recommended.
 	CHUNK_READS=250000
 	CHUNK_LINES=$((4 * $CHUNK_READS))
+	XC_MULTICORE=1
 	XC_SCRIPT="rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
 	split -a 6 -l $CHUNK_LINES $CX_FQ1 split1
 	split -a 6 -l $CHUNK_LINES $CX_FQ2 split2
@@ -179,7 +180,7 @@ function align_mrfast {
 		FQ2=\${FQ1/.1./.2.}
 		echo mrfast --search $CX_REFERENCE --pe --seq1 \$FQ1 --seq2 \$FQ2 --discordant-vh --min $MIN --max $MAX --maxdis $MULTIMAPPING_LOCATIONS -o \$CHUNK >> $CX/mrfast.sh
 	done
-	parallel -j $XC_CORES < $CX/mrfast.sh
+	parallel -j \$(nproc) < $CX/mrfast.sh
 	cat *_DIVET.vh > output_DIVET.vh && 
 	mv output_DIVET.vh ${CX}_DIVET.vh
 	"
