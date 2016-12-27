@@ -26,9 +26,9 @@ scale_x_svlen_medium <- scale_x_continuous(
 	minor_breaks=c(1,2,3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 20, 24, 28, 32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 288, 320, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536),
 	trans="log10",
 	expand = c(0,0))
-scale_x_log_fp <- scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001, 100001),
+scale_x_log_fp <- scale_x_continuous(breaks=c(0, 10, 100, 1000, 10000, 100000)+1,
 	labels=c("0", "10", "100", "1k", "10k", "100k"),
-	minor_breaks=c(),
+	minor_breaks=1+c(1*c(2,4,6,8),10*c(2,4,6,8),100*c(2,4,6,8),1000*c(2,4,6,8),10000*c(2,4,6,8)),
 	trans="log10")
 scale_x_log_fp_short <- scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001, 100001),
 	labels=c("0", "", "100", "", "10k", ""),

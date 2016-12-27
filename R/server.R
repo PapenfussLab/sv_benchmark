@@ -20,7 +20,7 @@ RefreshSimData <- function(input, olddata) {
 		ignore.duplicates=simoptions$ignore.duplicates,
 		ignore.interchromosomal=simoptions$ignore.interchromosomal,
 		mineventsize=mineventsize,
-		maxeventsize = simoptions$maxeventsize,
+		maxeventsize=simoptions$maxeventsize,
 		requiredHits=simoptions$requiredHits,
 		grtransformName="PrimaryHumanOnly",
 		grtransform=simoptions$grtransform[["PrimaryHumanOnly"]],
@@ -41,8 +41,8 @@ RefreshlrData <- function(input, olddata) {
         mineventsize = lroptions$mineventsize,
         maxeventsize = lroptions$maxeventsize,
         requiredHits = lroptions$requiredHits,
-        grtransformName = unname(input$lrblacklist),
-        grtransform = lroptions$grtransform[[input$lrblacklist]],
+        grtransformName = unname("DAC"), # grtransformName = unname(input$lrblacklist),
+        grtransform = lroptions$grtransform$DAC, #grtransform = lroptions$grtransform[[input$lrblacklist]],
         truthbedpedir = paste0(dataLocation, "input.", input$lrdatadir, "/longread"),
     	eventtypes=input$lrevents,
         existingCache = olddata)
@@ -176,7 +176,7 @@ function(input, output, session) {
 		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$bpErrorDistribution)
 		# TODO: incorporate error margin only for truth calls
 		p <- ggplot(plotdf %>%
-				filter(CX_READ_DEPTH==30, CallSet=="High & Low confidence") %>%
+				filter(CX_READ_DEPTH==30, CallSet=="All Calls") %>%
 				inner_join(mostSensitiveAligner)) +
 			aes(x=bperror, y=rate) +
 			geom_bar(stat="identity") +
