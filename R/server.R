@@ -43,8 +43,8 @@ RefreshlrData <- function(input, olddata) {
         requiredHits = lroptions$requiredHits,
         grtransformName = unname("DAC"), # grtransformName = unname(input$lrblacklist),
         grtransform = lroptions$grtransform$DAC, #grtransform = lroptions$grtransform[[input$lrblacklist]],
-        truthbedpedir = paste0(dataLocation, "input.", input$lrdatadir, "/longread"),
-    	eventtypes=input$lrevents,
+        truthbedpedir = paste0(dataLocation, "input.", input$lrdatadir, "/", lroptions$truthpath[[1]]),
+				eventtypes=input$lrevents,
         existingCache = olddata)
     return(pd)
 }

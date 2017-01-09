@@ -52,23 +52,26 @@ LoadPlotData <- function(
 		keycalls=keycalls,
 		keydfs=keydfs
 		)
-	# # Debug cache missing
-	# write(sprintf("datadir=%s", datadir), stderr())
-	# write(sprintf("keymetadata=%s", getChecksum(keymetadata)), stderr())
-	# write(sprintf("keyvcfs=%s", getChecksum(keyvcfs)), stderr())
-	# write(sprintf("keycalls=%s", getChecksum(keycalls)), stderr())
-	#  write(sprintf(".keyvcfs=%s", getChecksum(keyvcfs)), stderr())
-	#  write(sprintf(".maxgap=%s", getChecksum(maxgap)), stderr())
-	#  write(sprintf(".ignore.strand=%s", getChecksum(ignore.strand)), stderr())
-	#  write(sprintf(".sizemargin=%s", getChecksum(sizemargin)), stderr())
-	#  write(sprintf(".requiredHits=%s:%s", getChecksum(requiredHits), requiredHits), stderr())
-	#  write(sprintf(".grtransformName=%s", getChecksum(grtransformName)), stderr())
-	# write(sprintf("keydfs=%s", getChecksum(keydfs)), stderr())
-	#  write(sprintf(".ignore.duplicates=%s", getChecksum(ignore.duplicates)), stderr())
-	#  write(sprintf(".ignore.interchromosomal=%s", getChecksum(ignore.interchromosomal)), stderr())
-	#  write(sprintf(".mineventsize=%s", getChecksum(mineventsize)), stderr())# stop()
-	#  write(sprintf(".maxeventsize=%s", getChecksum(maxeventsize)), stderr())# stop()
-	#  write(sprintf(".eventtypes=%s", getChecksum(eventtypes)), stderr())# stop()
+	# Debug cache missing
+	write(sprintf("datadir=%s", datadir), stderr())
+	write(sprintf("keymetadata=%s", getChecksum(keymetadata)), stderr())
+	write(sprintf("keyvcfs=%s", getChecksum(keyvcfs)), stderr())
+	write(sprintf("keycalls=%s", getChecksum(keycalls)), stderr())
+	 write(sprintf(".keyvcfs=%s", getChecksum(keyvcfs)), stderr())
+	 write(sprintf(".maxgap=%s", getChecksum(maxgap)), stderr())
+	 write(sprintf(".ignore.strand=%s", getChecksum(ignore.strand)), stderr())
+	 write(sprintf(".sizemargin=%s", getChecksum(sizemargin)), stderr())
+	 write(sprintf(".requiredHits=%s:%s", getChecksum(requiredHits), requiredHits), stderr())
+	 write(sprintf(".grtransformName=%s", getChecksum(grtransformName)), stderr())
+	write(sprintf("keydfs=%s", getChecksum(keydfs)), stderr())
+	 write(sprintf(".ignore.duplicates=%s", getChecksum(ignore.duplicates)), stderr())
+	 write(sprintf(".ignore.interchromosomal=%s", getChecksum(ignore.interchromosomal)), stderr())
+	 write(sprintf(".mineventsize=%s", getChecksum(mineventsize)), stderr())# stop()
+	 write(sprintf(".maxeventsize=%s", getChecksum(maxeventsize)), stderr())# stop()
+	 write(sprintf(".eventtypes=%s", getChecksum(eventtypes)), stderr())# stop()
+	 write(sprintf("keytruth=%s", getChecksum(keytruth)), stderr())
+	 write(sprintf(".bedpedir=%s(%s)", keytruth$bedpedir, getChecksum(keytruth$bedpedir)), stderr())
+
 	if (is.null(existingCache)) {
 		existingCache <- slice
 	}
@@ -106,7 +109,7 @@ LoadPlotData <- function(
 			# To recalculate the call set we need the SV grs from the vcfs
 			slice <- cachedloaddata$callgrlist(slice)
 			slice <- cachedloaddata$truthgr(slice)
-			slice$calls <- LoadCallSets(slice$metadata, slice$callgrlist, maxgap, ignore.strand, sizemargin, requiredHits, grtransform, slice$truthgr, keytruth)
+			slice$calls <- LoadCallSets(slice$metadata, slice$callgrlist, maxgap, ignore.strand, sizemargin, requiredHits, grtransform, grtransformName, slice$truthgr, keytruth)
 			return(slice)
 		},
 		callgrlist=function(slice) {
@@ -158,7 +161,7 @@ LoadVCFs <- function(datadir, metadata) {
 	callgrlist <- LoadMinimalSVFromVCF(datadir, metadata=metadata)
 	return(callgrlist)
 }
-LoadCallSets <- function(metadata, callgrlist, maxgap, ignore.strand, sizemargin, requiredHits, grtransform, truthgr, keytruth) {
+LoadCallSets <- function(metadata, callgrlist, maxgap, ignore.strand, sizemargin, requiredHits, grtransform, grtransformName, truthgr, keytruth) {
 	if (!is.null(grtransform)) {
 		callgrlist <- sapply(names(callgrlist), function(id, metadata, callgrlist) {
 				return(grtransform(callgrlist[[id]], metadata %>% filter(Id == id)))
@@ -166,7 +169,7 @@ LoadCallSets <- function(metadata, callgrlist, maxgap, ignore.strand, sizemargin
 	}
 	mcalls <- NULL
 	for (includeFiltered in c(TRUE, FALSE)) {
-		calls <- ScoreVariantsFromTruth(callgrlist, metadata, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgr=truthgr, keytruth=keytruth)
+		calls <- ScoreVariantsFromTruth(callgrlist, metadata, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgr=truthgr, keytruth=keytruth, keycalls=list(grtransformName))
 		mergedcalls <- calls$calls
 		if (!is.null(calls$truth)) {
 			calls$truth <- calls$truth %>% mutate(duptp = FALSE)

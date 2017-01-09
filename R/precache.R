@@ -112,53 +112,56 @@ for (datadir in dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir]
 	}
 }
 for (datadir in lroptions$datadir) {
-	truthbedpedir <- paste0(dataLocation, "input.", datadir, "/longread/moleculo")
-	for (maxgap in lroptions$maxgap) {
-		for (ignore.strand in lroptions$ignore.strand) {
-			for (sizemargin in lroptions$sizemargin) {
-				for (ignore.duplicates in lroptions$ignore.duplicates) {
-					for (ignore.interchromosomal in lroptions$ignore.interchromosomal) {
-						for (mineventsize in lroptions$mineventsize) {
-							for (requiredHits in lroptions$requiredHits) {
-								for (transformName in names(lroptions$grtransform)) {
-									transform <- lroptions$grtransform[[transformName]]
-								  for (et in eventtypes) {
-										plotdata <- LoadPlotData(
-												datadir = paste0(dataLocation, "data.", datadir),
-												maxgap = maxgap,
-												ignore.strand = ignore.strand,
-												sizemargin = sizemargin,
-												ignore.duplicates = ignore.duplicates,
-												ignore.interchromosomal = ignore.interchromosomal,
-												mineventsize = mineventsize,
-												maxeventsize = lroptions$maxeventsize,
-												grtransformName = transformName,
-												grtransform = transform,
-												requiredHits = requiredHits,
-												truthbedpedir = truthbedpedir,
-												eventtypes=et,
-												existingCache = plotdata,
-												loadFromCacheOnly=FALSE,
-												loadAll=loadAll)
-										if (plotGraphs) {
-											filenamePrefix <- paste(datadir, et, maxgap, ignore.strand, sizemargin, ignore.duplicates, ignore.interchromosomal, requiredHits, mineventsize, transformName, sep="_")
-											####
-											# Precision-recall
-											plotdf <- plotdata$dfs$roc %>%
-												filter(StripCallerVersion(CX_CALLER, FALSE) %in% fulldatacallers) %>%
-												inner_join(plotdata$dfs$mostSensitiveAligner) %>%
-												mutate(
-													CallSet=ifelse(CallSet=="High & Low confidence", "All Calls", CallSet),
-													caller=StripCallerVersion(CX_CALLER, FALSE)) %>%
-												rbind(data.frame(Id=paste0(fulldatacallers, "_placeholder"), CallSet="High confidence only", tp=0, events=1, fp=0, fn=0, QUAL=-1, precision=0, fdr=0, sens=0,
-																				 CX_ALIGNER=NA,CX_ALIGNER_MODE="",CX_MULTIMAPPING_LOCATIONS=NA,CX_CALLER=fulldatacallers,CX_READ_LENGTH=NA,CX_READ_DEPTH=NA,CX_READ_FRAGMENT_LENGTH=NA,CX_REFERENCE_VCF=NA,
-																				 caller=fulldatacallers))
-											ggplot(plotdf %>% arrange(desc(QUAL))) +
-												aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
-												geom_line(size=1) +
-												scale_colour_brewer(palette = "Paired") +
-												labs(title = paste(datadir, names(eventtypes[eventtypes==et])), y = "Precision", x = "Recall (true positive count)")
-											saveplot(paste0("precrecall_", filenamePrefix), scale=2, height=12, width=12, units="cm")
+	datapath = paste0(dataLocation, "data.", datadir)
+	for (truthpath in lroptions$truthpath) {
+		truthbedpedir = paste0(dataLocation, "input.", datadir, "/", truthpath)
+		for (maxgap in lroptions$maxgap) {
+			for (ignore.strand in lroptions$ignore.strand) {
+				for (sizemargin in lroptions$sizemargin) {
+					for (ignore.duplicates in lroptions$ignore.duplicates) {
+						for (ignore.interchromosomal in lroptions$ignore.interchromosomal) {
+							for (mineventsize in lroptions$mineventsize) {
+								for (requiredHits in lroptions$requiredHits) {
+									for (transformName in names(lroptions$grtransform)) {
+										transform <- lroptions$grtransform[[transformName]]
+									  for (et in eventtypes) {
+											plotdata <- LoadPlotData(
+													datadir = datapath,
+													maxgap = maxgap,
+													ignore.strand = ignore.strand,
+													sizemargin = sizemargin,
+													ignore.duplicates = ignore.duplicates,
+													ignore.interchromosomal = ignore.interchromosomal,
+													mineventsize = mineventsize,
+													maxeventsize = lroptions$maxeventsize,
+													grtransformName = transformName,
+													grtransform = transform,
+													requiredHits = requiredHits,
+													truthbedpedir = truthbedpedir,
+													eventtypes=et,
+													existingCache = plotdata,
+													loadFromCacheOnly=FALSE,
+													loadAll=loadAll)
+											if (plotGraphs) {
+												filenamePrefix <- paste(datadir, et, maxgap, ignore.strand, sizemargin, ignore.duplicates, ignore.interchromosomal, requiredHits, mineventsize, transformName, str_replace(truthpath, "/", "_"), sep="_")
+												####
+												# Precision-recall
+												plotdf <- plotdata$dfs$roc %>%
+													filter(StripCallerVersion(CX_CALLER, FALSE) %in% fulldatacallers) %>%
+													inner_join(plotdata$dfs$mostSensitiveAligner) %>%
+													mutate(
+														CallSet=ifelse(CallSet=="High & Low confidence", "All Calls", CallSet),
+														caller=StripCallerVersion(CX_CALLER, FALSE)) %>%
+													rbind(data.frame(Id=paste0(fulldatacallers, "_placeholder"), CallSet="High confidence only", tp=0, events=1, fp=0, fn=0, QUAL=-1, precision=0, fdr=0, sens=0,
+																					 CX_ALIGNER=NA,CX_ALIGNER_MODE="",CX_MULTIMAPPING_LOCATIONS=NA,CX_CALLER=fulldatacallers,CX_READ_LENGTH=NA,CX_READ_DEPTH=NA,CX_READ_FRAGMENT_LENGTH=NA,CX_REFERENCE_VCF=NA,
+																					 caller=fulldatacallers))
+												ggplot(plotdf %>% arrange(desc(QUAL))) +
+													aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
+													geom_line(size=1) +
+													scale_colour_brewer(palette = "Paired") +
+													labs(title = paste(datadir, names(eventtypes[eventtypes==et])), y = "Precision", x = "Recall (true positive count)")
+												saveplot(paste0("precrecall_", filenamePrefix), scale=2, height=12, width=12, units="cm")
+											}
 										}
 									}
 								}

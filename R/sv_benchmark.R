@@ -210,12 +210,12 @@ findSpanningBreakpoints <- function(query, subject, maxgap=0L, ignore.strand=FAL
 	return(hits)
 }
 #' @param keytruth unique identifier of truthgr if it is not the 'natural' truth to compare to
-ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id=NULL, requiredHits=1, keytruth=NULL) {
+ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id=NULL, requiredHits=1, keytruth=NULL, keycalls=NULL) {
 	if (length(callgr) == 0) {
 		return(.ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, id %null% NA_character_))
 	}
 	id <- id %null% callgr$Id[1]
-	key <- list(includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits, keytruth)
+	key <- list(includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits, keytruth, keycalls)
 	result <- loadCache(key=key, dirs=".Rcache/ScoreVariantsFromTruthVCF")
 	if (is.null(result)) {
 		write(paste0("ScoreVariantsFromTruth ", id), stderr())
@@ -296,7 +296,7 @@ simpleEventType <- function(gr) {
              "DUP")))))
 }
 
-ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, requiredHits=1, truthgr=NULL, keytruth=NULL) {
+ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, requiredHits=1, truthgr=NULL, keytruth=NULL, keycalls=NULL) {
 	ids <- metadata$Id[!is.na(metadata$CX_CALLER) & metadata$Id %in% names(vcfs)]
 	scores <- lapply(ids, function(id) {
 		callgr <- vcfs[[id]]
@@ -310,7 +310,7 @@ ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap
 		if (length(callgr) == 0) {
 			return(list(calls=NULL))
 		}
-		return(ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits=requiredHits, keytruth=keytruth))
+		return(ScoreVariantsFromTruthVCF(callgr, truthgr, includeFiltered, maxgap, ignore.strand, sizemargin, id, requiredHits=requiredHits, keytruth=keytruth, keycalls=keycalls))
 	})
 	result <- list(
 		calls=bind_rows(lapply(scores, function(x) x$calls)),
