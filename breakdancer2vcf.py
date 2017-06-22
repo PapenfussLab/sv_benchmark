@@ -77,7 +77,7 @@ for line in sys.stdin:
 			leftPos + size) # 11
 	elif type == "CTX":
 		print (
-			"{0}	{1}	{10}o	N	{11}	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}h;EVENT={6}{10}\n" + commonInfo
+			"{0}	{1}	{10}o	N	{11}	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}h;EVENT={6}{10}\n" + commonInfo +
 			"{3}	{4}	{10}h	N	{12}	{9}	PASS	IMPRECISE;UNKNOWN_ORIENTATION;SVLEN={7};SVTYPE=BND;PARID={10}o;EVENT={6}{10}" + commonInfo
 			).format(
 			leftChr, leftPos, leftOrientation, rightChr, rightPos, rightOrientation, type, size, score, numreads, # 0-9

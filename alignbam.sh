@@ -239,10 +239,12 @@ for FQ1 in $(ls -1 $DATA_DIR/*.1.fastq.gz $DATA_DIR/*.1.fq 2>/dev/null) ; do
 	else
 		ALIGNERS_TO_PROCESS="$2"
 	fi
+	# $2 now used by qsub
+	ALIGNERS_TO_PROCESS="$ALIGNERS"
 	for ALIGNER in $ALIGNERS_TO_PROCESS ; do
-		#echo "Processing $ALIGNER"
+		echo "Processing $ALIGNER"
 		for ALIGNER_MODE in $ALIGNER_MODES ; do
-			#echo "Processing $ALIGNER_MODE"
+			echo "Processing $ALIGNER_MODE"
 			align_$ALIGNER $FQ1 $FQ2 $ALIGNER_MODE
 		done
 	done

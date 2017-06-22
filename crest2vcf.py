@@ -127,7 +127,7 @@ for line in sys.stdin:
 			right_pos - left_pos, #25
 			)
 	elif svType in ("CTX", "ITX"):
-		print("{0}	{1}	{24}o	N	{25}	.	PASS	SVTYPE=BND;PARID={24}h;EVENT={8}{24}\n" +
+		print("{0}	{1}	{24}o	N	{25}	.	PASS	SVTYPE=BND;PARID={24}h;EVENT={8}{24}" + commonInfo + "\n" +
 			"{4}	{5}	{24}h	N	{26}	.	PASS	SVTYPE=BND;PARID={24}o;EVENT={8}{24}" + commonInfo).format(
 			left_chr, left_pos, left_strand, left_softclipped_read_count, # 0-3
 			right_chr, right_pos, right_strand, right_softclipped_read_count, # 4-7

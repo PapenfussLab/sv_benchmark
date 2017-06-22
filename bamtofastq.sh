@@ -7,9 +7,10 @@
 . common.sh
 
 for BAM in $DATA_DIR/*.sq.bam ; do
+	echo Processing $BAM
 	cx_load $BAM
 	if [[ "$CX_ALIGNER" != "$2" ]] ; then
-		continue
+		echo -n #continue
 	fi
 	# unset context added by aligner in alignbam.sh
 	unset CX_FQ1

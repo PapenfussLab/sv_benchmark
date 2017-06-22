@@ -3,8 +3,9 @@
 # Common variables and utility functions
 #
 CONFIG=$1
+shift
 
-if [[ "$1" == "" ]] ; then
+if [[ "$CONFIG" == "" ]] ; then
 	echo Please specify data context
 	exit 1
 fi
@@ -12,20 +13,15 @@ if [[ ! -f settings.$CONFIG ]] ; then
 	echo "Missing settings.$CONFIG"
 	exit 1
 fi
-QSUBARGS=""
-if [[ "$2" != "" ]] ; then
-	QSUBARGS="-q $2"
-fi
-mkdir -p data.$CONFIG
 
 # default settings
 READ_DEPTHS="100 60 30 15 8 4"
 READ_LENGTHS="36 50 75 100 150 250"
 FRAGMENT_SIZE="500 400 300 250 200 150"
-ALIGNERS="bwa bowtie2 novoalign"
+ALIGNERS="bwa bowtie2"
 #ALIGNERS="bwa bowtie2 novoalign mrfast"
-#ALIGNER_MODES="local global"
-ALIGNER_MODES="local global local,multimapping global,multimapping"
+ALIGNER_MODES="local global"
+#ALIGNER_MODES="local global local,multimapping global,multimapping"
 MULTIMAPPING_LOCATIONS=300
 MIN_EVENT_SIZE=1
 # GRIDSS settings
@@ -40,7 +36,10 @@ source settings.$CONFIG
 EXECUTION_CONTEXT=torque #can be one of {local, torque, slurm}
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DATA_DIR=$BASE_DIR/../data.$CONFIG
-mkdir -p $DATA_DIR
+if [[ ! -d $DATA_DIR ]] ; then
+	echo "Missing $DATA_DIR"
+	exit 1
+fi
 
 trap "exit 1" TERM
 export TOP_PID=$$
@@ -229,7 +228,7 @@ function xc_exec_torque {
 		#if [ "$XC_MULTICORE" != "" ] ; then
 		write_xc_exec_scripts
 		rm -f $CX$XC_SUFFIX.stderr $CX$XC_SUFFIX.stdout
-		qsub $QSUBARGS $CX$XC_SUFFIX.sh > $CX.lock/lock || rm -r $CX.lock
+		qsub $@ $CX$XC_SUFFIX.sh > $CX.lock/lock || rm -r $CX.lock
 		if [[ -f $CX.lock/lock ]] ; then
 			cat $CX.lock/lock
 		fi

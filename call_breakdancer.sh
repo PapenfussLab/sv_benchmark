@@ -8,7 +8,7 @@ CALLER=breakdancer/1.4.5
 export PATH=$BASE_DIR/tools/$CALLER/bin:$PATH
 export PATH=$BASE_DIR/tools/$CALLER/perl:$PATH
 # Need old version of GD
-export PERL5LIB=$BASE_DIR/tools/breakdancer/perllib
+export PERL5LIB=$BASE_DIR/tools/breakdancer/perllib:$PERL5LIB
 for BAM in $DATA_DIR/*.sc.bam ; do
 	cx_load $BAM
 	CX_BAM=$BAM

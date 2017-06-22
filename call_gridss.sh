@@ -2,7 +2,7 @@
 #
 #
 . common.sh
-VERSION=1.0.1-SNAPSHOT
+VERSION=1.4.1
 CALLER=gridss/$VERSION
 FULL_JAR=~/bin/gridss-$VERSION-jar-with-dependencies.jar
 
@@ -40,9 +40,9 @@ mkdir $CX 2>/dev/null; cd $CX;
 # locking already taken care of
 rm -r $CX/gridss.lock.breakend.vcf
 cat > $CX/gridss_custom.properties << EOF
-visualisation.assemblyProgress = true
-visualisation.buffers = true
-visualisation.bufferTrackingItervalInSeconds = 10
+#visualisation.assemblyProgress = true
+#visualisation.buffers = true
+#visualisation.bufferTrackingItervalInSeconds = 10
 assembly.method=$CX_ASSEMBLY_METHOD
 assembly.k=$CX_K
 scoring.model=$CX_MODEL
@@ -63,14 +63,14 @@ if [[ \"$CX_MODEL\" == \"ReadCount\" ]] ; then
 	echo variantcalling.lowQuality=13 >> $CX/gridss_custom.properties
 fi
 java \\
-	-Dsamjdk.buffer_size=\$((131072 * \$(nproc))) \\
+	-Dsamjdk.buffer_size=524288 \\
 	-Dsamjdk.create_index=true \\
 	-Dsamjdk.use_async_io_read_samtools=true \\
 	-Dsamjdk.use_async_io_write_samtools=true \\
 	-Dsamjdk.use_async_io_write_tribble=true \\
 	-Dsamjdk.compression_level=1 \\
 	-ea \\
-	-Xmx30g \\
+	-Xmx31g \\
 	-cp $FULL_JAR \\
 	gridss.CallVariants \\
 	TMP_DIR=$CX \\

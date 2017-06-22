@@ -3,7 +3,7 @@
 # runs GASVPro against bams
 #
 . common.sh
-CALLER=gasv/20140228
+CALLER=gasvpro/20140228
 BAMTOOLS=$BASE_DIR/tools/bamtools/2.4.0/bin/bamtools
 JAVA="java -Xmx31g"
 for BAM in $DATA_DIR/*.sq.bam ; do
@@ -21,7 +21,8 @@ for BAM in $DATA_DIR/*.sq.bam ; do
 	cx_save
 	# use (offset) reference index of chromosomes as custom ordering
 	XC_OUTPUT=$CX.vcf
-mkdir -p $CX 
+mkdir -p $CX
+# TODO: CHROMOSOME_NAMING_FILE
 cat > $CX/GASVPro.sh << EOF
 #!/bin/sh
 BAMFILEHQ=$CX/unique.bam  ##BAMFILEHQ
@@ -44,7 +45,7 @@ EOF
 		fi
 	fi
 	$CX/GASVPro.sh && \
-	$BASE_DIR/gasv2vcf.py < gasv.in.clusters.GASVPro.clusters CHROMOSOME_NAMING > $CX.vcf"
+	$BASE_DIR/gasv2vcf.py < BAMToGASV.gasvpro.in.ALL.MCMCThreshold.clusters.pruned.clusters $BASE_DIR/gasv.CHROMOSOME_NAMING_FILE.txt > $CX.vcf"
 	xc_exec
 done
 
