@@ -21,7 +21,7 @@ if (!exists("lrblacklistgr")) {
   lrblacklistgr <- list(
     None=GRanges(),
     DAC=import(paste0(dataLocation, "/input.common/wgEncodeHg19ConsensusSignalArtifactRegions.bed")),
-    Duke=import(paste0(dataLocation, "/input.common/wgEncodeDukeMapabilityRegionsExcludable.bed"))
+  	Duke=import(paste0(dataLocation, "/input.common/wgEncodeDukeMapabilityRegionsExcludable.bed"))
   )
 	seqlevelsStyle(lrblacklistgr$DAC) <- "UCSC"
 	seqlevelsStyle(lrblacklistgr$Duke) <- "UCSC"
@@ -71,7 +71,7 @@ fulldatacallers <- c(
 	"cortex",
 	"crest",
 	"delly",
-	"gasv",
+	#"gasv",
 	"gridss",
 	"hydra",
 	"lumpy",
@@ -79,7 +79,9 @@ fulldatacallers <- c(
 	"pindel",
 	"socrates"
 )
-eventtypes = c("Deletion"="DEL", "Insertion"="INS", "Inversion"="INV", "Tandem Duplication"="DUP") # "BP"
+#eventtypes = c("Deletion"="DEL", "Insertion"="INS", "Inversion"="INV", "Tandem Duplication"="DUP") # "BP"
+# No insertion until we have insLen in the long read data
+eventtypes = c("Deletion"="DEL", "Inversion"="INV", "Tandem Duplication"="DUP")
 knownaligners <- c("bowtie2", "bwa mem"="bwamem", "novoalign")
 simfacets <- c(
 				"Read Length"="CX_READ_LENGTH",
@@ -109,7 +111,7 @@ lroptions$datadir <- lroptions$datadir[!(lroptions$datadir %in% simoptions$datad
 # lapply doesn't quite work since it doesn't play nicely with R.cache
 #lroptions$grtransform <- lapply(names(lrblacklistgr), function(blacklist) function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, blacklist))
 lroptions$grtransform <- list(
-  None=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "None"),
-  DAC=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "DAC"),
-  Duke=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "Duke"))
-
+  #None=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "None"),
+  DAC=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "DAC"))
+  #Duke=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "Duke"))
+lroptions$truthpath <- c("longread", "longread/moleculo")

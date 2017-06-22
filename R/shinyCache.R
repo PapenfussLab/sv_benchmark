@@ -30,7 +30,8 @@ LoadPlotData <- function(
 		truthbedpedir,
 		eventtypes,
 		existingCache,
-		loadFromCacheOnly=TRUE) {
+		loadFromCacheOnly=TRUE,
+		loadAll=FALSE) {
   if (!is.null(eventtypes)) {
     # order does not matter; strip names that were confusing the cache
     eventtypes <- as.character(sort(eventtypes))
@@ -51,23 +52,26 @@ LoadPlotData <- function(
 		keycalls=keycalls,
 		keydfs=keydfs
 		)
-	# # Debug cache missing
-	# write(sprintf("datadir=%s", datadir), stderr())
-	# write(sprintf("keymetadata=%s", getChecksum(keymetadata)), stderr())
-	# write(sprintf("keyvcfs=%s", getChecksum(keyvcfs)), stderr())
-	# write(sprintf("keycalls=%s", getChecksum(keycalls)), stderr())
-	#  write(sprintf(".keyvcfs=%s", getChecksum(keyvcfs)), stderr())
-	#  write(sprintf(".maxgap=%s", getChecksum(maxgap)), stderr())
-	#  write(sprintf(".ignore.strand=%s", getChecksum(ignore.strand)), stderr())
-	#  write(sprintf(".sizemargin=%s", getChecksum(sizemargin)), stderr())
-	#  write(sprintf(".requiredHits=%s:%s", getChecksum(requiredHits), requiredHits), stderr())
-	#  write(sprintf(".grtransformName=%s", getChecksum(grtransformName)), stderr())
-	# write(sprintf("keydfs=%s", getChecksum(keydfs)), stderr())
-	#  write(sprintf(".ignore.duplicates=%s", getChecksum(ignore.duplicates)), stderr())
-	#  write(sprintf(".ignore.interchromosomal=%s", getChecksum(ignore.interchromosomal)), stderr())
-	#  write(sprintf(".mineventsize=%s", getChecksum(mineventsize)), stderr())# stop()
-	#  write(sprintf(".maxeventsize=%s", getChecksum(maxeventsize)), stderr())# stop()
-	#  write(sprintf(".eventtypes=%s", getChecksum(eventtypes)), stderr())# stop()
+	# Debug cache missing
+	write(sprintf("datadir=%s", datadir), stderr())
+	write(sprintf("keymetadata=%s", getChecksum(keymetadata)), stderr())
+	write(sprintf("keyvcfs=%s", getChecksum(keyvcfs)), stderr())
+	write(sprintf("keycalls=%s", getChecksum(keycalls)), stderr())
+	 write(sprintf(".keyvcfs=%s", getChecksum(keyvcfs)), stderr())
+	 write(sprintf(".maxgap=%s", getChecksum(maxgap)), stderr())
+	 write(sprintf(".ignore.strand=%s", getChecksum(ignore.strand)), stderr())
+	 write(sprintf(".sizemargin=%s", getChecksum(sizemargin)), stderr())
+	 write(sprintf(".requiredHits=%s:%s", getChecksum(requiredHits), requiredHits), stderr())
+	 write(sprintf(".grtransformName=%s", getChecksum(grtransformName)), stderr())
+	write(sprintf("keydfs=%s", getChecksum(keydfs)), stderr())
+	 write(sprintf(".ignore.duplicates=%s", getChecksum(ignore.duplicates)), stderr())
+	 write(sprintf(".ignore.interchromosomal=%s", getChecksum(ignore.interchromosomal)), stderr())
+	 write(sprintf(".mineventsize=%s", getChecksum(mineventsize)), stderr())# stop()
+	 write(sprintf(".maxeventsize=%s", getChecksum(maxeventsize)), stderr())# stop()
+	 write(sprintf(".eventtypes=%s", getChecksum(eventtypes)), stderr())# stop()
+	 write(sprintf("keytruth=%s", getChecksum(keytruth)), stderr())
+	 write(sprintf(".bedpedir=%s(%s)", keytruth$bedpedir, getChecksum(keytruth$bedpedir)), stderr())
+
 	if (is.null(existingCache)) {
 		existingCache <- slice
 	}
@@ -91,58 +95,61 @@ LoadPlotData <- function(
 	if (getChecksum(keydfs) == getChecksum(existingCache$keydfs)) {
 		slice$dfs <- existingCache$dfs
 	}
-	# Load metadata
+	# Always load metadata
 	if (is.null(slice$metadata)) {
 		slice$metadata <- LoadCachedMetadata(datadir)
 	}
-	# Load graphs, loading from R.cache whenever possible to avoid recalculation
-	if (is.null(slice$dfs)) {
-	  write(sprintf("Loading dfs (%s)", getChecksum(keydfs)), stderr())
-		slice$dfs <- loadCache(key=keydfs, dirs=".Rcache/LoadPlotData/dfs")
-		if (is.null(slice$dfs)) {
-			if (loadFromCacheOnly) {
-				write(sprintf("Missing dfs (%s) in cache.", getChecksum(keydfs)), stderr())
-			} else {
-				write(sprintf("Recalculating dfs (%s)", getChecksum(keydfs)), stderr())
-				.rcacheDebugDumpKey(keydfs)
-				# To recalculate the graph we need the call set
-				if (is.null(slice$calls)) {
-					# Load call set
-					slice$calls <- loadCache(key=keycalls, dirs=".Rcache/LoadPlotData/calldf")
-					if (is.null(slice$calls)) {
-						write(sprintf("Recalculating calls (%s)", getChecksum(keycalls)), stderr())
-						.rcacheDebugDumpKey(keycalls)
-						# To recalculate the call set we need the SV grs from the vcfs
-						if (is.null(slice$callgrlist)) {
-							slice$callgrlist <- loadCache(key=keyvcfs, dirs=".Rcache/LoadPlotData/callgr")
-							if (is.null(slice$callgrlist)) {
-								# metadata is always loaded so we're fine
-							  write(sprintf("Loading vcfs (%s)", getChecksum(keyvcfs)), stderr())
-								.rcacheDebugDumpKey(keyvcfs)
-								slice$callgrlist <- LoadVCFs(datadir, metadata=slice$metadata)
-								saveCache(slice$callgrlist, key=keyvcfs, dirs=".Rcache/LoadPlotData/callgr")
-							}
-						}
-						if (!is.null(truthbedpedir)) {
-							# we also need to load the bedpe truth files
-							if (is.null(slice$truthgr)) {
-								slice$truthgr <- loadCache(key=keytruth, dirs=".Rcache/import.sv.bedpe")
-								if (is.null(slice$truthgr)) {
-									write(sprintf("Loading %s", truthbedpedir), stderr())
-									slice$truthgr <- import.sv.bedpe.dir(truthbedpedir)
-									seqlevelsStyle(slice$truthgr) <- "UCSC"
-									saveCache(slice$truthgr, key=keytruth,  dirs=".Rcache/import.sv.bedpe")
-								}
-							}
-						}
-						slice$calls <- LoadCallSets(slice$metadata, slice$callgrlist, maxgap, ignore.strand, sizemargin, requiredHits, grtransform, slice$truthgr)
-						saveCache(slice$calls, key=keycalls, dirs=".Rcache/LoadPlotData/calldf")
-					}
+	loaddata <- list(
+		dfs=function(slice) {
+			slice <- cachedloaddata$calls(slice)
+			slice$dfs <- LoadGraphDataFrames(slice$metadata, slice$calls, ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes)
+			return(slice)
+		},
+		calls=function(slice) {
+			# To recalculate the call set we need the SV grs from the vcfs
+			slice <- cachedloaddata$callgrlist(slice)
+			slice <- cachedloaddata$truthgr(slice)
+			slice$calls <- LoadCallSets(slice$metadata, slice$callgrlist, maxgap, ignore.strand, sizemargin, requiredHits, grtransform, grtransformName, slice$truthgr, keytruth)
+			return(slice)
+		},
+		callgrlist=function(slice) {
+			slice$callgrlist <- LoadVCFs(datadir, metadata=slice$metadata)
+			return(slice)
+		},
+		truthgr=function(slice) {
+			if (!is.null(truthbedpedir)) {
+				slice$truthgr <- import.sv.bedpe.dir(truthbedpedir)
+				seqlevelsStyle(slice$truthgr) <- "UCSC"
+			}
+			return(slice)
+		}
+	)
+	cachedloaddata <- list(
+		dfs=function(slice) ensureloaded(slice, "dfs", keydfs, ".Rcache/LoadPlotData/dfs"),
+		calls=function(slice) ensureloaded(slice, "calls", keycalls, ".Rcache/LoadPlotData/calldf"),
+		callgrlist=function(slice) ensureloaded(slice, "callgrlist", keyvcfs, ".Rcache/LoadPlotData/callgr"),
+		truthgr=function(slice) ensureloaded(slice, "truthgr", keytruth, ".Rcache/import.sv.bedpe")
+		)
+	ensureloaded <- function(slice, name, cachekey, cachedir) {
+		if (is.null(slice[[name]])) {
+			write(sprintf("Loading %s (%s)", name, getChecksum(cachekey)), stderr())
+			slice[[name]] <- loadCache(key=cachekey, dirs=cachedir)
+			if (is.null(slice[[name]])) {
+				if (!loadFromCacheOnly) {
+					write(sprintf("Recalculating %s (%s)", name, getChecksum(keydfs)), stderr())
+					slice <- loaddata[[name]](slice)
+					saveCache(slice[[name]], key=cachekey, dirs=cachedir)
 				}
-				slice$dfs <- LoadGraphDataFrames(slice$metadata, slice$calls, ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes)
-				saveCache(slice$dfs, key=keydfs, dirs=".Rcache/LoadPlotData/dfs")
 			}
 		}
+		return(slice)
+	}
+	# Load plot data, loading from R.cache whenever possible to avoid recalculation
+	slice <- cachedloaddata$dfs(slice)
+	if (loadAll) {
+		slice <- cachedloaddata$calls(slice)
+		slice <- cachedloaddata$callgrlist(slice)
+		slice <- cachedloaddata$truthgr(slice)
 	}
 	setCacheRootPath(cacheroot)
 	return(slice)
@@ -154,7 +161,7 @@ LoadVCFs <- function(datadir, metadata) {
 	callgrlist <- LoadMinimalSVFromVCF(datadir, metadata=metadata)
 	return(callgrlist)
 }
-LoadCallSets <- function(metadata, callgrlist, maxgap, ignore.strand, sizemargin, requiredHits, grtransform, truthgr) {
+LoadCallSets <- function(metadata, callgrlist, maxgap, ignore.strand, sizemargin, requiredHits, grtransform, grtransformName, truthgr, keytruth) {
 	if (!is.null(grtransform)) {
 		callgrlist <- sapply(names(callgrlist), function(id, metadata, callgrlist) {
 				return(grtransform(callgrlist[[id]], metadata %>% filter(Id == id)))
@@ -162,7 +169,7 @@ LoadCallSets <- function(metadata, callgrlist, maxgap, ignore.strand, sizemargin
 	}
 	mcalls <- NULL
 	for (includeFiltered in c(TRUE, FALSE)) {
-		calls <- ScoreVariantsFromTruth(callgrlist, metadata, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgr=truthgr)
+		calls <- ScoreVariantsFromTruth(callgrlist, metadata, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgr=truthgr, keytruth=keytruth, keycalls=list(grtransformName))
 		mergedcalls <- calls$calls
 		if (!is.null(calls$truth)) {
 			calls$truth <- calls$truth %>% mutate(duptp = FALSE)
@@ -181,10 +188,10 @@ LoadGraphDataFrames <- function(metadata, calls, ignore.duplicates, ignore.inter
 		calls <- calls %>% filter(!is.na(svLen))
 	}
 	if (!is.null(mineventsize)) {
-		calls <- calls %>% filter(abs(svLen + insLen) >= mineventsize)
+		calls <- calls %>% filter(is.na(svLen) | abs(svLen + insLen) >= mineventsize)
 	}
 	if (!is.null(maxeventsize)) {
-		calls <- calls %>% filter(abs(svLen + insLen) <= maxeventsize)
+		calls <- calls %>% filter(is.na(svLen) | abs(svLen + insLen) <= maxeventsize)
 	}
 	if (is.null(metadata$CX_MULTIMAPPING_LOCATIONS)) {
 		metadata$CX_MULTIMAPPING_LOCATIONS <- NA_integer_

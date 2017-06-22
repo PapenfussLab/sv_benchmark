@@ -1,6 +1,6 @@
 #!/bin/bash
-Rscript precache.R rd &
-Rscript precache.R rl &
-Rscript precache.R fs &
-Rscript precache.R na12878 &
+Rscript precache.R --plot rd &
+Rscript precache.R --plot rl &
+Rscript precache.R --plot fs &
+Rscript precache.R --plot na12878 &
 wait

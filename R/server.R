@@ -20,7 +20,7 @@ RefreshSimData <- function(input, olddata) {
 		ignore.duplicates=simoptions$ignore.duplicates,
 		ignore.interchromosomal=simoptions$ignore.interchromosomal,
 		mineventsize=mineventsize,
-		maxeventsize = simoptions$maxeventsize,
+		maxeventsize=simoptions$maxeventsize,
 		requiredHits=simoptions$requiredHits,
 		grtransformName="PrimaryHumanOnly",
 		grtransform=simoptions$grtransform[["PrimaryHumanOnly"]],
@@ -41,10 +41,10 @@ RefreshlrData <- function(input, olddata) {
         mineventsize = lroptions$mineventsize,
         maxeventsize = lroptions$maxeventsize,
         requiredHits = lroptions$requiredHits,
-        grtransformName = unname(input$lrblacklist),
-        grtransform = lroptions$grtransform[[input$lrblacklist]],
-        truthbedpedir = paste0(dataLocation, "input.", input$lrdatadir, "/longread"),
-    	eventtypes=input$lrevents,
+        grtransformName = unname("DAC"), # grtransformName = unname(input$lrblacklist),
+        grtransform = lroptions$grtransform$DAC, #grtransform = lroptions$grtransform[[input$lrblacklist]],
+        truthbedpedir = paste0(dataLocation, "input.", input$lrdatadir, "/", lroptions$truthpath[[1]]),
+				eventtypes=input$lrevents,
         existingCache = olddata)
     return(pd)
 }
@@ -155,6 +155,9 @@ function(input, output, session) {
 	  write("simRocPlot", stderr())
 		cachedsimdata <- RefreshSimData(input, cachedsimdata)
 		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$roc)
+		# display breakpoint counts instead of breakend counts
+		plotdf$tp <- plotdf$tp/2
+		plotdf$fp <- plotdf$fp/2
 		if (nrow(plotdf) == 0) {
 		  write("simRocPlot: no data!", stderr())
 		  return(NULL)
@@ -176,7 +179,7 @@ function(input, output, session) {
 		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$bpErrorDistribution)
 		# TODO: incorporate error margin only for truth calls
 		p <- ggplot(plotdf %>%
-				filter(CX_READ_DEPTH==30, CallSet=="High & Low confidence") %>%
+				filter(CX_READ_DEPTH==30, CallSet=="All Calls") %>%
 				inner_join(mostSensitiveAligner)) +
 			aes(x=bperror, y=rate) +
 			geom_bar(stat="identity") +
@@ -195,6 +198,9 @@ function(input, output, session) {
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
 		progress$set(message = "Formatting data", value = 0.5)
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
+		# display breakpoint counts instead of breakend counts
+		plotdf$tp <- plotdf$tp/2
+		plotdf$fp <- plotdf$fp/2
 		if (nrow(plotdf) == 0) return(NULL)
 		progress$set(message = "Generating plot", value = 0.8)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
@@ -209,6 +215,9 @@ function(input, output, session) {
 	  write("lrRocPlot", stderr())
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
+		# display breakpoint counts instead of breakend counts
+		plotdf$tp <- plotdf$tp/2
+		plotdf$fp <- plotdf$fp/2
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
 						aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=CallSet) +
@@ -222,6 +231,9 @@ function(input, output, session) {
 	  write("lrPrecRecallRepeatPlot", stderr())
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
+		# display breakpoint counts instead of breakend counts
+		plotdf$tp <- plotdf$tp/2
+		plotdf$fp <- plotdf$fp/2
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
 						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
@@ -235,6 +247,9 @@ function(input, output, session) {
 	  write("lrRocRepeatPlot", stderr())
 		cachedlrdata <- RefreshlrData(input, cachedlrdata)
 		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
+		# display breakpoint counts instead of breakend counts
+		plotdf$tp <- plotdf$tp/2
+		plotdf$fp <- plotdf$fp/2
 		if (nrow(plotdf) == 0) return(NULL)
 		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
 						aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=CallSet) +

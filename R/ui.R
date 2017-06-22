@@ -6,7 +6,7 @@
 #
 source("global.R")
 source("libplot.R")
-
+mainPlotHeight <- 800
 # ui function (must be last in file)
 function(request) {
 	fluidPage(
@@ -22,9 +22,10 @@ function(request) {
 					#selectInput("lrcallset", "Call Set",
 					#	c("High confidence only", "High & Low confidence"),
 					#	"High & Low confidence"),
-					selectInput("lrblacklist", "Blacklist",
-            c("None", "ENCODE DAC blacklist"="DAC", "ENCODE Duke blacklist"="Duke"),
-            "DAC"),
+					# DAC blacklist was given to some callers so cannot be used generally
+					#selectInput("lrblacklist", "Blacklist",
+          #  c("None", "ENCODE DAC blacklist"="DAC", "ENCODE Duke blacklist"="Duke"),
+          #  "DAC"),
 					conditionalPanel("input.datasettype == 'hidden'",
 					  # hide aligner as an option because we haven't realigned the real data with multiple aligners
   					checkboxGroupInput("lraligner", "Aligner",
@@ -51,22 +52,22 @@ function(request) {
 					checkboxGroupInput("simcallset", "Call Set",
 						c("High confidence only", "High & Low confidence"),
 						"High & Low confidence")
-				),
-				submitButton("refresh", "Refresh")
+				)
+				#,submitButton("refresh", "Refresh")
 			),
 			mainPanel(
 			  conditionalPanel("input.datasettype == 'sim'",
 			   tabsetPanel(#id = "mtsim",
-			     tabPanel("Event Size", plotOutput("simEventSizePlot", height = 1200)),
-			     tabPanel("ROC", plotOutput("simRocPlot", height = 1200))
+			     tabPanel("Event Size", plotOutput("simEventSizePlot", height = mainPlotHeight)),
+			     tabPanel("ROC", plotOutput("simRocPlot", height = mainPlotHeight))
 			   )
 			  ),
 			  conditionalPanel("input.datasettype != 'sim'",
-			   tabsetPanel(#id = "mtsim",
-			     tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = 1200)),
-			     tabPanel("ROC", plotOutput("lrRocPlot", height = 1200)),
-			     tabPanel("Precision Recall by repeat", plotOutput("lrPrecRecallRepeatPlot", height = 1200)),
-			     tabPanel("ROC by repeat", plotOutput("lrRocRepeatPlot", height = 1200))
+			   tabsetPanel(#id = "mtlr",
+			     tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = mainPlotHeight)),
+			     tabPanel("ROC", plotOutput("lrRocPlot", height = mainPlotHeight)),
+			     tabPanel("Precision Recall by repeat", plotOutput("lrPrecRecallRepeatPlot", height = mainPlotHeight)),
+			     tabPanel("ROC by repeat", plotOutput("lrRocRepeatPlot", height = mainPlotHeight))
 			   )
 			  )
 			  #conditionalPanel("input.datasettype == 'sim'",
