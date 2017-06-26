@@ -1,0 +1,4 @@
+CX_CHROMOSOME=chr12
+CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human/hg19.fa
+CX_REFERENCE_VCF_PADDING=2500
+CX_REFERENCE_VCF_VARIANTS=hetINS
