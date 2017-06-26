@@ -14,10 +14,10 @@ RefreshSimData <- function(input, olddata) {
 	}
 	pd <- LoadPlotData(
 		datadir=paste0(dataLocation, "data.", input$simdatadir),
-		maxgap=simoptions$maxgap,
-		ignore.strand=simoptions$ignore.strand,
-		sizemargin=simoptions$sizemargin,
-		ignore.duplicates=simoptions$ignore.duplicates,
+		maxgap=input$simmaxgap,
+		ignore.strand=input$simignore.strand,
+		sizemargin=input$simsizemargin,
+		ignore.duplicates=input$simignore.duplicates,
 		ignore.interchromosomal=simoptions$ignore.interchromosomal,
 		mineventsize=mineventsize,
 		maxeventsize=simoptions$maxeventsize,
@@ -25,6 +25,7 @@ RefreshSimData <- function(input, olddata) {
 		grtransformName="PrimaryHumanOnly",
 		grtransform=simoptions$grtransform[["PrimaryHumanOnly"]],
 		truthbedpedir=NULL,
+		mintruthbedpescore=NULL,
 		eventtypes=NULL,
 		existingCache = olddata)
 	return(pd)
@@ -33,17 +34,18 @@ RefreshlrData <- function(input, olddata) {
   write("RefreshlrData", stderr())
     pd <- LoadPlotData(
         datadir = paste0(dataLocation, "data.", input$lrdatadir),
-        maxgap = lroptions$maxgap,
-        ignore.strand = lroptions$ignore.strand,
-        sizemargin = lroptions$sizemargin,
-        ignore.duplicates = lroptions$ignore.duplicates,
+        maxgap = input$lrmaxgap,
+        ignore.strand = input$lrignore.strand,
+        sizemargin = input$lrsizemargin,
+        ignore.duplicates = input$lrignore.duplicates,
         ignore.interchromosomal = lroptions$ignore.interchromosomal,
         mineventsize = lroptions$mineventsize,
         maxeventsize = lroptions$maxeventsize,
-        requiredHits = lroptions$requiredHits,
-        grtransformName = unname("DAC"), # grtransformName = unname(input$lrblacklist),
-        grtransform = lroptions$grtransform$DAC, #grtransform = lroptions$grtransform[[input$lrblacklist]],
+        requiredHits = input$lrrequiredHits,
+        grtransformName = input$lrgrtransformName,
+        grtransform = lroptions$grtransform[[input$lrgrtransformName]],
         truthbedpedir = paste0(dataLocation, "input.", input$lrdatadir, "/", lroptions$truthpath[[1]]),
+        mintruthbedpescore=input$lrmintruthscore,
 				eventtypes=input$lrevents,
         existingCache = olddata)
     return(pd)

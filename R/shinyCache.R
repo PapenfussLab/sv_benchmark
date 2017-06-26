@@ -28,6 +28,7 @@ LoadPlotData <- function(
 		grtransformName,
 		grtransform,
 		truthbedpedir,
+		mintruthbedpescore,
 		eventtypes,
 		existingCache,
 		loadFromCacheOnly=TRUE,
@@ -41,7 +42,7 @@ LoadPlotData <- function(
 	# set up all cache keys for all the data
 	keymetadata <- list(datadir)
 	keyvcfs <- list(keymetadata)
-	keytruth <- list(bedpedir=truthbedpedir)
+	keytruth <- list(bedpedir=truthbedpedir, mintruthbedpescore=mintruthbedpescore)
 	keycalls <- list(keyvcfs, maxgap, ignore.strand, sizemargin, requiredHits, keytruth, grtransformName)
 	keydfs <- list(keycalls, ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes)
 	slice <- list(
@@ -119,6 +120,7 @@ LoadPlotData <- function(
 		truthgr=function(slice) {
 			if (!is.null(truthbedpedir)) {
 				slice$truthgr <- import.sv.bedpe.dir(truthbedpedir)
+				slice$truthgr <- slice$truthgr[slice$truthgr$score >= mintruthbedpescore]
 				seqlevelsStyle(slice$truthgr) <- "UCSC"
 			}
 			return(slice)
@@ -145,12 +147,12 @@ LoadPlotData <- function(
 		return(slice)
 	}
 	# Load plot data, loading from R.cache whenever possible to avoid recalculation
-	slice <- cachedloaddata$dfs(slice)
 	if (loadAll) {
-		slice <- cachedloaddata$calls(slice)
-		slice <- cachedloaddata$callgrlist(slice)
 		slice <- cachedloaddata$truthgr(slice)
+		slice <- cachedloaddata$callgrlist(slice)
+		slice <- cachedloaddata$calls(slice)
 	}
+	slice <- cachedloaddata$dfs(slice)
 	setCacheRootPath(cacheroot)
 	return(slice)
 }
