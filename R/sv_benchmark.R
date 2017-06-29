@@ -278,8 +278,9 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 		summarise(besthits=sum(!dup), allhits=n())
 
 	calldf <- as.data.frame(callgr) %>%
-		dplyr::select(Id, QUAL, svLen, insLen, vcfId, HOMLEN) %>%
+		dplyr::select(QUAL, svLen, insLen, vcfId, HOMLEN) %>%
 		mutate(
+			Id=id,
 			tp=rep(FALSE, nrow(.)),
 			duptp=rep(FALSE, nrow(.)),
 			fp=rep(FALSE, nrow(.)),
