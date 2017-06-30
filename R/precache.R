@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-library(parallel)
+#library(parallel)
 library("optparse")
 source("global.R")
 source("libplot.R")
@@ -37,6 +37,15 @@ subsetToArgs <- function(df) {
 
 plotdata <- NULL
 simcache <- function(datadir, maxgap, ignore.strand, sizemargin, ignore.duplicates, ignore.interchromosomal, requiredHits, mineventsize) {
+	write(paste0("Processing ",
+		",datadir=", datadir,
+		",maxgap=", maxgap,
+		",ignore.strand=", ignore.strand,
+		"sizemargin=", sizemargin,
+		"ignore.duplicates=", ignore.duplicates,
+		"ignore.interchromosomal=", ignore.interchromosomal,
+		"requiredHits=", requiredHits,
+		"mineventsize=", mineventsize))
 	grtransformName <- "PrimaryHumanOnly"
 	transform <- simoptions$grtransform[["PrimaryHumanOnly"]]
 	plotdata <- LoadPlotData(
@@ -112,17 +121,15 @@ simcache <- function(datadir, maxgap, ignore.strand, sizemargin, ignore.duplicat
 	}
 }
 simparam = expand.grid(
-	# Rcache/LoadPlotData
 	mineventsize=simoptions$mineventsize,
 	ignore.interchromosomal=simoptions$ignore.interchromosomal,
 	ignore.duplicates=simoptions$ignore.duplicates,
-	# .Rcache/ScoreVariantsFromTruthVCF
 	maxgap=simoptions$maxgap,
 	ignore.strand=simoptions$ignore.strand,
 	sizemargin=simoptions$sizemargin,
 	requiredHits=simoptions$requiredHits,
-	# .Rcache/LoadMinimalSVs
 	datadir=dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir])
+simparam <-simparam[sample(nrow(simparam)),] # randomise row ordering
 simparam <- subsetToArgs(simparam)
 simcachedf <- function(pass, df) {
 	if (nrow(df) > 0) {
@@ -148,10 +155,10 @@ simcachedf <- function(pass, df) {
 					), stdout())
 			}
 		} else {
-			mclapply(seq_len(nrow(df)), function(i) {
+			lapply(seq_len(nrow(df)), function(i) {
 				simcache(df$datadir[i], df$maxgap[i], df$ignore.strand[i], df$sizemargin[i], df$ignore.duplicates[i], df$ignore.interchromosomal[i], df$requiredHits[i], df$mineventsize[i])
 				return(0)
-			}, mc.preschedule=FALSE)
+			})#, mc.preschedule=FALSE)
 		}
 	}
 }
@@ -224,6 +231,7 @@ lrparam = expand.grid(
 	# .Rcache/LoadMinimalSVs
 	datadir=lroptions$datadir
 	)
+lrparam <-lrparam[sample(nrow(lrparam)),] # randomise row ordering
 lrparam <- subsetToArgs(lrparam)
 lrcachedf <- function(pass, df) {
 	if (nrow(df) > 0) {
@@ -252,10 +260,10 @@ lrcachedf <- function(pass, df) {
 				),stdout())
 			}
 		} else {
-			mclapply(seq_len(nrow(df)), function(i) {
+			lapply(seq_len(nrow(df)), function(i) {
 				lrcache(df$datadir[i], df$truthbedpedir[i], df$mintruthbedpescore[i], df$maxgap[i], df$ignore.strand[i], df$sizemargin[i], df$requiredHits[i], df$grtransformName[i], df$ignore.duplicates[i], df$ignore.interchromosomal[i], df$mineventsize[i])
 				return(0)
-			}, mc.preschedule=FALSE)
+			})#, mc.preschedule=FALSE)
 		}
 	}
 }

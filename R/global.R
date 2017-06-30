@@ -2,8 +2,9 @@ source("config.R")
 source("sv_benchmark.R")
 source("libplot.R")
 source("shinyCache2.R")
-library(shiny)
 library(stringr)
+library(shiny)
+library(shinyBS)
 
 enableBookmarking(store = "url")
 options("R.cache::compress" = TRUE)
@@ -29,13 +30,17 @@ if (!exists("lrblacklistgr")) {
 
 # load repeatmasker annotations
 if (!exists("grrm")) {
+	cacheroot <- getCacheRootPath()
+	setCacheRootPath(dataLocation)
+	write("Loading repeatmasker annotations", stderr())
 	key = list(repeatmaskermergedfile=paste0(dataLocation, "/input.common/repeatmasker-hg19.fa.out.gz"))
-	grrm <- loadCache(key=key)
+	grrm <- loadCache(key=key, dirs="input.common/.Rcache")
 	if (is.null(grrm)) {
 	  write(paste("Loading ", key$repeatmaskermergedfile), stderr())
 		grrm <- import.repeatmasker.fa.out(key$repeatmaskermergedfile)
-		saveCache(grrm, key=key)
+		saveCache(grrm, key=key, dirs="input.common/.Rcache")
 	}
+	setCacheRootPath(cacheroot)
 }
 
 # helper functions
@@ -107,7 +112,7 @@ simoptions$mineventsize <- c(0, 51)
 # simoptions$grtransform <- # filter small events calls on breakpoint data sets to remove spurious indels caused by sequence homology around breakpoints?
 lroptions <- dataoptions
 lroptions$requiredHits <- c(1, 2, 3, 4, 5)
-lroptions$datadir <- lroptions$datadir[!(lroptions$datadir %in% simoptions$datadir)]
+lroptions$datadir <- c("na12878") #lroptions$datadir[!(lroptions$datadir %in% simoptions$datadir)]
 # lapply doesn't quite work since it doesn't play nicely with R.cache
 #lroptions$grtransform <- lapply(names(lrblacklistgr), function(blacklist) function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, blacklist))
 lroptions$grtransform <- list(

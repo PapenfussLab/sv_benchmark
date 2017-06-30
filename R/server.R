@@ -14,7 +14,7 @@ RefreshSimData <- function(input, olddata) {
 	}
 	pd <- LoadPlotData(
 		datadir=paste0(dataLocation, "data.", input$simdatadir),
-		maxgap=input$simmaxgap,
+		maxgap=as.numeric(input$simmaxgap),
 		ignore.strand=input$simignore.strand,
 		sizemargin=input$simsizemargin,
 		ignore.duplicates=input$simignore.duplicates,

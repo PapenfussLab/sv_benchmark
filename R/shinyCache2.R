@@ -49,6 +49,25 @@ LoadPlotData <- function(
 		# order does not matter; strip names that were confusing the cache
 		eventtypes <- as.character(sort(eventtypes))
 	}
+	# ensure numeric values are of the correct type
+	if (!is.null(maxgap)) {
+		maxgap <- as.numeric(maxgap)
+	}
+	if (!is.null(sizemargin)) {
+		sizemargin <- as.numeric(sizemargin)
+	}
+	if (!is.null(requiredHits)) {
+		requiredHits <- as.numeric(requiredHits)
+	}
+	if (!is.null(mineventsize)) {
+		mineventsize <- as.numeric(mineventsize)
+	}
+	if (!is.null(maxeventsize)) {
+		maxeventsize <- as.numeric(maxeventsize)
+	}
+	if (!is.null(mintruthbedpescore)) {
+		mintruthbedpescore <- as.numeric(mintruthbedpescore)
+	}
 	cacheroot <- getCacheRootPath()
 	setCacheRootPath(datadir)
 	metadata <- LoadCachedMetadata(datadir)
@@ -81,15 +100,25 @@ LoadPlotData <- function(
 		result <- .LoadTruthBedpe(truthbedpedir, mintruthbedpescore)
 		if (!is.null(result)) {
 			saveCache(result, key=cachekey, dirs=cachedir)
-			memcache.LoadTruthBedpe$key <- cachekey
-			memcache.LoadTruthBedpe$value <- result
 		}
 	}
 	return(result)
 }
+import.sv.bedpe.dir <- function(dir) {
+	gr <- NULL
+	for (file in list.files(path = dir, pattern = ".bedpe.gz", full.names = TRUE)) {
+		gr2 <- import.sv.bedpe(file)
+		if (is.null(gr)) {
+			gr <- gr2
+		} else {
+			gr <- c(gr, gr2)
+		}
+	}
+	return (gr)
+}
 .LoadTruthBedpe <- function(truthbedpedir, mintruthbedpescore) {
 	truthgr <- import.sv.bedpe.dir(truthbedpedir)
-	truthgr <- truthgr[slice$truthgr$score >= mintruthbedpescore]
+	truthgr <- truthgr[truthgr$score >= mintruthbedpescore]
 	seqlevelsStyle(truthgr) <- "UCSC"
 	return(truthgr)
 }
@@ -122,6 +151,7 @@ LoadPlotData <- function(
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName, nominalPosition) {
 	ids <- (metadata %>% filter(!is.na(CX_CALLER)))$Id
+	ids <- sample(ids) # randomise our processing order so parallel caches won't all try to load the same record at the same time
 	dfslist <- lapply(ids, function(id)
 		.CachedLoadGraphDataFrameForId(
 			ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
@@ -147,10 +177,31 @@ LoadPlotData <- function(
 		datadir=datadir, id=id,
 		maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgrName=truthgrName,
 		grtransformName=grtransformName, nominalPosition=nominalPosition)
-	cachedir <- ".Rcache/GraphDataFrame"
+	cachedir <- ".Rcache/GraphDataFrameById"
 	result <- loadCache(key=cachekey, dirs=cachedir)
 	if (is.null(result)) {
 		write(sprintf(".LoadGraphDataFrameForId %s (%s)", id, getChecksum(cachekey)), stderr())
+		nullwrap <- function(x) { if (is.null(x)) { return("NULL") } else { return(x) } }
+		write(paste0(".LoadGraphDataFrameForId(",
+								 "ignore.duplicates=", ignore.duplicates, ",",
+								 "ignore.interchromosomal=", ignore.interchromosomal, ",",
+								 "mineventsize=", nullwrap(mineventsize), ",",
+								 "maxeventsize=", nullwrap(maxeventsize), ",",
+								 "eventtypes=", nullwrap(eventtypes), ",",
+								 "rocSlicePoints=", rocSlicePoints, ",",
+								 "datadir=\"", datadir, "\",",
+								 "metadata=LoadCachedMetadata(\"", datadir, "\"),",
+								 "id=\"", id, "\",",
+								 "maxgap=", maxgap, ",",
+								 "sizemargin=", sizemargin, ",",
+								 "ignore.strand=", ignore.strand, ",",
+								 "requiredHits=", requiredHits, ",",
+								 "truthgr=truthgr,",
+								 "truthgrName=\"", truthgrName, "\",",
+								 "grtransform=simoptions$grtransform[[\"",grtransformName,"\"]],",
+								 "grtransformName=\"", grtransformName, "\",",
+								 "nominalPosition=", nominalPosition, ")"
+								 ), stderr())
 		result <- .LoadGraphDataFrameForId(
 			ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
 			datadir, metadata, id,
@@ -171,7 +222,9 @@ LoadPlotData <- function(
 	calls <- .CachedLoadCallsForId(datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName, nominalPosition)
-
+	if (is.null(calls)) {
+		return(NULL)
+	}
 	if (ignore.duplicates) {
 		calls <- calls %>% filter(!duptp)
 	}
@@ -355,6 +408,9 @@ LoadPlotData <- function(
 		stop("Missing truth for ", id)
 	}
 	callgr <- .CachedTransformVcf(datadir=datadir, metadata=metadata, id=id, grtransform=grtransform, grtransformName=grtransformName, nominalPosition=nominalPosition)
+	if (is.null(callgr)) {
+		return(NULL)
+	}
 	mcalls <- NULL
 	for (includeFiltered in c(TRUE, FALSE)) {
 		calls <- .ScoreVariantsFromTruthVCF(callgr=callgr, truthgr=truthgr, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, id=id, requiredHits=requiredHits)
@@ -392,7 +448,7 @@ LoadPlotData <- function(
 	#' Loads structural variant GRanges from the VCFs in the given directory
 	filename <- list.files(datadir, pattern=paste0("^", id, ".*.vcf$"), full.names=TRUE)
 	if (length(filename) == 0) {
-		warning("No vcf for id: skipping")
+		warning(paste("No vcf for id:", id, "skipping"))
 		return(NULL)
 	}
 	if (length(filename) > 1) {

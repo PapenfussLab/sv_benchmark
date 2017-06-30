@@ -46,9 +46,9 @@ function(request) {
 					bsTooltip("lrmaxgap", "Variant calls in which the start or end of the event differs by more than this value are considered unmatched"),
 					selectInput("lrsizemargin", "Maximum error in event size", lroptions$sizemargin, selected=0.25),
 					bsTooltip("lrsizemargin", "Variant calls in which the event size is greater or smaller than this margin relative to the truth. The default allows up to a 25% difference in event sizes."),
-					checkboxInput("lrignore.duplicates", "Ignore duplicate variant calls", lroptions$ignore.duplicates, selected=TRUE),
+					checkboxInput("lrignore.duplicates", "Ignore duplicate variant calls", value=lroptions$ignore.duplicates),
 					bsTooltip("lrignore.duplicates", "Controls whether only the highest scoring variant call matching a given truth call is considered true. The default considers lower scoring duplicate calls as false positives."),
-					checkboxInput("lrignore.strand", "Ignore break-end orientation", lroptions$ignore.strand, selected=TRUE),
+					checkboxInput("lrignore.strand", "Ignore break-end orientation", value=lroptions$ignore.strand),
 					bsTooltip("lrignore.strand", "By default, the break-end orientation is ignored since BreakDancer does reports the position by not break-end orientation for variant calls."),
 					selectInput("lrgrtransformName", "Blacklist", names(lroptions$grtransform), selected="DAC"),
 					bsTooltip("lrgrtransformName", "ENCODE blacklist specifying regions of the genome to ignore. Variant calls with either break-end in a blacklisted region are ignored."),
@@ -73,9 +73,9 @@ function(request) {
 					bsTooltip("simmaxgap", "Variant calls in which the start or end of the event differs by more than this value are considered unmatched"),
 					selectInput("simsizemargin", "Maximum error in event size", simoptions$sizemargin, selected=0.25),
 					bsTooltip("simsizemargin", "Variant calls in which the event size is greater or smaller than this margin relative to the truth. The default allows up to a 25% difference in event sizes."),
-					checkboxInput("simignore.duplicates", "Ignore duplicate variant calls", simoptions$ignore.duplicates, selected=TRUE),
+					checkboxInput("simignore.duplicates", "Ignore duplicate variant calls", value=simoptions$ignore.duplicates),
 					bsTooltip("simignore.duplicates", "Controls whether only the highest scoring variant call matching a given truth call is considered true. The default considers lower scoring duplicate calls as false positives."),
-					checkboxInput("simignore.strand", "Ignore break-end orientation", simoptions$ignore.strand, selected=TRUE),
+					checkboxInput("simignore.strand", "Ignore break-end orientation", value=simoptions$ignore.strand),
 					bsTooltip("simignore.strand", "By default, the break-end orientation is ignored since BreakDancer does reports the position by not break-end orientation for variant calls.")
 				)
 				#,submitButton("refresh", "Refresh")
