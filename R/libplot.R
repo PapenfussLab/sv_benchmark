@@ -40,3 +40,59 @@ saveplot <- function(file=file, ...) {
 	ggsave(paste0("png/", file, ".png"), ...)
 	ggsave(paste0("eps/", file, ".eps"), ...)
 }
+
+
+
+plotPrecRecall <- function(plotdf) {
+	if (nrow(plotdf) == 0) {
+		write("plotPrecRecall: no data!", stderr())
+		return(NULL)
+	}
+	# display breakpoint counts instead of breakend counts
+	plotdf$tp <- plotdf$tp/2
+	plotdf$fp <- plotdf$fp/2
+	p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
+		aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
+		geom_line(size=1) +
+		scale_colour_brewer(palette = "Paired") +
+		labs(title = "", y = "Precision", x = "Recall (true positive count)")
+	return(p)
+}
+
+plotPrecRecallRepeat <- function(plotdf) {
+	if (nrow(plotdf) == 0) {
+		write("plotPrecRecallRepeat: no data!", stderr())
+		return(NULL)
+	}
+	# display breakpoint counts instead of breakend counts
+	plotdf$tp <- plotdf$tp/2
+	plotdf$fp <- plotdf$fp/2
+	if (nrow(plotdf) == 0) return(NULL)
+	p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
+		aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
+		geom_line(size=1) +
+		facet_wrap(~ repeatClass, scales="free") +
+		scale_colour_brewer(palette = "Paired") +
+		labs(title = "Precision-Recall by RepeatMasker repeat class", y = "Precision", x = "Recall (true positive count)")
+	return(p)
+}
+
+plotFacetedRoc <- function(plotdf, linetype, colour, facet_eval_string) {
+	if (nrow(plotdf) == 0) {
+		write("plotFacetedRoc: no data!", stderr())
+		return(NULL)
+	}
+	# display breakpoint counts instead of breakend counts
+	plotdf$tp <- plotdf$tp/2
+	plotdf$fp <- plotdf$fp/2
+	p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
+		aes(group=paste(Id, CallSet), y=sens, x=fp+1) +
+		aes_string(linetype=linetype, colour=colour) +
+		geom_line() +
+		scale_x_log_fp +
+		labs(title="", y="Sensitivity", x="False Positives")
+	if (!is.null(facet_eval_string)) {
+		p <- p + facet_grid(eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + ")))))
+	}
+	return(p)
+}

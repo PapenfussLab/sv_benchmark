@@ -3,9 +3,17 @@ library(shiny)
 library(ggplot2)
 library(dplyr)
 
-cachedsimdata <- NULL
-cachedlrdata <- NULL
-RefreshSimData <- function(input, olddata) {
+cacheddata <- NULL
+LoadData <- function(input) {
+	if (input$datasettype == "sim") {
+		currentdata <- RefreshSimData(input, cacheddata)
+	} else {
+		currentdata <- RefreshlrData(input, cacheddata)
+	}
+	cacheddata <<- currentdata
+	return(currentdata)
+}
+RefreshSimData <- function(input) {
   write("RefreshSimData", stderr())
 	if (!input$simsmallevents) {
 		mineventsize <- 51
@@ -27,7 +35,7 @@ RefreshSimData <- function(input, olddata) {
 		truthbedpedir=NULL,
 		mintruthbedpescore=NULL,
 		eventtypes=NULL,
-		existingCache = olddata)
+		existingCache=cacheddata)
 	return(pd)
 }
 RefreshlrData <- function(input, olddata) {
@@ -47,10 +55,17 @@ RefreshlrData <- function(input, olddata) {
         truthbedpedir = paste0(dataLocation, "input.", input$lrdatadir, "/", lroptions$truthpath[[1]]),
         mintruthbedpescore=input$lrmintruthscore,
 				eventtypes=input$lrevents,
-        existingCache = olddata)
+        existingCache=cacheddata)
     return(pd)
 }
-PrettyFormatLrPlotdf <- function(input, lrdata, plotdf) {
+PrettyFormatPlotdf <- function(input, dfs, plotdf) {
+	if (input$datasettype == "sim") {
+		return(PrettyFormatSimPlotdf(input, dfs, plotdf))
+	} else {
+		return(PrettyFormatLrPlotdf(input, dfs, plotdf))
+	}
+}
+PrettyFormatLrPlotdf <- function(input, dfs, plotdf) {
 	plotdf <- plotdf %>%
 		filter(StripCallerVersion(CX_CALLER, FALSE) %in% input$lrcaller)
 		# aligner filters
@@ -58,7 +73,7 @@ PrettyFormatLrPlotdf <- function(input, lrdata, plotdf) {
 				select(Id, CallSet, CX_ALIGNER) %>%
 				filter(CX_ALIGNER %in% input$lraligner | (is.na(CX_ALIGNER) & "" %in% input$lraligner)) %>%
 				select(Id, CallSet) %>%
-				rbind(lrdata$dfs$mostSensitiveAligner[rep("best" %in% input$lraligner, nrow(lrdata$dfs$mostSensitiveAligner)),]) %>%
+				rbind(dfs$mostSensitiveAligner[rep("best" %in% input$lraligner, nrow(dfs$mostSensitiveAligner)),]) %>%
 				distinct()
 		plotdf <- plotdf %>% inner_join(alignerIdCallSet)
 		plotdf <- plotdf %>% mutate(
@@ -66,7 +81,7 @@ PrettyFormatLrPlotdf <- function(input, lrdata, plotdf) {
 			aligner=CX_ALIGNER %na% rep("N/A", nrow(plotdf)))
 	return(plotdf)
 }
-PrettyFormatSimPlotdf <- function(input, simdata, plotdf) {
+PrettyFormatSimPlotdf <- function(input, dfs, plotdf) {
 	plotdf <- plotdf %>%
 			filter(
 				StripCallerVersion(CX_CALLER, FALSE) %in% input$simcaller &
@@ -80,13 +95,28 @@ PrettyFormatSimPlotdf <- function(input, simdata, plotdf) {
 				select(Id, CallSet, CX_ALIGNER) %>%
 				filter(CX_ALIGNER %in% input$simaligner | (is.na(CX_ALIGNER) & "" %in% input$simaligner)) %>%
 				select(Id, CallSet) %>%
-				rbind(simdata$dfs$mostSensitiveAligner[rep("best" %in% input$simaligner, nrow(simdata$dfs$mostSensitiveAligner)),]) %>%
+				rbind(dfs$mostSensitiveAligner[rep("best" %in% input$simaligner, nrow(dfs$mostSensitiveAligner)),]) %>%
 				distinct()
 		plotdf <- plotdf %>% inner_join(alignerIdCallSet)
 		plotdf <- plotdf %>% mutate(
 			caller=StripCallerVersion(CX_CALLER, FALSE),
 			aligner=CX_ALIGNER %na% rep("N/A", nrow(plotdf)))
 	return(plotdf)
+}
+
+doPlot <- function(input, plotdfname, plotfunction, debugLabel=NULL) {
+	if (!is.null(debugLabel)) {
+		write(debugLabel, stderr())
+	}
+	progress <- shiny::Progress$new()
+	on.exit(progress$close())
+	progress$set(message = "Loading data", value = 0)
+	current <- RefreshData(input)
+	progress$set(message = "Formatting data", value = 0.5)
+	plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs[["plotdfname"]])
+	# display breakpoint counts instead of breakend counts
+	progress$set(message = "Generating plot", value = 0.8)
+	p <- plotfunction(plotdf)
 }
 
 # server function (must be last in file)
@@ -132,9 +162,11 @@ function(input, output, session) {
 		on.exit(progress$close())
 
 		progress$set(message = "Loading data", value = 0)
-		cachedsimdata <- RefreshSimData(input, cachedsimdata)
+		currentdata <- RefreshData(input)
 		progress$set(message = "Formatting data", value = 0.5)
-		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$callsByEventSize)
+
+		currentdata <- LoadData(input)
+		plotdf <- PrettyFormatPlotdf(input, currentdata$dfs, currentdata$dfs$callsByEventSize)
 		if (nrow(plotdf) == 0) {
 		  write("simEventSizePlot: no data!", stderr())
 			#browser()
@@ -155,30 +187,19 @@ function(input, output, session) {
 	})
 	output$simRocPlot <- renderPlot({
 	  write("simRocPlot", stderr())
-		cachedsimdata <- RefreshSimData(input, cachedsimdata)
-		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$roc)
-		# display breakpoint counts instead of breakend counts
-		plotdf$tp <- plotdf$tp/2
-		plotdf$fp <- plotdf$fp/2
-		if (nrow(plotdf) == 0) {
-		  write("simRocPlot: no data!", stderr())
-		  return(NULL)
-		}
-		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-			aes(group=paste(Id, CallSet), y=sens, x=fp+1) +
-			aes_string(linetype=paste0("as.factor(", input$simlinetype, ")"), colour=paste0("as.factor(", input$simcolour, ")")) +
-			geom_line() +
-			scale_x_log_fp +
-			facet_grid(eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + "))))) +
-			labs(title="", y="Sensitivity", x="False Positives",
-				linetype=names(simfacets)[simfacets==input$simlinetype],
-				colour=names(simfacets)[simfacets==input$simcolour])
-		return(p)
+		currentdata <- LoadData(input)
+		plotdf <- PrettyFormatPlotdf(input, currentdata$dfs, currentdata$dfs$roc)
+		p <- plotFacetedRoc(plotdf,
+			linetype=paste0("as.factor(", input$simlinetype, ")"),
+			colour=paste0("as.factor(", input$simcolour, ")"),
+			facet_eval_string=eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + ")))))
+		p <- p + labs(linetype=names(simfacets)[simfacets==input$simlinetype],
+									colour=names(simfacets)[simfacets==input$simcolour])
 	})
 	output$simbpErrorDistributionPlot <- renderPlot({
 	  write("simbpErrorDistributionPlot", stderr())
-		cachedsimdata <- RefreshSimData(input, cachedsimdata)
-		plotdf <- PrettyFormatSimPlotdf(input, cachedsimdata, cachedsimdata$dfs$bpErrorDistribution)
+		currentdata <- LoadData(input)
+		plotdf <- PrettyFormatPlotdf(input, currentdata$dfs, currentdata$dfs$bpErrorDistribution)
 		# TODO: incorporate error margin only for truth calls
 		p <- ggplot(plotdf %>%
 				filter(CX_READ_DEPTH==30, CallSet=="All Calls") %>%
@@ -192,74 +213,43 @@ function(input, output, session) {
 	#####
 	# long read plots
 	output$lrPrecRecallPlot <- renderPlot({
-	  write("lrPrecRecallPlot", stderr())
-		progress <- shiny::Progress$new()
-		on.exit(progress$close())
-
-		progress$set(message = "Loading data", value = 0)
-		cachedlrdata <- RefreshlrData(input, cachedlrdata)
-		progress$set(message = "Formatting data", value = 0.5)
-		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
-		# display breakpoint counts instead of breakend counts
-		plotdf$tp <- plotdf$tp/2
-		plotdf$fp <- plotdf$fp/2
-		if (nrow(plotdf) == 0) return(NULL)
-		progress$set(message = "Generating plot", value = 0.8)
-		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
-						geom_line(size=1) +
-		        scale_colour_brewer(palette = "Paired") +
-						labs(title = "", y = "Precision", x = "Recall (true positive count)")
-		#shiny::stopApp()
-		return(p)
+		return(doPlot(input, "roc", plotPrecRecall, debugLabel="lrPrecRecallPlot"))
 	})
 	output$lrRocPlot <- renderPlot({
-	  write("lrRocPlot", stderr())
-		cachedlrdata <- RefreshlrData(input, cachedlrdata)
-		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$roc)
-		# display breakpoint counts instead of breakend counts
-		plotdf$tp <- plotdf$tp/2
-		plotdf$fp <- plotdf$fp/2
-		if (nrow(plotdf) == 0) return(NULL)
-		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-						aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=CallSet) +
-						geom_line(size=1) +
-						coord_cartesian(ylim=c(0, max(plotdf$tp)), xlim=c(0, max(plotdf$tp))) +
-		        scale_colour_brewer(palette = "Paired") +
-						labs(title = "", y = "True Positives", x = "False positives")
-		return(p)
+		return(doPlot(input, "roc", function(plotdf) {
+			# display breakpoint counts instead of breakend counts
+			plotdf$tp <- plotdf$tp/2
+			plotdf$fp <- plotdf$fp/2
+			if (nrow(plotdf) == 0) return(NULL)
+			p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
+				aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=CallSet) +
+				geom_line(size=1) +
+				coord_cartesian(ylim=c(0, max(plotdf$tp)), xlim=c(0, max(plotdf$tp))) +
+				scale_colour_brewer(palette = "Paired") +
+				labs(title = "", y = "True Positives", x = "False positives")
+
+
+			plotroc(plotdf, colour="caller", linetype="CallSet")
+		}, debugLabel="lrRocPlot"))
 	})
 	output$lrPrecRecallRepeatPlot <- renderPlot({
-	  write("lrPrecRecallRepeatPlot", stderr())
-		cachedlrdata <- RefreshlrData(input, cachedlrdata)
-		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
-		# display breakpoint counts instead of breakend counts
-		plotdf$tp <- plotdf$tp/2
-		plotdf$fp <- plotdf$fp/2
-		if (nrow(plotdf) == 0) return(NULL)
-		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-						aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
-						geom_line(size=1) +
-						facet_wrap(~ repeatClass, scales="free") +
-		        scale_colour_brewer(palette = "Paired") +
-						labs(title = "Precision-Recall by RepeatMasker repeat class", y = "Precision", x = "Recall (true positive count)")
-		return(p)
+		return(doPlot(input, "rocbyrepeat", plotPrecRecallRepeat, debugLabel="lrPrecRecallRepeatPlot"))
 	})
 	output$lrRocRepeatPlot <- renderPlot({
-	  write("lrRocRepeatPlot", stderr())
-		cachedlrdata <- RefreshlrData(input, cachedlrdata)
-		plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
-		# display breakpoint counts instead of breakend counts
-		plotdf$tp <- plotdf$tp/2
-		plotdf$fp <- plotdf$fp/2
-		if (nrow(plotdf) == 0) return(NULL)
-		p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-						aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=CallSet) +
-						geom_line(size=1) +
-						facet_wrap(~ repeatClass) +
-						coord_cartesian(ylim=c(0, max(plotdf$tp)), xlim=c(0, max(plotdf$tp))) +
-		        scale_colour_brewer(palette = "Paired") +
-						labs(title = "", y = "True Positives", x = "False positives")
-		return(p)
+		return(doPlot(input, "rocbyrepeat", function(plotdf) {
+			plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
+			# display breakpoint counts instead of breakend counts
+			plotdf$tp <- plotdf$tp/2
+			plotdf$fp <- plotdf$fp/2
+			if (nrow(plotdf) == 0) return(NULL)
+			p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
+				aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=CallSet) +
+				geom_line(size=1) +
+				facet_wrap(~ repeatClass) +
+				coord_cartesian(ylim=c(0, max(plotdf$tp)), xlim=c(0, max(plotdf$tp))) +
+				scale_colour_brewer(palette = "Paired") +
+				labs(title = "", y = "True Positives", x = "False positives")
+			return(p)
+		}, debugLabel="lrRocRepeatPlot"))
 	})
 }
