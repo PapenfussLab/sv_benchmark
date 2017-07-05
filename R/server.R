@@ -3,17 +3,18 @@ library(shiny)
 library(ggplot2)
 library(dplyr)
 
-cacheddata <- NULL
-LoadData <- function(input) {
+cachedsimdata <- NULL
+cachedlrdata <- NULL
+RefreshData <- function(input) {
 	if (input$datasettype == "sim") {
-		currentdata <- RefreshSimData(input, cacheddata)
+		cachedsimdata <<- RefreshSimData(input, cachedsimdata)
+		return(cachedsimdata)
 	} else {
-		currentdata <- RefreshlrData(input, cacheddata)
+		cachedlrdata <<- RefreshlrData(input, cachedlrdata)
+		return(cachedlrdata)
 	}
-	cacheddata <<- currentdata
-	return(currentdata)
 }
-RefreshSimData <- function(input) {
+RefreshSimData <- function(input, olddata) {
   write("RefreshSimData", stderr())
 	if (!input$simsmallevents) {
 		mineventsize <- 51
@@ -35,28 +36,34 @@ RefreshSimData <- function(input) {
 		truthbedpedir=NULL,
 		mintruthbedpescore=NULL,
 		eventtypes=NULL,
-		existingCache=cacheddata)
+		existingCache=olddata)
 	return(pd)
 }
 RefreshlrData <- function(input, olddata) {
   write("RefreshlrData", stderr())
-    pd <- LoadPlotData(
-        datadir = paste0(dataLocation, "data.", input$lrdatadir),
-        maxgap = input$lrmaxgap,
-        ignore.strand = input$lrignore.strand,
-        sizemargin = input$lrsizemargin,
-        ignore.duplicates = input$lrignore.duplicates,
-        ignore.interchromosomal = lroptions$ignore.interchromosomal,
-        mineventsize = lroptions$mineventsize,
-        maxeventsize = lroptions$maxeventsize,
-        requiredHits = input$lrrequiredHits,
-        grtransformName = input$lrgrtransformName,
-        grtransform = lroptions$grtransform[[input$lrgrtransformName]],
-        truthbedpedir = paste0(dataLocation, "input.", input$lrdatadir, "/", lroptions$truthpath[[1]]),
-        mintruthbedpescore=input$lrmintruthscore,
-				eventtypes=input$lrevents,
-        existingCache=cacheddata)
-    return(pd)
+	truthbedpedir <- NULL
+	mintruthbedpescore <- 0
+	if (input$lrTruthSet == "Long Reads") {
+		truthbedpedir <- paste0(dataLocation, "input.", input$lrdatadir, "/", lroptions$truthpath[[1]])
+		mintruthbedpescore <- input$lrmintruthscore
+	}
+  pd <- LoadPlotData(
+      datadir = paste0(dataLocation, "data.", input$lrdatadir),
+      maxgap = input$lrmaxgap,
+      ignore.strand = input$lrignore.strand,
+      sizemargin = input$lrsizemargin,
+      ignore.duplicates = input$lrignore.duplicates,
+      ignore.interchromosomal = lroptions$ignore.interchromosomal,
+      mineventsize = lroptions$mineventsize,
+      maxeventsize = lroptions$maxeventsize,
+      requiredHits = input$lrrequiredHits,
+      grtransformName = input$lrgrtransformName,
+      grtransform = lroptions$grtransform[[input$lrgrtransformName]],
+      truthbedpedir = truthbedpedir,
+      mintruthbedpescore = mintruthbedpescore,
+			eventtypes=input$lrevents,
+      existingCache=olddata)
+  return(pd)
 }
 PrettyFormatPlotdf <- function(input, dfs, plotdf) {
 	if (input$datasettype == "sim") {
@@ -113,10 +120,11 @@ doPlot <- function(input, plotdfname, plotfunction, debugLabel=NULL) {
 	progress$set(message = "Loading data", value = 0)
 	current <- RefreshData(input)
 	progress$set(message = "Formatting data", value = 0.5)
-	plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs[["plotdfname"]])
+	plotdf <- PrettyFormatPlotdf(input, current$dfs, current$dfs[[plotdfname]])
 	# display breakpoint counts instead of breakend counts
 	progress$set(message = "Generating plot", value = 0.8)
 	p <- plotfunction(plotdf)
+	return(p)
 }
 
 # server function (must be last in file)
@@ -156,53 +164,63 @@ function(input, output, session) {
 					sort(as.character(unique(StripCallerVersion(md[[input$simdatadir]]$CX_CALLER)))))
 			))
 	})
-	output$simEventSizePlot <- renderPlot({
-	  write("simEventSizePlot", stderr())
-		progress <- shiny::Progress$new()
-		on.exit(progress$close())
-
-		progress$set(message = "Loading data", value = 0)
-		currentdata <- RefreshData(input)
-		progress$set(message = "Formatting data", value = 0.5)
-
-		currentdata <- LoadData(input)
-		plotdf <- PrettyFormatPlotdf(input, currentdata$dfs, currentdata$dfs$callsByEventSize)
-		if (nrow(plotdf) == 0) {
-		  write("simEventSizePlot: no data!", stderr())
-			#browser()
-		  return(NULL)
+	output$mainPanelPlots <- renderUI({
+		panels <- list()
+		if(input$datasettype == "sim") {
+			panels <- c(panels, list(
+				tabPanel("Event Size", plotOutput("simEventSizePlot", height = mainPlotHeight)),
+				tabPanel("ROC", plotOutput("simRocPlot", height = mainPlotHeight))
+			))
 		}
-		progress$set(message = "Generating plot", value = 0.8)
-		p <- ggplot(plotdf) +
-			aes(group=paste(Id, CallSet), x=abs(svLen), y=sens) +
-			aes_string(linetype=paste0("as.factor(", input$simlinetype, ")"), colour=paste0("as.factor(", input$simcolour, ")")) +
-			geom_line(size=0.5) +
-			scale_x_svlen +
-			# simfacets for the fields not displayed in linetype or colour
-			facet_grid(eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + "))))) +
-			labs(title="", y="Sensitivity", x="Event size",
-				linetype=names(simfacets)[simfacets==input$simlinetype],
-				colour=names(simfacets)[simfacets==input$simcolour])
-		return(p)
+		panels <- c(panels, list(
+			tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = mainPlotHeight)),
+			tabPanel("ROC", plotOutput("lrRocPlot", height = mainPlotHeight)),
+			tabPanel("Precision Recall by repeat", plotOutput("lrPrecRecallRepeatPlot", height = mainPlotHeight)),
+			tabPanel("ROC by repeat", plotOutput("lrRocRepeatPlot", height = mainPlotHeight))
+		))
+		return(do.call(tabsetPanel, panels))
+	})
+	output$simEventSizePlot <- renderPlot({
+		if (input$datasettype != "sim") {
+			write("skipping simEventSizePlot", stderr())
+			return (NULL)
+		}
+		return(doPlot(input, "callsByEventSize", function(plotdf) {
+			p <- plotFacettedSensByEventSize(plotdf,
+															 linetype=paste0("as.factor(", input$simlinetype, ")"),
+															 colour=paste0("as.factor(", input$simcolour, ")"),
+															 facet_eval_string=eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + ")))))
+			p <- p + labs(linetype=names(simfacets)[simfacets==input$simlinetype],
+										colour=names(simfacets)[simfacets==input$simcolour])
+			return(p)
+		}, debugLabel="simEventSizePlot"))
 	})
 	output$simRocPlot <- renderPlot({
-	  write("simRocPlot", stderr())
-		currentdata <- LoadData(input)
-		plotdf <- PrettyFormatPlotdf(input, currentdata$dfs, currentdata$dfs$roc)
-		p <- plotFacetedRoc(plotdf,
-			linetype=paste0("as.factor(", input$simlinetype, ")"),
-			colour=paste0("as.factor(", input$simcolour, ")"),
-			facet_eval_string=eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + ")))))
-		p <- p + labs(linetype=names(simfacets)[simfacets==input$simlinetype],
-									colour=names(simfacets)[simfacets==input$simcolour])
+		if (input$datasettype != "sim") {
+			write("skipping simRocPlot", stderr())
+			return (NULL)
+		}
+		return(doPlot(input, "roc", function(plotdf) {
+			p <- plotFacetedRocLogFP(plotdf,
+													linetype=paste0("as.factor(", input$simlinetype, ")"),
+													colour=paste0("as.factor(", input$simcolour, ")"),
+													facet_eval_string=eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + ")))))
+			p <- p + labs(linetype=names(simfacets)[simfacets==input$simlinetype],
+										colour=names(simfacets)[simfacets==input$simcolour])
+			return(p)
+		}, debugLabel="simRocPlot"))
 	})
 	output$simbpErrorDistributionPlot <- renderPlot({
+		if (input$datasettype != "sim") {
+			write("skipping simbpErrorDistributionPlot", stderr())
+			return (NULL)
+		}
 	  write("simbpErrorDistributionPlot", stderr())
-		currentdata <- LoadData(input)
+		currentdata <- RefreshData(input)
 		plotdf <- PrettyFormatPlotdf(input, currentdata$dfs, currentdata$dfs$bpErrorDistribution)
 		# TODO: incorporate error margin only for truth calls
 		p <- ggplot(plotdf %>%
-				filter(CX_READ_DEPTH==30, CallSet=="All Calls") %>%
+				filter(CallSet=="All Calls") %>%
 				inner_join(mostSensitiveAligner)) +
 			aes(x=bperror, y=rate) +
 			geom_bar(stat="identity") +
@@ -216,28 +234,13 @@ function(input, output, session) {
 		return(doPlot(input, "roc", plotPrecRecall, debugLabel="lrPrecRecallPlot"))
 	})
 	output$lrRocPlot <- renderPlot({
-		return(doPlot(input, "roc", function(plotdf) {
-			# display breakpoint counts instead of breakend counts
-			plotdf$tp <- plotdf$tp/2
-			plotdf$fp <- plotdf$fp/2
-			if (nrow(plotdf) == 0) return(NULL)
-			p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
-				aes(group = paste(Id, CallSet), y = tp, x = fp, colour=caller, linetype=CallSet) +
-				geom_line(size=1) +
-				coord_cartesian(ylim=c(0, max(plotdf$tp)), xlim=c(0, max(plotdf$tp))) +
-				scale_colour_brewer(palette = "Paired") +
-				labs(title = "", y = "True Positives", x = "False positives")
-
-
-			plotroc(plotdf, colour="caller", linetype="CallSet")
-		}, debugLabel="lrRocPlot"))
+		return(doPlot(input, "roc", plotRocLinear, debugLabel="lrRocPlot"))
 	})
 	output$lrPrecRecallRepeatPlot <- renderPlot({
 		return(doPlot(input, "rocbyrepeat", plotPrecRecallRepeat, debugLabel="lrPrecRecallRepeatPlot"))
 	})
 	output$lrRocRepeatPlot <- renderPlot({
 		return(doPlot(input, "rocbyrepeat", function(plotdf) {
-			plotdf <- PrettyFormatLrPlotdf(input, cachedlrdata, cachedlrdata$dfs$rocbyrepeat)
 			# display breakpoint counts instead of breakend counts
 			plotdf$tp <- plotdf$tp/2
 			plotdf$fp <- plotdf$fp/2

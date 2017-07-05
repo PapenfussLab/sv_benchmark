@@ -19,6 +19,10 @@ LoadCachedMetadata <- function(datadir) {
 	if (is.null(metadata)) {
 		write(sprintf("LoadMetadata %s (%s)", datadir, getChecksum(datadir)), stderr())
 		metadata <- LoadMetadata(datadir)
+		if (is.null(metadata$CX_REFERENCE_VCF)) {
+			# Hack to force a default truth even if none exists
+			metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000002.reference.vcf"
+		}
 		saveCache(metadata, key=keymetadata, dirs=".Rcache/metadata")
 	}
 	memcache.metadata$key <<- keymetadata
@@ -74,10 +78,8 @@ LoadPlotData <- function(
 	truthgr <- NULL
 	truthgrName <- ""
 	if (!is.null(truthbedpedir)) {
-		truthgr <- .CachedLoadTruthBedpe(truthbedpedir, mintruthbedpescore)
 		truthgrName <- truthbedpedir
 	}
-
 	rocSlicePoints <- 100
 	nominalPosition <- FALSE
 	slice <-list()
@@ -85,7 +87,10 @@ LoadPlotData <- function(
 	slice$dfs <- .CachedLoadGraphDataFrame(
 		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
 		datadir, metadata,
-		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
+		maxgap, sizemargin, ignore.strand, requiredHits,
+			# use lazy evaluation for truthgr and truthgrName
+			if (is.null(truthbedpedir)) { NULL } else {.CachedLoadTruthBedpe(truthbedpedir, mintruthbedpescore)},
+			if (is.null(truthbedpedir)) { NULL } else {truthbedpedir},
 		grtransform, grtransformName, nominalPosition)
 
 	setCacheRootPath(cacheroot)

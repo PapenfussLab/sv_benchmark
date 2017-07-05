@@ -6,6 +6,8 @@ library(stringr)
 library(shiny)
 library(shinyBS)
 
+mainPlotHeight <- 800
+
 enableBookmarking(store = "url")
 options("R.cache::compress" = TRUE)
 
@@ -121,3 +123,8 @@ lroptions$grtransform <- list(
   Duke=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "Duke"))
 lroptions$truthpath <- c("longread") #, "longread/moleculo")
 lroptions$mintruthscore <- c(0, 1, 10, 20)
+
+
+
+# testing
+simoptions$datadir <- c("TEST" = "testdata")
