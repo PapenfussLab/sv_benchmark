@@ -223,7 +223,7 @@ import.sv.bedpe.dir <- function(dir) {
 		datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName, nominalPosition) {
-
+	# browser()
 	calls <- .CachedLoadCallsForId(datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName, nominalPosition)

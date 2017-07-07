@@ -1,0 +1,23 @@
+install.packages(c(
+	"stringr",
+	"devtools",
+	"testthat",
+	"assertthat",
+	"dplyr",
+	"tidyr",
+	"data.frames",
+	"openxlsx",
+	"parallel",
+	"optparse",
+	"shiny",
+	"shinyBS",
+	"R.cache",
+	"ggplot2"))
+source("https://bioconductor.org/biocLite.R")
+biocLite(c(
+	"VariantAnnotation",
+	"rtracklayer"
+	))
+library(devtools)
+install_github("PapenfussLab/StructuralVariantAnnotation")
+

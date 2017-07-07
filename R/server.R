@@ -42,10 +42,12 @@ RefreshSimData <- function(input, olddata) {
 RefreshlrData <- function(input, olddata) {
   write("RefreshlrData", stderr())
 	truthbedpedir <- NULL
-	mintruthbedpescore <- 0
+	mintruthbedpescore <- NULL
+	requiredHits <- 1
 	if (input$lrTruthSet == "Long Reads") {
 		truthbedpedir <- paste0(dataLocation, "input.", input$lrdatadir, "/", lroptions$truthpath[[1]])
 		mintruthbedpescore <- input$lrmintruthscore
+		requiredHits <- input$lrrequiredHits
 	}
   pd <- LoadPlotData(
       datadir = paste0(dataLocation, "data.", input$lrdatadir),
@@ -56,7 +58,7 @@ RefreshlrData <- function(input, olddata) {
       ignore.interchromosomal = lroptions$ignore.interchromosomal,
       mineventsize = lroptions$mineventsize,
       maxeventsize = lroptions$maxeventsize,
-      requiredHits = input$lrrequiredHits,
+      requiredHits = requiredHits,
       grtransformName = input$lrgrtransformName,
       grtransform = lroptions$grtransform[[input$lrgrtransformName]],
       truthbedpedir = truthbedpedir,

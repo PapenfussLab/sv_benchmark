@@ -261,7 +261,10 @@ lrcachedf <- function(pass, df) {
 			}
 		} else {
 			lapply(seq_len(nrow(df)), function(i) {
+				# long read
 				lrcache(df$datadir[i], df$truthbedpedir[i], df$mintruthbedpescore[i], df$maxgap[i], df$ignore.strand[i], df$sizemargin[i], df$requiredHits[i], df$grtransformName[i], df$ignore.duplicates[i], df$ignore.interchromosomal[i], df$mineventsize[i])
+				# default call set
+				lrcache(df$datadir[i], NULL, NULL, df$maxgap[i], df$ignore.strand[i], df$sizemargin[i], 1, df$grtransformName[i], df$ignore.duplicates[i], df$ignore.interchromosomal[i], df$mineventsize[i])
 				return(0)
 			})#, mc.preschedule=FALSE)
 		}
