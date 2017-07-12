@@ -26,15 +26,18 @@ calldf <- .CachedLoadCallsForId(
 	grtransform=simoptions$grtransform[["DAC"]],
 	grtransformName="DAC",
 	nominalPosition=FALSE)
-calldf <- calldf %>% filter(abs(svLen) > 50)
+calldf <- calldf %>%
+	filter(abs(svLen) > 50)%>%
+	mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative")))
+
 
 # event size density
 ggplot(calldf) +
-	aes(x=svLen, y = ..ncount.., colour=ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative"))) +
+	aes(x=svLen, y = ..ncount.., colour=Classification) +
 	geom_histogram() +
 	scale_y_continuous(labels = percent_format()) +
-	facet_wrap( ~ ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative"))) +
-	scale_x_log10()
+	facet_wrap( ~ Classification) +
+	scale_x_log10(limits=c(50, max(calldf$svLen)))
 
 ggplot(calldf %>% filter(!fn)) +
 	aes(x=svLen, fill=tp) +
@@ -99,5 +102,63 @@ ggplot(rocby(calldf, svLenBin, repeatClass)) +
 	labs(title="ROC")
 
 # what is the repeat context of the FP calls?
+
+#############################
+# sequencce homology context
+calldf$ihomlenBin <- cut(abs(calldf$ihomlen), breaks=c(0, 5, 10, 25, 50, 100, 300, 1000))
+
+ggplot(calldf) +
+	aes(x=ihomlen, fill=Classification) +
+	geom_histogram() +
+	scale_x_log10()
+
+calldf %>%
+	group_by(ihomlenBin) %>%
+	summarise(falsePositiveRate=sum(fp)/sum(fp+tp))
+ggplot(calldf %>%
+	group_by(ihomlenBin) %>%
+	summarise(falseNegativeRate=sum(fn)/sum(tp+fn))) +
+	aes(x=ihomlenBin, y=falseNegativeRate) +
+	geom_point() +
+	labs("False Negative Rate by size of breakpoint sequence homology")
+
+
+
+
+
+# TODO:
+ * SNP/INDEL context of SV calls
+ * actual coverage vs mean coverage
+ * mappabiliyumappability of surrounding bases
+ * event size distribution vs real event size distribution
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

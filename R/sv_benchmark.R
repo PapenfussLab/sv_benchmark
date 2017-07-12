@@ -268,6 +268,12 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	if (!all(callgr$partner %in% names(callgr))) {
 		browser()
 	}
+	if (is.null(callgr$ihomlen)) {
+		callgr$ihomlen <- NA_integer_
+	}
+	if (is.null(truthgr$ihomlen)) {
+		truthgr$ihomlen <- NA_integer_
+	}
 	hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
 
 	hits$QUAL <- callgr$QUAL[hits$queryHits]
@@ -278,7 +284,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 		summarise(besthits=sum(!dup), allhits=n())
 
 	calldf <- as.data.frame(callgr) %>%
-		dplyr::select(QUAL, svLen, insLen, vcfId, HOMLEN) %>%
+		dplyr::select(QUAL, svLen, insLen, vcfId, HOMLEN, ihomlen) %>%
 		mutate(
 			Id=id,
 			tp=rep(FALSE, nrow(.)),
@@ -302,7 +308,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	truthdf <- NULL
 	if (requiredHits == 1) {
 		truthdf <- as.data.frame(truthgr) %>%
-			dplyr::select(svLen, insLen, vcfId, HOMLEN) %>%
+			dplyr::select(svLen, insLen, vcfId, HOMLEN, ihomlen) %>%
 			mutate(Id=id, QUAL=0, tp=FALSE, fp=FALSE, fn=FALSE, sizeerror=NA, bperror=NA) %>%
 			mutate(
 				includeFiltered=includeFiltered,

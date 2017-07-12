@@ -3,6 +3,7 @@
 source("sv_benchmark.R")
 library(R.cache)
 library(dplyr)
+library(data.table)
 library(assertthat)
 
 memcache.metadata <- list(key=NULL, value=NULL)
@@ -463,8 +464,20 @@ import.sv.bedpe.dir <- function(dir) {
 	if (!is.null(vcftransform)) {
 		vcf <- vcftransform(vcf)
 	}
+	# homology annotation
+	ihomlendt <- .CachedLoadInexactHomologyAnnotation(datadir, id)
+	if (is.null(ihomlendt)) {
+		return(NULL)
+	}
+	# remove breakend suffix and get the longest homology length
+	ihomlendt <- ihomlendt %>%
+		dplyr::mutate(vcfId=str_replace(breakpointid, "_bp[0-9]+$", "")) %>%
+		dplyr::group_by(vcfId) %>%
+		dplyr::summarise(ihomlen=max(ihomlen))
+	ihomlen <- ihomlendt$ihomlen
+	names(ihomlen) <- ihomlendt$vcfId
 	vcf <- withqual(vcf, caller)
-	gr <- breakpointRanges(vcf, nominalPosition)
+	gr <- breakpointRanges(vcf, nominalPosition, suffix="_bp")
 	if (!is.null(grtransform)) {
 		gr <- grtransform(gr)
 	}
@@ -475,6 +488,41 @@ import.sv.bedpe.dir <- function(dir) {
 	#gr$svLen <- NULL
 	gr$insSeq <- NULL
 	#gr$insLen <- NULL
+	gr$ihomlen <- ihomlen[gr$vcfId]
 	return(gr)
+}
+.CachedLoadInexactHomologyAnnotation <- function(datadir, id) {
+	cachekey <- list(datadir, id)
+	cachedir <- ".Rcache/annotateihomlen"
+	assert_that(!is.null(id))
+	assert_that(!is.na(id))
+	result <- loadCache(key=cachekey, dirs=cachedir)
+	if (is.null(result)) {
+		write(sprintf(".LoadInexactHomologyAnnotation %s (%s)", id, getChecksum(cachekey)), stderr())
+		result <- .LoadInexactHomologyAnnotation(datadir=datadir, id=id)
+		if (!is.null(result)) {
+			saveCache(result, key=cachekey, dirs=cachedir)
+		}
+	}
+	return(result)
+}
+.LoadInexactHomologyAnnotation <- function(datadir, id) {
+	#' Loads structural variant GRanges from the VCFs in the given directory
+	filename <- list.files(datadir, pattern=paste0("^", id, ".*.vcf$"), full.names=TRUE)
+	if (length(filename) == 0) {
+		warning(paste("No vcf for id:", id, "skipping"))
+		return(NULL)
+	}
+	if (length(filename) > 1) {
+		stop(paste0("Multiple VCFs found for ", id))
+	}
+	filename <- list.files(datadir, pattern=paste0("^", id, ".*.annimphom.bedpe$"), full.names=TRUE)
+	if (length(filename) == 0) {
+		warning(paste(".annimphom.bedpe not found for id:", id, "skipping"))
+		return(NULL)
+	}
+	dt <- fread(filename, sep="\t", select=c(7:8))
+	names(dt) <- c("breakpointid", "ihomlen")
+	return(dt)
 }
 

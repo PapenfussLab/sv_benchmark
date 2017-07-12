@@ -41,7 +41,7 @@ function(request) {
 					# could facet on repeat region
 					# checkboxInput("repeat", "By repeat annotation", value=FALSE)
 					hr(),
-					helpText("The following inputs control the matching of variant calls against the truth. To reduce bias in the truth set as much as possible, the truth is determined by counting the number of long reads supporting each variant call."),
+					helpText("The following inputs control the matching of variant calls against the chosen truth set."),
 					selectInput("lrmaxgap", "Maximum break-end error (bp)", lroptions$maxgap, selected=200),
 					bsTooltip("lrmaxgap", "Variant calls in which the start or end of the event differs by more than this value are considered unmatched"),
 					selectInput("lrsizemargin", "Maximum error in event size", lroptions$sizemargin, selected=0.25),
@@ -50,6 +50,9 @@ function(request) {
 					bsTooltip("lrignore.duplicates", "Controls whether only the highest scoring variant call matching a given truth call is considered true. The default considers lower scoring duplicate calls as false positives."),
 					checkboxInput("lrignore.strand", "Ignore break-end orientation", value=lroptions$ignore.strand),
 					bsTooltip("lrignore.strand", "By default, the break-end orientation is ignored since BreakDancer does reports the position by not break-end orientation for variant calls."),
+					# TODO implement the following options
+					checkboxInput("lrignore.xchr", "Ignore inter-chromosomal calls (TODO: implement)", value=lroptions$ignore.xchr),
+					checkboxInput("lrignore.largeevents", "Ignore large (>30 kbp) events (TODO: implement)", value=lroptions$ignore.largeevents),
 					selectInput("lrgrtransformName", "Blacklist", names(lroptions$grtransform), selected="DAC"),
 					bsTooltip("lrgrtransformName", "ENCODE blacklist specifying regions of the genome to ignore. Variant calls with either break-end in a blacklisted region are ignored."),
 					conditionalPanel("lrTruthSet == 'Long Reads'",
