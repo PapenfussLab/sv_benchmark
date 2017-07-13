@@ -20,9 +20,17 @@ LoadCachedMetadata <- function(datadir) {
 	if (is.null(metadata)) {
 		write(sprintf("LoadMetadata %s (%s)", datadir, getChecksum(datadir)), stderr())
 		metadata <- LoadMetadata(datadir)
-		if (is.null(metadata$CX_REFERENCE_VCF)) {
-			# Hack to force a default truth even if none exists
-			metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000002.reference.vcf"
+		if (datadir %in% "na12878") {
+			if (is.null(metadata$CX_REFERENCE_VCF)) {
+				# Hack to force a default truth even if none exists
+				metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000002.reference.vcf"
+			}
+		} else if (datadir %in% "chm") {
+			metadata$CX_REFERENCE_VCF <- ifelse(metadata$str_detect(CX_FQ1, "chm1.1.fq$"),
+				paste0(datadir, "chm1.reference.vcf.gz"),
+				ifelse(metadata$str_detect(CX_FQ1, "chm13.1.fq$"),
+					paste0(datadir, "chm13.reference.vcf.gz"),
+					paste0(datadir, "chmboth.reference.vcf.gz")))
 		}
 		saveCache(metadata, key=keymetadata, dirs=".Rcache/metadata")
 	}
