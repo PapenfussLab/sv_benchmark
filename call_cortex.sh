@@ -67,7 +67,7 @@ perl $CORTEX_DIR/scripts/calling/run_calls.pl \
 	--refbindir $(dirname $CX_REFERENCE) \
 	--genome_size $REFSIZE \
 	--qthresh 5 \
-	--mem_height 26 --mem_width 100 \
+	--mem_height 27 --mem_width 100 \
 	--vcftools_dir $BASE_DIR/tools/cortex/vcftools_0.1.9/ \
 	--do_union yes \
 	--ref CoordinatesAndInCalling \
