@@ -1,9 +1,12 @@
 source("config.R")
 source("sv_benchmark.R")
 source("libplot.R")
-source("shinyCache.R")
-library(shiny)
+source("shinyCache2.R")
 library(stringr)
+library(shiny)
+library(shinyBS)
+
+mainPlotHeight <- 800
 
 enableBookmarking(store = "url")
 options("R.cache::compress" = TRUE)
@@ -29,13 +32,17 @@ if (!exists("lrblacklistgr")) {
 
 # load repeatmasker annotations
 if (!exists("grrm")) {
+	cacheroot <- getCacheRootPath()
+	setCacheRootPath(dataLocation)
+	write("Loading repeatmasker annotations", stderr())
 	key = list(repeatmaskermergedfile=paste0(dataLocation, "/input.common/repeatmasker-hg19.fa.out.gz"))
-	grrm <- loadCache(key=key)
+	grrm <- loadCache(key=key, dirs="input.common/.Rcache")
 	if (is.null(grrm)) {
 	  write(paste("Loading ", key$repeatmaskermergedfile), stderr())
 		grrm <- import.repeatmasker.fa.out(key$repeatmaskermergedfile)
-		saveCache(grrm, key=key)
+		saveCache(grrm, key=key, dirs="input.common/.Rcache")
 	}
+	setCacheRootPath(cacheroot)
 }
 
 # helper functions
@@ -90,10 +97,10 @@ simfacets <- c(
 				"Aligner"="aligner",
                 "Call Set" = "CallSet")
 dataoptions <- list()
-dataoptions$maxgap <- 200
-dataoptions$ignore.strand <- TRUE
-dataoptions$sizemargin <- 0.25
-dataoptions$ignore.duplicates <- FALSE
+dataoptions$maxgap <- c(10, 50, 100, 200)
+dataoptions$ignore.strand <- c(TRUE, FALSE)
+dataoptions$sizemargin <- c(0.1, 0.25, 0.5)
+dataoptions$ignore.duplicates <- c(TRUE, FALSE)
 dataoptions$ignore.interchromosomal <- TRUE
 dataoptions$mineventsize <-51
 dataoptions$maxeventsize <- NULL
@@ -106,12 +113,18 @@ simoptions$datasetslicecol <- c("rd" = "CX_READ_DEPTH", "rl" = "CX_READ_LENGTH",
 simoptions$mineventsize <- c(0, 51)
 # simoptions$grtransform <- # filter small events calls on breakpoint data sets to remove spurious indels caused by sequence homology around breakpoints?
 lroptions <- dataoptions
-lroptions$requiredHits <- 3
-lroptions$datadir <- lroptions$datadir[!(lroptions$datadir %in% simoptions$datadir)]
+lroptions$requiredHits <- c(1, 2, 3, 4, 5)
+lroptions$datadir <- c("na12878") #lroptions$datadir[!(lroptions$datadir %in% simoptions$datadir)]
 # lapply doesn't quite work since it doesn't play nicely with R.cache
 #lroptions$grtransform <- lapply(names(lrblacklistgr), function(blacklist) function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, blacklist))
 lroptions$grtransform <- list(
   #None=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "None"),
-  DAC=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "DAC"))
-  #Duke=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "Duke"))
-lroptions$truthpath <- c("longread", "longread/moleculo")
+  DAC=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "DAC"),
+  Duke=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "Duke"))
+lroptions$truthpath <- c("longread") #, "longread/moleculo")
+lroptions$mintruthscore <- c(0, 1, 10, 20)
+
+
+
+# testing
+simoptions$datadir <- c("TEST" = "testdata")

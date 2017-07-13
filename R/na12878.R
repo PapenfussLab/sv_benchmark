@@ -4,8 +4,8 @@ library(dplyr)
 library(stringr)
 library(RColorBrewer)
 
-maxgap <- 200
-sizemargin <- 0.25
+maxgap <- 180
+sizemargin <- 0.50
 ignore.strand <- TRUE
 minsize <- 51
 
@@ -17,7 +17,7 @@ encodeblacklist <- import(paste0(rootdir, "scripts/input.na12878/wgEncodeDacMapa
 # na12878 Moleculo/PacBio truth
 if (!exists("longsplitreads") || !exists("longspanningreads")) {
 	.loadlongreaddelbed <- function(filename) {
-		lrbed <- import.bed(con=paste0(rootdir, filename))
+		lrbed <- import.bed(con=filename)
 		seqlevelsStyle(lrbed) <- "UCSC"
 		gr <- GRanges(
 			seqnames=c(seqnames(lrbed),seqnames(lrbed)),
@@ -31,17 +31,17 @@ if (!exists("longsplitreads") || !exists("longspanningreads")) {
 		return(gr)
 	}
 	longsplitreads <- c(
-		.loadlongreaddelbed("input.na12878/chemistry1.sorted.bam.sr.bam.sr.bed"),
-		.loadlongreaddelbed("input.na12878/chemistry_2_picard.bam.sr.bam.sr.bed"),
-		.loadlongreaddelbed("input.na12878/chemistry_3_picard.bam.sr.bam.sr.bed"),
-		.loadlongreaddelbed("input.na12878/NA12878.pacbio_fr_MountSinai.bwa-sw.20140211.bam.sr.bam.sr.bed"),
-		.loadlongreaddelbed("input.na12878/NA12878.moleculo.bwa-mem.20140110.bam.sr.bam.sr.bed"))
+		.loadlongreaddelbed("~/na12878/longread_nov2016/chemistry1.sorted.bam.sr.bam.sr.bed"),
+		.loadlongreaddelbed("~/na12878/longread_nov2016/chemistry_2_picard.bam.sr.bam.sr.bed"),
+		.loadlongreaddelbed("~/na12878/longread_nov2016/chemistry_3_picard.bam.sr.bam.sr.bed"),
+		.loadlongreaddelbed("~/na12878/longread_nov2016/NA12878.pacbio_fr_MountSinai.bwa-sw.20140211.bam.sr.bam.sr.bed"),
+		.loadlongreaddelbed("~/na12878/longread_nov2016/NA12878.moleculo.bwa-mem.20140110.bam.sr.bam.sr.bed"))
 	longspanningreads <- c(
-		.loadlongreaddelbed("input.na12878/chemistry1.sorted.bam.sp.bed"),
-		.loadlongreaddelbed("input.na12878/chemistry_2_picard.bam.sp.bed"),
-		.loadlongreaddelbed("input.na12878/chemistry_3_picard.bam.sp.bed"),
-		.loadlongreaddelbed("input.na12878/NA12878.pacbio_fr_MountSinai.bwa-sw.20140211.bam.sp.bed"),
-		.loadlongreaddelbed("input.na12878/NA12878.moleculo.bwa-mem.20140110.bam.sp.bed"))
+		.loadlongreaddelbed("~/na12878/longread_nov2016/chemistry1.sorted.bam.sp.bed"),
+		.loadlongreaddelbed("~/na12878/longread_nov2016/chemistry_2_picard.bam.sp.bed"),
+		.loadlongreaddelbed("~/na12878/longread_nov2016/chemistry_3_picard.bam.sp.bed"),
+		.loadlongreaddelbed("~/na12878/longread_nov2016/NA12878.pacbio_fr_MountSinai.bwa-sw.20140211.bam.sp.bed"),
+		.loadlongreaddelbed("~/na12878/longread_nov2016/NA12878.moleculo.bwa-mem.20140110.bam.sp.bed"))
 	longsplitreads <- longsplitreads[.distance(longsplitreads, partner(longsplitreads))$max >= minsize * sizemargin]
 	longspanningreads <- longspanningreads[.distance(longspanningreads, partner(longspanningreads))$max >= minsize * sizemargin]
 }
@@ -107,7 +107,7 @@ lrcalls <- bind_rows(lapply(names(vcfs)[names(vcfs) %in% (metadata %>% filter(!i
 		# assign supporting evidence to the call with the highest QUAL
 		hits <- hits %>%
 			arrange(desc(QUAL), queryHits) %>%
-			distinct(subjectHits, keep_all = TRUE) %>%
+			distinct(subjectHits, .keep_all = TRUE) %>%
 			group_by(queryHits) %>%
 			summarise(n=n())
 		hitscounts[hits$queryHits] <- hits$n
@@ -133,11 +133,11 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
 		ungroup() %>%
 		arrange(desc(tp)) %>%
 		left_join(metadata) %>%
-		distinct(CallSet, StripCallerVersion(CX_CALLER), keep_all = TRUE) %>%
+		distinct(CallSet, StripCallerVersion(CX_CALLER), .keep_all = TRUE) %>%
 		filter(is.null(callers) | StripCallerVersion(CX_CALLER) %in% callers) %>%
 		dplyr::select(Id, CallSet)
 }
-.plotgraphs <- function(calls, label, callers=c("gridss", "breakdancer", "cortex", "delly", "lumpy", "pindel", "socrates", "tigra/breakdancer", "cortex", "hydra")) {
+.plotgraphs <- function(calls, label, callers=c("gridss", "breakdancer", "cortex", "delly", "lumpy", "pindel", "socrates", "manta", "cortex", "hydra")) {
 	# use aligner with best sensitivity
 	sensAligner <- .mostSensitivePerCaller(calls, callers)
 	roc <- calls %>%
@@ -168,7 +168,7 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
 			# add in horizontal line to the y axis
 			filter(tp > 0) %>%
 			arrange(tp) %>%
-			distinct(caller, CallSet, keep_all = TRUE) %>%
+			distinct(caller, CallSet, .keep_all = TRUE) %>%
 			mutate(tp=0))) +
 		aes(group=paste(Id, CallSet), x=tp/2, y=precision, linetype=CallSet, color=caller) +
 		geom_line() +
@@ -183,7 +183,7 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
 								 # add in horizontal line to the y axis
 								 filter(tp > 0) %>%
 								 arrange(tp) %>%
-								 distinct(caller, CallSet, keep_all = TRUE) %>%
+								 distinct(caller, CallSet, .keep_all = TRUE) %>%
 								 mutate(tp=0)) %>%
 								mutate(caller=StripCallerVersion(CX_CALLER)) %>%
 								filter(CallSet=="High confidence only")) +
@@ -205,7 +205,7 @@ ggplot(lrcalls %>%
 			 						 	ungroup() %>%
 			 						 	arrange(desc(tp)) %>%
 			 						 	left_join(metadata) %>%
-			 						 	distinct(CallSet, StripCallerVersion(CX_CALLER), keep_all = TRUE) %>%
+			 						 	distinct(CallSet, StripCallerVersion(CX_CALLER), .keep_all = TRUE) %>%
 			 						 	dplyr::select(Id, CallSet)
 			 						 	) %>%
 			 	left_join(metadata) %>%
