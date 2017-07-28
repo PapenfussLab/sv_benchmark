@@ -3,6 +3,7 @@
 library("optparse")
 source("global.R")
 source("libplot.R")
+source("server.R")
 
 # check command-line args and only process that data subset
 args <- commandArgs(trailingOnly=TRUE)
@@ -169,10 +170,28 @@ simcachedf("p2", simparam %>% distinct(datadir, requiredHits, sizemargin, ignore
 simcachedf("p3", simparam)
 
 lrcache <- function(datadir, truthbedpedir, mintruthbedpescore, maxgap, ignore.strand, sizemargin, requiredHits, grtransformName, ignore.duplicates, ignore.interchromosomal, mineventsize) {
+	input <- list(
+		datasettype="lr",
+		datadir=datadir,
+		lrmaxgap=maxgap,
+		lrignore.strand=ignore.strand,
+		lrsizemargin=sizemargin,
+		lrignore.duplicates=ignore.duplicates,
+		ignore.interchromosomal=ignore.interchromosomal,
+		mineventsize=mineventsize,
+		maxeventsize=NULL,
+		lrgrtransformName=grtransformName,
+		truthbedpedir=truthbedpedir,
+		mintruthbedpescore=mintruthbedpescore,
+		lrTruthSet=ifelse(is.null(truthbedpedir), "Published Calls", "Long Reads"),
+		lraligner="best",
+		lrcaller=fulldatacallers
+		)
 	datapath = paste0(dataLocation, "data.", datadir)
 	truthbedpedir = paste0(dataLocation, "input.", datadir, "/", truthbedpedir)
 	transform <- lroptions$grtransform[[grtransformName]]
   for (et in eventtypes) {
+  	input$eventtypes <- et
 		plotdata <- LoadPlotData(
 				datadir = datapath,
 				maxgap = maxgap,
@@ -188,28 +207,30 @@ lrcache <- function(datadir, truthbedpedir, mintruthbedpescore, maxgap, ignore.s
 				truthbedpedir = truthbedpedir,
 				mintruthbedpescore=mintruthbedpescore,
 				eventtypes=et,
-				existingCache = plotdata,
+				existingCache=plotdata,
 				loadFromCacheOnly=FALSE,
 				loadAll=loadAll)
 		if (plotGraphs) {
-			filenamePrefix <- paste(datadir, et, maxgap, ignore.strand, sizemargin, ignore.duplicates, ignore.interchromosomal, requiredHits, mineventsize, grtransformName, str_replace(truthbedpedir, "/", "_"), sep="_")
+			filenamePrefix <- str_replace_all(paste(datadir, et, maxgap, ignore.strand, sizemargin, ignore.duplicates, ignore.interchromosomal, requiredHits, mineventsize, grtransformName, truthbedpedir, sep="_"), "/", "_")
+			saveplot(paste0(filenamePrefix, "_bpErrorDistribution"), scale=2, height=12, width=12, units="cm", plot=doPlot(input, "bpErrorDistribution", plotCallPositionErrorDistribution, debugLabel="bpErrorDistributionPlot", data=plotdata))
+			saveplot(paste0(filenamePrefix, "_precrecall"), scale=2, height=12, width=12, units="cm", plot=doPlot(input, "roc", plotPrecRecall, debugLabel="lrPrecRecallPlot", data=plotdata))
 			####
 			# Precision-recall
-			plotdf <- plotdata$dfs$roc %>%
-				filter(StripCallerVersion(CX_CALLER, FALSE) %in% fulldatacallers) %>%
-				inner_join(plotdata$dfs$mostSensitiveAligner) %>%
-				mutate(
-					CallSet=ifelse(CallSet=="High & Low confidence", "All Calls", CallSet),
-					caller=StripCallerVersion(CX_CALLER, FALSE)) %>%
-				rbind(data.frame(Id=paste0(fulldatacallers, "_placeholder"), CallSet="High confidence only", tp=0, events=1, fp=0, fn=0, QUAL=-1, precision=0, fdr=0, sens=0,
-												 CX_ALIGNER=NA,CX_ALIGNER_MODE="",CX_MULTIMAPPING_LOCATIONS=NA,CX_CALLER=fulldatacallers,CX_READ_LENGTH=NA,CX_READ_DEPTH=NA,CX_READ_FRAGMENT_LENGTH=NA,CX_REFERENCE_VCF=NA,
-												 caller=fulldatacallers))
-			ggplot(plotdf %>% arrange(desc(QUAL))) +
-				aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
-				geom_line(size=1) +
-				scale_colour_brewer(palette = "Paired") +
-				labs(title = paste(datadir, names(eventtypes[eventtypes==et])), y = "Precision", x = "Recall (true positive count)")
-			saveplot(paste0("precrecall_", filenamePrefix), scale=2, height=12, width=12, units="cm")
+			#plotdf <- plotdata$dfs$roc %>%
+			#	filter(StripCallerVersion(CX_CALLER, FALSE) %in% fulldatacallers) %>%
+			#	inner_join(plotdata$dfs$mostSensitiveAligner) %>%
+			#	mutate(
+			#		CallSet=ifelse(CallSet=="High & Low confidence", "All Calls", CallSet),
+			#		caller=StripCallerVersion(CX_CALLER, FALSE)) %>%
+			#	rbind(data.frame(Id=paste0(fulldatacallers, "_placeholder"), CallSet="High confidence only", tp=0, events=1, fp=0, fn=0, QUAL=-1, precision=0, fdr=0, sens=0,
+			#									 CX_ALIGNER=NA,CX_ALIGNER_MODE="",CX_MULTIMAPPING_LOCATIONS=NA,CX_CALLER=fulldatacallers,CX_READ_LENGTH=NA,CX_READ_DEPTH=NA,CX_READ_FRAGMENT_LENGTH=NA,CX_REFERENCE_VCF=NA,
+			#									 caller=fulldatacallers))
+			#ggplot(plotdf %>% arrange(desc(QUAL))) +
+			#	aes(group = paste(Id, CallSet), y = precision, x = tp, colour=caller, linetype=CallSet) +
+			#	geom_line(size=1) +
+			#	scale_colour_brewer(palette = "Paired") +
+			#	labs(title = paste(datadir, names(eventtypes[eventtypes==et])), y = "Precision", x = "Recall (true positive count)")
+			#saveplot(paste0("precrecall_", filenamePrefix), scale=2, height=12, width=12, units="cm")
 		}
 	}
 }

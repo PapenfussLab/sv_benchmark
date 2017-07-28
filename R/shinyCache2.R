@@ -1,6 +1,7 @@
 # per-VCF version of shinyCache that minimises the R memory footprint by
 # caching all information except the final on a per-VCF basis
 source("sv_benchmark.R")
+library(stringr)
 library(R.cache)
 library(dplyr)
 library(data.table)
@@ -20,17 +21,17 @@ LoadCachedMetadata <- function(datadir) {
 	if (is.null(metadata)) {
 		write(sprintf("LoadMetadata %s (%s)", datadir, getChecksum(datadir)), stderr())
 		metadata <- LoadMetadata(datadir)
-		if (datadir %in% "na12878") {
+		if (str_detect(datadir, "na12878$")) {
 			if (is.null(metadata$CX_REFERENCE_VCF)) {
 				# Hack to force a default truth even if none exists
 				metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000002.reference.vcf"
 			}
-		} else if (datadir %in% "chm") {
-			metadata$CX_REFERENCE_VCF <- ifelse(metadata$str_detect(CX_FQ1, "chm1.1.fq$"),
-				paste0(datadir, "chm1.reference.vcf.gz"),
-				ifelse(metadata$str_detect(CX_FQ1, "chm13.1.fq$"),
-					paste0(datadir, "chm13.reference.vcf.gz"),
-					paste0(datadir, "chmboth.reference.vcf.gz")))
+		} else if (str_detect(datadir, "chm$")) {
+			metadata$CX_REFERENCE_VCF <- ifelse(str_detect(metadata$CX_FQ1, "chm1.1.fq$"),
+				"00000000000000000000000000000001.vcf",
+				ifelse(str_detect(metadata$CX_FQ1, "chm13.1.fq$"),
+					"00000000000000000000000000000013.vcf",
+					"00000000000000000000000000000014.vcf"))
 		}
 		saveCache(metadata, key=keymetadata, dirs=".Rcache/metadata")
 	}
@@ -90,7 +91,6 @@ LoadPlotData <- function(
 		truthgrName <- truthbedpedir
 	}
 	rocSlicePoints <- 100
-	nominalPosition <- FALSE
 	slice <-list()
 	slice$metadata <- metadata
 	slice$dfs <- .CachedLoadGraphDataFrame(
@@ -100,7 +100,7 @@ LoadPlotData <- function(
 			# use lazy evaluation for truthgr and truthgrName
 			if (is.null(truthbedpedir)) { NULL } else {.CachedLoadTruthBedpe(truthbedpedir, mintruthbedpescore)},
 			if (is.null(truthbedpedir)) { NULL } else {truthbedpedir},
-		grtransform, grtransformName, nominalPosition)
+		grtransform, grtransformName)
 
 	setCacheRootPath(cacheroot)
 	return(slice)
@@ -140,12 +140,12 @@ import.sv.bedpe.dir <- function(dir) {
 		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
 		datadir, metadata,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-		grtransform, grtransformName, nominalPosition) {
+		grtransform, grtransformName) {
 	cachekey <- cachekey <- list(
 		ignore.duplicates=ignore.duplicates, ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize, eventtypes=eventtypes, rocSlicePoints=rocSlicePoints,
 		datadir=datadir,
 		maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgrName=truthgrName,
-		grtransformName=grtransformName, nominalPosition=nominalPosition)
+		grtransformName=grtransformName)
 	cachedir <- ".Rcache/GraphDataFrame"
 	result <- loadCache(key=cachekey, dirs=cachedir)
 	if (is.null(result)) {
@@ -154,7 +154,7 @@ import.sv.bedpe.dir <- function(dir) {
 			ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
 			datadir, metadata,
 			maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-			grtransform, grtransformName, nominalPosition)
+			grtransform, grtransformName)
 		saveCache(result, key=cachekey, dirs=cachedir)
 	}
 	return(result)
@@ -163,7 +163,7 @@ import.sv.bedpe.dir <- function(dir) {
 		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
 		datadir, metadata,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-		grtransform, grtransformName, nominalPosition) {
+		grtransform, grtransformName) {
 	ids <- (metadata %>% filter(!is.na(CX_CALLER)))$Id
 	ids <- sample(ids) # randomise our processing order so parallel caches won't all try to load the same record at the same time
 	dfslist <- lapply(ids, function(id)
@@ -171,26 +171,28 @@ import.sv.bedpe.dir <- function(dir) {
 			ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
 			datadir, metadata, id,
 			maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-			grtransform, grtransformName, nominalPosition)
+			grtransform, grtransformName)
 		)
 	return(list(
 		mostSensitiveAligner=bind_rows(lapply(dfslist, function(item) item$mostSensitiveAligner)),
 		callsByEventSize=bind_rows(lapply(dfslist, function(item) item$callsByEventSize)),
 		roc=bind_rows(lapply(dfslist, function(item) item$roc)),
 		rocbyrepeat=bind_rows(lapply(dfslist, function(item) item$rocbyrepeat)),
-		bpErrorDistribution=bind_rows(lapply(dfslist, function(item) item$bpErrorDistribution))
+		rocbyihomlen=bind_rows(lapply(dfslist, function(item) item$rocbyihomlen)),
+		bpErrorDistribution=bind_rows(lapply(dfslist, function(item) item$bpErrorDistribution)),
+		eventSize=bind_rows(lapply(dfslist, function(item) item$eventSize))
 	))
 }
 .CachedLoadGraphDataFrameForId <- function(
 		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
 		datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-		grtransform, grtransformName, nominalPosition) {
+		grtransform, grtransformName) {
 	cachekey <- list(
 		ignore.duplicates=ignore.duplicates, ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize, eventtypes=eventtypes, rocSlicePoints=rocSlicePoints,
 		datadir=datadir, id=id,
 		maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgrName=truthgrName,
-		grtransformName=grtransformName, nominalPosition=nominalPosition)
+		grtransformName=grtransformName)
 	cachedir <- ".Rcache/GraphDataFrameById"
 	result <- loadCache(key=cachekey, dirs=cachedir)
 	if (is.null(result)) {
@@ -213,14 +215,13 @@ import.sv.bedpe.dir <- function(dir) {
 								 "truthgr=truthgr,",
 								 "truthgrName=\"", truthgrName, "\",",
 								 "grtransform=simoptions$grtransform[[\"",grtransformName,"\"]],",
-								 "grtransformName=\"", grtransformName, "\",",
-								 "nominalPosition=", nominalPosition, ")"
+								 "grtransformName=\"", grtransformName, "\")"
 								 ), stderr())
 		result <- .LoadGraphDataFrameForId(
 			ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
 			datadir, metadata, id,
 			maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-			grtransform, grtransformName, nominalPosition)
+			grtransform, grtransformName)
 		if (!is.null(result)) {
 			saveCache(result, key=cachekey, dirs=cachedir)
 		}
@@ -231,11 +232,16 @@ import.sv.bedpe.dir <- function(dir) {
 		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
 		datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-		grtransform, grtransformName, nominalPosition) {
+		grtransform, grtransformName) {
 	# browser()
 	calls <- .CachedLoadCallsForId(datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-		grtransform, grtransformName, nominalPosition)
+		grtransform, grtransformName, FALSE) %>%
+		mutate(nominalPosition=FALSE)
+	nominalCalls <- .CachedLoadCallsForId(datadir, metadata, id,
+		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
+		grtransform, grtransformName, TRUE) %>%
+		mutate(nominalPosition=TRUE)
 	if (is.null(calls)) {
 		return(NULL)
 	}
@@ -269,6 +275,8 @@ import.sv.bedpe.dir <- function(dir) {
 	} else {
 		md$CX_REFERENCE_VCF <- "longread"
 	}
+	calls <- calls %>% mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative")))
+	#browser()
 	mostSensitiveAligner <- calls %>%
 		select(Id, CallSet, tp) %>%
 		group_by(Id, CallSet) %>%
@@ -369,21 +377,58 @@ import.sv.bedpe.dir <- function(dir) {
 	# 		ungroup()
 	# }
 
-	bpErrorDistribution <- calls %>%
+	####
+	# IHOMLEN
+	#browser()
+	calls$ihomlenBin <- cut(abs(calls$ihomlen), breaks=c(-1000000000, 1, 2, 3, 4, 5, 10, 20, 50, 100, 1000000000), right=FALSE, labels=c("0","1","2", "3", "4", "5-9", "10-19", "20-49", "50-99", "100+"))
+	rocbyihomlen <- calls %>%
+		select(Id, CallSet, ihomlenBin, QUAL, tp, fp, fn) %>%
+		rbind(calls %>% select(Id, CallSet, ihomlenBin) %>% distinct(Id, CallSet, ihomlenBin) %>% mutate(QUAL=max(calls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
+		#filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
+		group_by(Id, CallSet, ihomlenBin) %>%
+		arrange(desc(QUAL)) %>%
+		mutate(events=sum(tp) + sum(fn)) %>%
+		mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
+		group_by(Id, CallSet, ihomlenBin, QUAL, events) %>%
+		summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
+		group_by(Id, CallSet, ihomlenBin, tp, events) %>%
+		summarise(fp=max(fp), fn=max(fn), QUAL=min(QUAL)) %>%
+		group_by(Id, CallSet, ihomlenBin) %>%
+		# subsample along tp and tp+fp axis
+		slice(unique(c(
+			1,
+			findInterval(seq(0, max(tp), max(tp)/rocSlicePoints), tp),
+			findInterval(seq(0, max(tp + fp), max(tp + fp)/rocSlicePoints), tp + fp),
+			n()
+		))) %>%
+		ungroup() %>%
+		mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events) %>%
+		left_join(md, by="Id")
+	#browser()
+	bpErrorDistribution <- bind_rows(calls, nominalCalls) %>%
 		filter(tp) %>%
-		select(Id, CallSet, bperror) %>%
-		group_by(Id, CallSet, bperror) %>%
+		select(Id, CallSet, nominalPosition, bperror) %>%
+		group_by(Id, CallSet, nominalPosition, bperror) %>%
 		summarize(n=n())
 	bpErrorDistribution <- bpErrorDistribution %>%
-		left_join(bpErrorDistribution %>% group_by(Id, CallSet) %>% summarize(count=sum(n))) %>%
+		left_join(bpErrorDistribution %>% group_by(Id, CallSet, nominalPosition) %>% summarize(count=sum(n))) %>%
+		ungroup() %>%
 		mutate(rate=n/count) %>%
 		select(-count) %>%
 		left_join(md, by="Id")
+
+	eventSize <- calls %>%
+		mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative"))) %>%
+		select(Id, CallSet, svLen, Classification) %>%
+		left_join(md, by="Id")
+
 	return(list(mostSensitiveAligner=mostSensitiveAligner,
 							callsByEventSize=callsByEventSize,
 							roc=roc,
 							rocbyrepeat=rocbyrepeat,
-							bpErrorDistribution=bpErrorDistribution))
+							rocbyihomlen=rocbyihomlen,
+							bpErrorDistribution=bpErrorDistribution,
+							eventSize=eventSize))
 }
 .CachedLoadCallsForId <- function(datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
@@ -447,18 +492,19 @@ import.sv.bedpe.dir <- function(dir) {
 	if (is.null(result)) {
 		md <- metadata %>% filter(Id == id)
 		if (nrow(md) != 1) {
+			browser()
 			stop(paste(id, "not found in metadata"))
 		}
 		caller <- md$CX_CALLER
 		write(sprintf(".TransformVcf %s (%s)", id, getChecksum(cachekey)), stderr())
-		result <- .TransformVcf(datadir=datadir, id=id, caller=caller, grtransform=grtransform, nominalPosition=nominalPosition)
+		result <- .TransformVcf(datadir=datadir, id=id, caller=caller, grtransform=grtransform, nominalPosition=nominalPosition, metadata=md)
 		if (!is.null(result)) {
 			saveCache(result, key=cachekey, dirs=cachedir)
 		}
 	}
 	return(result)
 }
-.TransformVcf <- function(datadir, id, caller, grtransform=NULL, vcftransform=NULL, nominalPosition) {
+.TransformVcf <- function(datadir, id, caller, grtransform=NULL, vcftransform=NULL, nominalPosition, metadata) {
 	#' Loads structural variant GRanges from the VCFs in the given directory
 	filename <- list.files(datadir, pattern=paste0("^", id, ".*.vcf$"), full.names=TRUE)
 	if (length(filename) == 0) {
@@ -466,6 +512,7 @@ import.sv.bedpe.dir <- function(dir) {
 		return(NULL)
 	}
 	if (length(filename) > 1) {
+		browser()
 		stop(paste0("Multiple VCFs found for ", id))
 	}
 	vcf <- readVcf(filename, "")
@@ -487,8 +534,10 @@ import.sv.bedpe.dir <- function(dir) {
 	vcf <- withqual(vcf, caller)
 	gr <- breakpointRanges(vcf, nominalPosition, suffix="_bp")
 	if (!is.null(grtransform)) {
-		gr <- grtransform(gr)
+		gr <- grtransform(gr, metadata)
 	}
+	# strip any unpaired breakends
+	gr <- gr[gr$partner %in% names(gr)]
 	gr$paramRangeID <- NULL
 	gr$REF <- NULL
 	gr$ALT <- NULL

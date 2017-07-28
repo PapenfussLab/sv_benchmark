@@ -12,7 +12,7 @@ function(request) {
 		titlePanel("Structural Variant Caller Benchmark"),
 		sidebarLayout(
 			sidebarPanel(
-				selectInput("datasettype", "Data set", choices=c("Genome in a Bottle"="lr", "Simulation"="sim"), selected="lr"),
+				selectInput("datasettype", "Data set", choices=c("Illumina pair-end"="lr", "Simulation"="sim"), selected="lr"),
 				conditionalPanel("input.datasettype == 'lr'",
 					selectInput("lrdatadir", "Sample", lroptions$datadir),
 					selectInput("lrevents", "Event types",

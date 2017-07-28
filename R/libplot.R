@@ -77,6 +77,40 @@ plotPrecRecallRepeat <- function(plotdf) {
 		labs(title = "Precision-Recall by RepeatMasker repeat class", y = "Precision", x = "Recall (true positive count)")
 	return(p)
 }
+
+plotPrecRecallIhomlen <- function(plotdf) {
+	if (nrow(plotdf) == 0) {
+		write("plotPrecRecallIhomlen: no data!", stderr())
+		return(NULL)
+	}
+	# display breakpoint counts instead of breakend counts
+	plotdf$tp <- plotdf$tp/2
+	plotdf$fp <- plotdf$fp/2
+	if (nrow(plotdf) == 0) {
+		return(NULL)
+	}
+	# add true event counts
+	plotdf <- plotdf %>% inner_join(plotdf %>% group_by(ihomlenBin) %>% summarize(t=max(tp+fn)))
+	p <- ggplot(plotdf %>% arrange(desc(QUAL))) +
+		aes(group = paste(Id, CallSet), y = precision, colour=caller, linetype=CallSet) +
+		geom_line(size=1) +
+		facet_wrap(~ ihomlenBin, scales="free") +
+		scale_colour_brewer(palette = "Paired") +
+		scale_y_continuous(limits=c(0,1)) +
+		labs(title = "Precision-Recall by length of (imperfect) sequence homology between breakpoints", y = "Precision")
+	# Use actual recall if available
+	if (max(plotdf$fn > 0) && FALSE) {
+		p <- p +
+			aes(x=tp/t) +
+			labs(x="Recall")
+	} else {
+		p <- p +
+			aes(x=tp) +
+			labs(x="Recall (true positive count)")
+	}
+	return(p)
+}
+
 plotRocLinear <- function(plotdf) {
 	if (nrow(plotdf) == 0) {
 		write("plotRoc: no data!", stderr())
@@ -127,6 +161,43 @@ plotFacettedSensByEventSize <- function(plotdf, linetype, colour, facet_eval_str
 		p <- p + facet_grid(facet_eval_string)#eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + ")))))
 	}
 	return(p)
+}
+plotEventSizeDistribution <- function(plotdf, mineventsize) {
+	if (nrow(plotdf) == 0) {
+		write("plotEventSizeDistribution: no data!", stderr())
+		return(NULL)
+	}
+	# drop every second row so our counts are for breakpoints, not breakends (rows should be paired)
+	plotdf <- plotdf %>% arrange(Id, CallSet, Classification, svLen)
+	plotdf <- plotdf[seq(1, nrow(plotdf), by=2),]
+	p <- ggplot(plotdf %>% filter(svLen>=mineventsize)) +
+		aes(group=paste(Id, CallSet), x=abs(svLen), fill=factor(Classification, levels=c("False Positive", "False Negative", "True Positive"))) +
+		geom_histogram() +
+		scale_x_log10() +
+		labs(title="", y="Count", x="Event size")
+	if (!is.null(facet_eval_string)) {
+		p <- p + facet_grid(facet_eval_string)#eval(parse(text=paste("caller ~ ", paste(simfacets[!(simfacets %in% c(input$simlinetype, input$simcolour))], collapse=" + ")))))
+	}
+	return(p)
+}
+
+plotCallPositionErrorDistribution <- function(plotdf) {
+	if (nrow(plotdf) == 0) {
+			write("bpErrorDistributionPlot: no data!", stderr())
+			return(NULL)
+		}
+		plotdf <- plotdf %>%
+			mutate(fill=if_else(nominalPosition, "Nominal position", "Incorporating caller\nconfidence interval and\nreported microhomology")) %>%
+			filter(CallSet=="High & Low confidence")
+		p <- ggplot() +
+			aes(x=bperror, y=rate, fill=fill) +
+			#geom_bar(stat="identity") +
+			geom_bar(stat="identity", data=plotdf %>% filter(nominalPosition==FALSE), alpha=0.5) +
+			geom_bar(stat="identity", data=plotdf %>% filter(nominalPosition==TRUE), alpha=0.5) +
+			scale_fill_brewer(type="qual", palette="Dark2", name="Error margin") +
+			facet_wrap( ~ caller) +
+			labs(title="Error in called position", x="Error (base pairs)", y="Portion of true positive calls")
+		return(p)
 }
 
 

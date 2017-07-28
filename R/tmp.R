@@ -1,4 +1,6 @@
 #!/usr/bin/env Rscript
+source("global.R")
+source("shinyCache2.R")
 library("optparse")
 parser <- OptionParser(option_list=list(
 	make_option(c("-p", "--plot"), action="store_true", default=FALSE, help="Generate plots")
@@ -13,6 +15,20 @@ write(opt$plot, stderr())
 library(ggplot2)
 library(scales)
 
+gdf <- .LoadGraphDataFrameForId(TRUE, TRUE, 51, NULL, "DEL", 100,
+		datadir="./data.na12878",
+		metadata=LoadCachedMetadata("./data.na12878"),
+		id="676904146cce653bb2e31a77b4d3e037",
+		maxgap=200,
+	sizemargin=0.25,
+	ignore.strand=TRUE,
+	requiredHits=1,
+	truthgr=NULL,
+	truthgrName=NULL,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test")
+
+
 calldf <- .CachedLoadCallsForId(
 	datadir="./data.na12878",
 	metadata=LoadCachedMetadata("./data.na12878"),
@@ -21,7 +37,7 @@ calldf <- .CachedLoadCallsForId(
 	sizemargin=0.25,
 	ignore.strand=TRUE,
 	requiredHits=1,
-	truthgr=truthgr,
+	truthgr=NULL,
 	truthgrName=NULL,
 	grtransform=simoptions$grtransform[["DAC"]],
 	grtransformName="DAC",
@@ -30,6 +46,14 @@ calldf <- calldf %>%
 	filter(abs(svLen) > 50)%>%
 	mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative")))
 
+
+
+plotdf <- gdf$bpErrorDistribution
+ggplot(plotdf %>%
+				filter(CallSet=="High & Low confidence")) +
+			aes(x=bperror, y=rate, fill=nominalPosition) +
+			geom_bar(stat="identity") +
+			facet_wrap( ~ CX_CALLER)
 
 # event size density
 ggplot(calldf) +
@@ -50,6 +74,13 @@ ggplot(calldf %>% filter(!fp)) +
 	geom_histogram() +
 		scale_x_log10() +
 	labs(title="Actual Event Size Distribution", fill="Correctly Called")
+
+ggplot(calldf) +
+	aes(x=svLen, fill=Classification) +
+	geom_histogram() +
+		scale_x_log10() +
+	labs(title="Event Size Distribution", fill="Classification")
+
 
 ggplot(calldf %>% filter(!fp)) +
 	aes(x=svLen, fill=tp) +
@@ -127,10 +158,10 @@ ggplot(calldf %>%
 
 
 # TODO:
- * SNP/INDEL context of SV calls
- * actual coverage vs mean coverage
- * mappabiliyumappability of surrounding bases
- * event size distribution vs real event size distribution
+# * SNP/INDEL context of SV calls
+# * actual coverage vs mean coverage
+# * mappabiliyumappability of surrounding bases
+# * event size distribution vs real event size distribution
 
 
 
