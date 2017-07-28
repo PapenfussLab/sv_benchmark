@@ -24,13 +24,14 @@ export PERL5LIB=$CORTEX_DIR/scripts/calling:$PERL5LIB
 for FQ1 in $DATA_DIR/*.1.fq ; do
 	cx_load $FQ1
 	CX_CALLER=$CALLER
-	if [[ "$CX_READ_LENGTH" -gt 61 ]] ; then
-		KMER_ARGS="--first_kmer 31 --kmer_step 30 --last_kmer 61"
-		CX_CALLER_ARGS="31,30,61"
-	else
+	# cortex requires more than 480GB of memory at k=61 on 40x chm data set
+	#if [[ "$CX_READ_LENGTH" -gt 61 ]] ; then
+	#	KMER_ARGS="--first_kmer 31 --kmer_step 30 --last_kmer 61"
+	#	CX_CALLER_ARGS="31,30,61"
+	#else
 		KMER_ARGS="--first_kmer 31"
 		CX_CALLER_ARGS="31,0,31"
-	fi
+	#fi
 	CX_FQ1=$FQ1
 	CX_FQ2=${FQ1/.1./.2.}
 	cx_save
@@ -67,7 +68,7 @@ perl $CORTEX_DIR/scripts/calling/run_calls.pl \
 	--refbindir $(dirname $CX_REFERENCE) \
 	--genome_size $REFSIZE \
 	--qthresh 5 \
-	--mem_height 27 --mem_width 100 \
+	--mem_height 28 --mem_width 100 \
 	--vcftools_dir $BASE_DIR/tools/cortex/vcftools_0.1.9/ \
 	--do_union yes \
 	--ref CoordinatesAndInCalling \

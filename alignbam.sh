@@ -60,9 +60,10 @@ function align_bwa {
 	XC_MULTICORE=1
 	XC_OUTPUT=$CX.su.bam
 	XC_SCRIPT="
-	bwa mem -t \$(nproc) $ARGS $INDEX $1 $2 |
-		AddOrReplaceReadGroups I=/dev/stdin O=$CX.tmp.bam $READ_GROUP_PARAMS &&
-	mv $CX.tmp.bam $XC_OUTPUT
+	bwa mem -t \$(nproc) $ARGS $INDEX $1 $2 > $CX.tmp.sam && \
+		AddOrReplaceReadGroups I=$CX.tmp.sam O=$CX.tmp.bam $READ_GROUP_PARAMS &&
+	mv $CX.tmp.bam $XC_OUTPUT &&
+	rm $CX.tmp.sam
 	"
 	xc_exec
 }

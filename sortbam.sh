@@ -14,6 +14,7 @@ for BAM in $DATA_DIR/*.su.bam ; do
 	samtools index $CX.sc.tmp.bam "
 	SORT_NOVO=" novosort --md -t $CX -i -o $CX.sc.tmp.bam $CX.sq.tmp.bam "
 	XC_SCRIPT="
+	module add samtools novoalign java picard-tools
 	FixMateInformation TMP_DIR=$CX I=$CX.su.bam O=$CX.sq.tmp.bam SORT_ORDER=queryname
 	ValidateSamFile I=$CX.su.tmp.bam > $CX.sam.validation 2>&1
 	$SORT_NOVO && \

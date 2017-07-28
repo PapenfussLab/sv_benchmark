@@ -4,7 +4,7 @@
 #
 . common.sh
 CALLER=lumpy/0.2.11
-export PATH=$BASE_DIR/tools/$CALLER:$PATH
+export PATH=$BASE_DIR/tools/$CALLER/bin:$PATH
 for BAM in $DATA_DIR/*.sc.bam ; do
 	cx_load $BAM
 	if [[ -f ${BAM/.bam/.sr.bam} ]] ; then

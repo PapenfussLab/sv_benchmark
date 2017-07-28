@@ -17,11 +17,11 @@ vcf <- readVcf(args[1], "")
 gr <- breakpointRanges(vcf)
 bedpe <- data.frame(
     chrom1=seqnames(gr),
-    start1=start(gr) - 1,
-    end1=end(gr),
-    chrom1=seqnames(partner(gr)),
-    start1=start(partner(gr)) - 1,
-    end1=end(partner(gr)),
+    start1=as.integer(start(gr) - 1),
+    end1=as.integer(end(gr)),
+    chrom2=seqnames(partner(gr)),
+    start2=as.integer(start(partner(gr)) - 1),
+    end2=as.integer(end(partner(gr))),
     name=names(gr),
     score=ifelse(is.nan(gr$QUAL) | is.na(gr$QUAL), 0, gr$QUAL),
     strand1=strand(gr),
