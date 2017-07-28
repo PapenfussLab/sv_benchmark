@@ -4,6 +4,7 @@
 #
 CONFIG=$1
 shift
+CMD_ARGS=$@
 
 if [[ "$CONFIG" == "" ]] ; then
 	echo Please specify data context
@@ -175,10 +176,10 @@ EOF
 	cat > $CX$XC_SUFFIX.sh << EOF
 #!/bin/bash
 #PBS -S /bin/bash
-#PBS -e $CX$XC_SUFFIX.stderr
-#PBS -o $CX$XC_SUFFIX.stdout
 #PBS -N $(basename $CX)
 #PBS -V
+###PBS -e $CX$XC_SUFFIX.stderr
+###PBS -o $CX$XC_SUFFIX.stdout
 $RES
 set -o pipefail
 renice 20 -p \$\$
@@ -228,7 +229,7 @@ function xc_exec_torque {
 		#if [ "$XC_MULTICORE" != "" ] ; then
 		write_xc_exec_scripts
 		rm -f $CX$XC_SUFFIX.stderr $CX$XC_SUFFIX.stdout
-		qsub $@ $CX$XC_SUFFIX.sh > $CX.lock/lock || rm -r $CX.lock
+		qsub $CMD_ARGS $CX$XC_SUFFIX.sh > $CX.lock/lock || rm -r $CX.lock
 		if [[ -f $CX.lock/lock ]] ; then
 			cat $CX.lock/lock
 		fi

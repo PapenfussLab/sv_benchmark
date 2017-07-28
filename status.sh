@@ -4,6 +4,10 @@
 . common.sh
 
 function lockname {
+	if [[ ! -f "$1" ]] ; then
+		echo Missing lockfile
+		return
+	fi 
 	local LOCK=$(cat $1)
 	local NODE=""
 	#if [ "$LOCK" != "$(LOCK#unix100)" ] ; then
@@ -21,7 +25,10 @@ for MD in $DATA_DIR/*.metadata ; do
 	ID=$(basename $CX)
 	TIME_FILE="${MD%.metadata}.time"
 	if [ "$CX_CALLER" != "" ] ; then
-		if [[ -f $TIME_FILE ]] && grep "$TIME_FAIL" $TIME_FILE >/dev/null ; then
+		if [[ "$CX_IHOMANN" != "" ]] ; then
+			# annotation jobs are handled by the presence of the parent $CX.annimphom.bedpe
+			continue
+		elif [[ -f $TIME_FILE ]] && grep "$TIME_FAIL" $TIME_FILE >/dev/null ; then
 			echo "$CX_CALLER	$ID	$CX_ALIGNER	${CX_READ_DEPTH}x	${CX_READ_LENGTH}bp	($(tput setaf 6)Execution Failure$(tput sgr0))"
 			continue
 		elif [[ ! -z "$CX_BAM" && ! -f "$CX_BAM" ]] ; then
@@ -33,8 +40,11 @@ for MD in $DATA_DIR/*.metadata ; do
 		elif [ -f $CX.vcf -a ! -s $CX.vcf ] ; then
 			echo "$CX_CALLER	$ID	$CX_ALIGNER	${CX_READ_DEPTH}x	${CX_READ_LENGTH}bp	($(tput setaf 3)(0 byte VCF)$(tput sgr0))"
 			continue
-		elif [ ! -f $CX.vcf ] ; then
+		elif [[ ! -f $CX.vcf ]] ; then
 			echo "$CX_CALLER	$ID	$CX_ALIGNER	${CX_READ_DEPTH}x	${CX_READ_LENGTH}bp	($(tput setaf 1)(Missing VCF)$(tput sgr0))"
+			continue
+		elif [ ! -f $CX.annimphom.bedpe ] ; then
+			echo "$CX_CALLER	$ID	$CX_ALIGNER	${CX_READ_DEPTH}x	${CX_READ_LENGTH}bp	($(tput setaf 1)(Missing ihom annotation)$(tput sgr0))"
 			continue
 		fi
 		# VCF exists happly :)
@@ -84,7 +94,9 @@ for MD in $DATA_DIR/*.metadata ; do
 	elif [ -f $CX.reference.vcf ] ; then
 		true # no checks for now
 	else
-		echo "$(tput setaf 3)Unknown	$ID$(tput sgr0))"
+		if [[ "$CX_IHOMANN" == "" ]] ; then
+			echo "$(tput setaf 3)Unknown	$ID$(tput sgr0))"
+		fi
 	fi
 done
 for ID in $(cd $DATA_DIR; ls -1 *.vcf | cut -b 1-32) ; do

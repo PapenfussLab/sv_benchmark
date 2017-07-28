@@ -3,7 +3,7 @@
 # runs manta
 #
 . common.sh
-CALLER=manta/0.29.6
+CALLER=manta/1.1.1
 export PATH=$BASE_DIR/tools/$CALLER/bin:$PATH
 for BAM in $DATA_DIR/*.sc.bam ; do
 	cx_load $BAM

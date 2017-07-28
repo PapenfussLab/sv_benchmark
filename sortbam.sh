@@ -12,9 +12,10 @@ for BAM in $DATA_DIR/*.su.bam ; do
 
 	SORT_PICARD=" SortSam I=$CX.sq.tmp.bam O=$CX.sc.tmp.bam SO=coordinate && \ 
 	samtools index $CX.sc.tmp.bam "
-	SORT_NOVO=" novosort -c \$(nproc) -i -o $CX.sc.tmp.bam $CX.sq.tmp.bam "
+	SORT_NOVO=" novosort --md -t $CX -i -o $CX.sc.tmp.bam $CX.sq.tmp.bam "
 	XC_SCRIPT="
-	FixMateInformation TMP_DIR=$DATA_DIR I=$CX.su.bam O=$CX.sq.tmp.bam SORT_ORDER=queryname
+	module add samtools novoalign java picard-tools
+	FixMateInformation TMP_DIR=$CX I=$CX.su.bam O=$CX.sq.tmp.bam SORT_ORDER=queryname
 	ValidateSamFile I=$CX.su.tmp.bam > $CX.sam.validation 2>&1
 	$SORT_NOVO && \
 	mv $CX.sc.tmp.bam.bai $CX.sc.bam.bai && \
