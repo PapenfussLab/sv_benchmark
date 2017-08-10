@@ -15,6 +15,19 @@ write(opt$plot, stderr())
 library(ggplot2)
 library(scales)
 
+fdf <- .LoadGraphDataFrame(TRUE, TRUE, 51, NULL, "DEL", 100,
+		datadir="./data.na12878",
+		metadata=LoadCachedMetadata("./data.na12878"),
+		maxgap=200,
+	sizemargin=0.25,
+	ignore.strand=TRUE,
+	requiredHits=1,
+	truthgr=NULL,
+	truthgrName=NULL,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test")
+
+
 gdf <- .LoadGraphDataFrameForId(TRUE, TRUE, 51, NULL, "DEL", 100,
 		datadir="./data.na12878",
 		metadata=LoadCachedMetadata("./data.na12878"),
@@ -46,6 +59,13 @@ calldf <- calldf %>%
 	filter(abs(svLen) > 50)%>%
 	mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative")))
 
+callgr <- .CachedTransformVcf(
+	datadir="./data.na12878",
+	metadata=LoadCachedMetadata("./data.na12878"),
+	id="676904146cce653bb2e31a77b4d3e037",
+	grtransform=simoptions$grtransform[["DAC"]],
+	grtransformName="DAC",
+	nominalPosition=FALSE)
 
 
 plotdf <- gdf$bpErrorDistribution
@@ -164,32 +184,44 @@ ggplot(calldf %>%
 # * event size distribution vs real event size distribution
 
 
+##############
+# SNP/INDEL context of SV call
+
+# What size context should we use?
+
+snpplot <- rbind(
+	gdf$rocbysnp10 %>% mutate(snpWidth=10, snpCount=snp10bin, snp10bin=NULL),
+	gdf$rocbysnp50 %>% mutate(snpWidth=50, snpCount=snp50bin, snp50bin=NULL),
+	gdf$rocbysnp100 %>% mutate(snpWidth=100, snpCount=snp100bin, snp100bin=NULL)
+	) %>% arrange(desc(QUAL))
+
+# Rescale x axis to recall for bin instead of tp count
+ggplot(snpplot %>%
+	group_by(Id, CallSet, snpCount, snpWidth) %>%
+	mutate(recall=tp/max(tp))) +
+		aes(group=paste(Id, CallSet, snpCount), y = precision, x = recall, linetype=CallSet, colour=factor(snpCount)) +
+		geom_line(size=1) +
+		facet_wrap(~ snpWidth, scales="free") +
+		scale_colour_brewer(palette = "Paired") +
+		scale_y_continuous(limits=c(0,1))
 
 
+########################
+# Caller Venn diagrams
+dfbyid <- fdf$callsByCaller %>%
+	filter(nominalPosition==FALSE) %>%
+	select(-Classification)
 
+callsByCallerWithCount <- dfbyid %>%
+	left_join(dfbyid %>%
+		group_by(breakendId, CallSet, nominalPosition) %>%
+		summarise(count=sum(tp)))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ggplot(callsByCallerWithCount %>%
+		filter(tp, CallSet=="High & Low confidence") %>%
+		left_join(LoadCachedMetadata("./data.na12878"))) +
+	aes(x=Id, fill=as.factor(count)) +
+	#aes(group=paste(Id, CallSet), x=paste(CX_CALLER, Id, CallSet), fill=as.factor(count)) +
+	geom_bar()
 
 

@@ -182,7 +182,7 @@ function(input, output, session) {
 		panels <- c(panels, list(
 			tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = mainPlotHeight)),
 			tabPanel("Precision Recall by repeat", plotOutput("lrPrecRecallRepeatPlot", height = mainPlotHeight)),
-			tabPanel("Precision Recall by homology size", plotOutput("lrPrecRecallIhomlenPlot", height = mainPlotHeight)),
+			#tabPanel("Precision Recall by homology size", plotOutput("lrPrecRecallIhomlenPlot", height = mainPlotHeight)),
 			tabPanel("ROC", plotOutput("lrRocPlot", height = mainPlotHeight)),
 			tabPanel("ROC by repeat", plotOutput("lrRocRepeatPlot", height = mainPlotHeight)),
 			tabPanel("Positional error", plotOutput("bpErrorDistributionPlot", height = mainPlotHeight))
@@ -250,9 +250,9 @@ function(input, output, session) {
 	output$lrPrecRecallRepeatPlot <- renderPlot({
 		return(doPlot(input, "rocbyrepeat", plotPrecRecallRepeat, debugLabel="lrPrecRecallRepeatPlot"))
 	})
-	output$lrPrecRecallIhomlenPlot <- renderPlot({
-		return(doPlot(input, "rocbyihomlen", plotPrecRecallIhomlen, debugLabel="lrPrecRecallIhomlenPlot"))
-	})
+	#output$lrPrecRecallIhomlenPlot <- renderPlot({
+	#	return(doPlot(input, "rocbyihomlen", plotPrecRecallIhomlen, debugLabel="lrPrecRecallIhomlenPlot"))
+	#})
 	output$lrRocRepeatPlot <- renderPlot({
 		return(doPlot(input, "rocbyrepeat", function(plotdf) {
 			# display breakpoint counts instead of breakend counts

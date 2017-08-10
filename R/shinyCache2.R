@@ -11,7 +11,7 @@ memcache.metadata <- list(key=NULL, value=NULL)
 LoadCachedMetadata <- function(datadir) {
 	cacheroot <- getCacheRootPath()
 	setCacheRootPath(datadir)
-	keymetadata <- list(datadir)
+	keymetadata <- list(datadir, files=list.files(datadir, pattern="*.metadata"))
 	# try in-memory cache
 	if (getChecksum(memcache.metadata$key) == getChecksum(keymetadata)) {
 		metadata <- memcache.metadata$value
@@ -26,12 +26,23 @@ LoadCachedMetadata <- function(datadir) {
 				# Hack to force a default truth even if none exists
 				metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000002.reference.vcf"
 			}
+			if (is.null(metadata$CX_SNP_TRUTH)) {
+				# use the bwa/bcftools calls
+				metadata$CX_SNP_TRUTH <- "2f4d15f5f6e428fb91e12dac971571b9.vcf"
+			}
 		} else if (str_detect(datadir, "chm$")) {
 			metadata$CX_REFERENCE_VCF <- ifelse(str_detect(metadata$CX_FQ1, "chm1.1.fq$"),
 				"00000000000000000000000000000001.vcf",
 				ifelse(str_detect(metadata$CX_FQ1, "chm13.1.fq$"),
 					"00000000000000000000000000000013.vcf",
 					"00000000000000000000000000000014.vcf"))
+			if (is.null(metadata$CX_SNP_TRUTH)) {
+				metadata$CX_SNP_TRUTH <- ifelse(str_detect(metadata$CX_FQ1, "chm1.1.fq$"),
+				"94bb6deef9f1bf1f9027a47e8488ae4f.vcf",
+				ifelse(str_detect(metadata$CX_FQ1, "chm13.1.fq$"),
+					"c639766990fcfbca2eb45f7806362fe6.vcf",
+					"90f54397059a02d31adc4925ad57c439.vcf"))
+			}
 		}
 		saveCache(metadata, key=keymetadata, dirs=".Rcache/metadata")
 	}
@@ -173,15 +184,15 @@ import.sv.bedpe.dir <- function(dir) {
 			maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 			grtransform, grtransformName)
 		)
-	return(list(
-		mostSensitiveAligner=bind_rows(lapply(dfslist, function(item) item$mostSensitiveAligner)),
-		callsByEventSize=bind_rows(lapply(dfslist, function(item) item$callsByEventSize)),
-		roc=bind_rows(lapply(dfslist, function(item) item$roc)),
-		rocbyrepeat=bind_rows(lapply(dfslist, function(item) item$rocbyrepeat)),
-		rocbyihomlen=bind_rows(lapply(dfslist, function(item) item$rocbyihomlen)),
-		bpErrorDistribution=bind_rows(lapply(dfslist, function(item) item$bpErrorDistribution)),
-		eventSize=bind_rows(lapply(dfslist, function(item) item$eventSize))
-	))
+	# merge into single list
+	result <- list()
+	for (plotName in names(dfslist[[1]])) {
+		result[[plotName]] <- bind_rows(lapply(dfslist, function(item) item[[plotName]]))
+	}
+	# Pair-wise correlation of callers?
+	# Qual scores for each caller
+
+	return(result)
 }
 .CachedLoadGraphDataFrameForId <- function(
 		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes, rocSlicePoints,
@@ -234,36 +245,21 @@ import.sv.bedpe.dir <- function(dir) {
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName) {
 	# browser()
-	calls <- .CachedLoadCallsForId(datadir, metadata, id,
+	calls <- .LoadMinCallsForId(
+		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes,
+		datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName, FALSE) %>%
 		mutate(nominalPosition=FALSE)
-	nominalCalls <- .CachedLoadCallsForId(datadir, metadata, id,
+	nominalCalls <- .LoadMinCallsForId(
+		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes,
+		datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName, TRUE) %>%
 		mutate(nominalPosition=TRUE)
 	if (is.null(calls)) {
 		return(NULL)
 	}
-	if (ignore.duplicates) {
-		calls <- calls %>% filter(!duptp)
-	}
-	if (ignore.interchromosomal) {
-		calls <- calls %>% filter(!is.na(svLen))
-	}
-	if (!is.null(mineventsize)) {
-		calls <- calls %>% filter(is.na(svLen) | abs(svLen + insLen) >= mineventsize)
-	}
-	if (!is.null(maxeventsize)) {
-		calls <- calls %>% filter(is.na(svLen) | abs(svLen + insLen) <= maxeventsize)
-	}
-	if (is.null(metadata$CX_MULTIMAPPING_LOCATIONS)) {
-		metadata$CX_MULTIMAPPING_LOCATIONS <- NA_integer_
-	}
-	if (!is.null(eventtypes)) {
-		calls <- calls %>% filter(simpleEvent %in% eventtypes)
-	}
-
 	md <- metadata %>%
 		select(Id, CX_ALIGNER, CX_ALIGNER_MODE, CX_MULTIMAPPING_LOCATIONS, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH)
 	if (!is.null(metadata$CX_REFERENCE_VCF_VARIANTS)) {
@@ -275,7 +271,6 @@ import.sv.bedpe.dir <- function(dir) {
 	} else {
 		md$CX_REFERENCE_VCF <- "longread"
 	}
-	calls <- calls %>% mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative")))
 	#browser()
 	mostSensitiveAligner <- calls %>%
 		select(Id, CallSet, tp) %>%
@@ -298,112 +293,47 @@ import.sv.bedpe.dir <- function(dir) {
 			# Don't include "Breakpoint","SINE/ALU Breakpoint" in the simulation
 			filter(eventtype %in% c("Tandem Duplication","Deletion","Insertion","Inversion"))
 	}
-	roc <- calls %>%
-		select(Id, CallSet, QUAL, tp, fp, fn) %>%
-		rbind(calls %>% select(Id, CallSet) %>% distinct(Id, CallSet) %>% mutate(QUAL=max(calls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
-		#filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
-		group_by(Id, CallSet) %>%
-		arrange(desc(QUAL)) %>%
-		mutate(events=sum(tp) + sum(fn)) %>%
-		mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
-		# each QUAL score is a point on the ROC plott
-		group_by(Id, CallSet, QUAL, events) %>%
-		summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
-		# QUAL scores with the same number of tp calls can be merged on the ROC plot
-		group_by(Id, CallSet, tp, events) %>%
-		summarise(fp=max(fp), fn=max(fn), QUAL=min(QUAL)) %>%
-		# subsample along tp and tp+fp axis
-		group_by(Id, CallSet) %>%
-		slice(unique(c(
-			1,
-			findInterval(seq(0, max(tp), max(tp)/rocSlicePoints), tp),
-			findInterval(seq(0, max(tp + fp), max(tp + fp)/rocSlicePoints), tp + fp),
-			n()
-		))) %>%
-		ungroup() %>%
-		mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events) %>%
-		left_join(md, by="Id")
-
-	rocbyrepeat <- calls %>%
-		select(Id, CallSet, repeatClass, QUAL, tp, fp, fn) %>%
-		rbind(calls %>% select(Id, CallSet, repeatClass) %>% distinct(Id, CallSet, repeatClass) %>% mutate(QUAL=max(calls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
-		#filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
-		group_by(Id, CallSet, repeatClass) %>%
-		arrange(desc(QUAL)) %>%
-		mutate(events=sum(tp) + sum(fn)) %>%
-		mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
-		group_by(Id, CallSet, repeatClass, QUAL, events) %>%
-		summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
-		group_by(Id, CallSet, repeatClass, tp, events) %>%
-		summarise(fp=max(fp), fn=max(fn), QUAL=min(QUAL)) %>%
-		group_by(Id, CallSet, repeatClass) %>%
-		# subsample along tp and tp+fp axis
-		slice(unique(c(
-			1,
-			findInterval(seq(0, max(tp), max(tp)/rocSlicePoints), tp),
-			findInterval(seq(0, max(tp + fp), max(tp + fp)/rocSlicePoints), tp + fp),
-			n()
-		))) %>%
-		ungroup() %>%
-		mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events) %>%
-		left_join(md, by="Id")
-	# lossless reduction of roc plot points by elimination of points on straight lines
-	# rocbyrepeat <- rocbyrepeat %>%
-	# 	group_by(Id, CallSet, repeatClass) %>%
-	# 	arrange(tp + fp) %>%
-	# 	filter(
-	# 		# keep start/end
-	# 		is.na(lag(tp)) | is.na(lead(tp)) |
-	# 		# keep group transitions (TODO: is there a way to make lead/lag across group_by return NA?)
-	# 		Id != lag(Id) | CallSet != lag(CallSet) | repeatClass != lag(repeatClass) |
-	# 		Id != lead(Id) | CallSet != lead(CallSet) | repeatClass != lead(repeatClass) |
-	# 		# slopes not equal dx1/dy1 != dx2/dy2 -> dx1*dy2 != dx2*dy1
-	# 		(tp - lag(tp))*(lead(fp) - lag(fp)) != (lead(tp) - lag(tp))*(fp - lag(fp))) %>%
-	# 	ungroup()
-	# lossy removal of points with least change
-	# for (n in c(4, 16, 32, 64)) {
-	# 	rocbyrepeat <- rocbyrepeat %>%
-	# 		group_by(Id, CallSet, repeatClass) %>%
-	# 		arrange(tp + fp) %>%
-	# 		filter(
-	# 			is.na(lag(tp)) | is.na(lead(tp)) |
-	# 			Id != lag(Id) | CallSet != lag(CallSet) | repeatClass != lag(repeatClass) |
-	# 			Id != lead(Id) | CallSet != lead(CallSet) | repeatClass != lead(repeatClass) |
-	# 			# remove points with least amount of change
-	# 			lead(tp) - lag(tp) + lead(fp) - lag(fp) > n |
-	# 			# keep every 5th to prevent removal of large segments
-	# 			row_number() %% 5 == 0
-	# 		) %>%
-	# 		ungroup()
-	# }
-
-	####
-	# IHOMLEN
 	#browser()
-	calls$ihomlenBin <- cut(abs(calls$ihomlen), breaks=c(-1000000000, 1, 2, 3, 4, 5, 10, 20, 50, 100, 1000000000), right=FALSE, labels=c("0","1","2", "3", "4", "5-9", "10-19", "20-49", "50-99", "100+"))
-	rocbyihomlen <- calls %>%
-		select(Id, CallSet, ihomlenBin, QUAL, tp, fp, fn) %>%
-		rbind(calls %>% select(Id, CallSet, ihomlenBin) %>% distinct(Id, CallSet, ihomlenBin) %>% mutate(QUAL=max(calls$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
-		#filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
-		group_by(Id, CallSet, ihomlenBin) %>%
-		arrange(desc(QUAL)) %>%
-		mutate(events=sum(tp) + sum(fn)) %>%
-		mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
-		group_by(Id, CallSet, ihomlenBin, QUAL, events) %>%
-		summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
-		group_by(Id, CallSet, ihomlenBin, tp, events) %>%
-		summarise(fp=max(fp), fn=max(fn), QUAL=min(QUAL)) %>%
-		group_by(Id, CallSet, ihomlenBin) %>%
-		# subsample along tp and tp+fp axis
-		slice(unique(c(
-			1,
-			findInterval(seq(0, max(tp), max(tp)/rocSlicePoints), tp),
-			findInterval(seq(0, max(tp + fp), max(tp + fp)/rocSlicePoints), tp + fp),
-			n()
-		))) %>%
-		ungroup() %>%
-		mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events) %>%
-		left_join(md, by="Id")
+	rocby <- function(rocdf, ...) {
+		groupingCols <- quos(...)
+		rocdf %>%
+				select(Id, CallSet, !!!groupingCols, QUAL, tp, fp, fn) %>%
+				rbind(rocdf %>% select(Id, CallSet, !!!groupingCols) %>% distinct(Id, CallSet, !!!groupingCols) %>% mutate(QUAL=max(rocdf$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
+				#filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
+				group_by(Id, CallSet, !!!groupingCols) %>%
+				arrange(desc(QUAL)) %>%
+				mutate(events=sum(tp) + sum(fn)) %>%
+				mutate(tp=cumsum(tp), fp=cumsum(fp), fn=cumsum(fn)) %>%
+				# each QUAL score is a point on the ROC plott
+				group_by(Id, CallSet, !!!groupingCols, QUAL, events) %>%
+				summarise(tp=max(tp), fp=max(fp), fn=max(fn)) %>%
+				# QUAL scores with the same number of tp calls can be merged on the ROC plot
+				group_by(Id, CallSet, !!!groupingCols, tp, events) %>%
+				summarise(fp=max(fp), fn=max(fn), QUAL=min(QUAL)) %>%
+				# subsample along tp and tp+fp axis
+				group_by(Id, CallSet, !!!groupingCols) %>%
+				slice(unique(c(
+					1,
+					findInterval(seq(0, max(tp), max(tp)/rocSlicePoints), tp),
+					findInterval(seq(0, max(tp + fp), max(tp + fp)/rocSlicePoints), tp + fp),
+					n()
+				))) %>%
+				ungroup() %>%
+				mutate(precision=tp / (tp + fp), fdr=1-precision, sens=tp/events) %>%
+				left_join(md, by="Id")
+	}
+
+	roc <- rocby(calls)
+	rocbyrepeat <- rocby(calls, repeatClass)
+	# calls$ihomlenBin <- cut(abs(calls$ihomlen), breaks=c(-1000000000, 1, 2, 3, 4, 5, 10, 20, 50, 100, 1000000000), right=FALSE, labels=c("0","1","2", "3", "4", "5-9", "10-19", "20-49", "50-99", "100+"))
+	# rocbyrepeat <- rocby(calls, ihomlenBin)
+	nominalCalls$snp10bin <- cut(nominalCalls$snp10bp, breaks=c(-1000000000, 1, 2, 3, 6, 10, 50, 100, 1000000000), right=FALSE, labels=c("0","1","2", "3-5", "6-9", "10-49", "50-99", "100+"))
+	nominalCalls$snp50bin <- cut(nominalCalls$snp50bp, breaks=c(-1000000000, 1, 2, 3, 6, 10, 50, 100, 1000000000), right=FALSE, labels=c("0","1","2", "3-5", "6-9", "10-49", "50-99", "100+"))
+	nominalCalls$snp100bin <- cut(nominalCalls$snp100bp, breaks=c(-1000000000, 1, 2, 3, 6, 10, 50, 100, 1000000000), right=FALSE, labels=c("0","1","2", "3-5", "6-9", "10-49", "50-99", "100+"))
+	rocbysnp10 <- rocby(nominalCalls, snp10bin)
+	rocbysnp50 <- rocby(nominalCalls, snp50bin)
+	rocbysnp100 <- rocby(nominalCalls, snp100bin)
+
 	#browser()
 	bpErrorDistribution <- bind_rows(calls, nominalCalls) %>%
 		filter(tp) %>%
@@ -422,14 +352,56 @@ import.sv.bedpe.dir <- function(dir) {
 		select(Id, CallSet, svLen, Classification) %>%
 		left_join(md, by="Id")
 
+	callsByCaller <- calls %>%
+		filter(!fp) %>%
+		dplyr::select(-HOMLEN, -ihomlen, -sizeerror, -bperror, -duptp, -fp, -fn, -includeFiltered)
+
 	return(list(mostSensitiveAligner=mostSensitiveAligner,
 							callsByEventSize=callsByEventSize,
 							roc=roc,
 							rocbyrepeat=rocbyrepeat,
-							rocbyihomlen=rocbyihomlen,
+							#rocbyihomlen=rocbyihomlen,
+							rocbysnp10=rocbysnp10,
+							rocbysnp50=rocbysnp50,
+							rocbysnp100=rocbysnp100,
 							bpErrorDistribution=bpErrorDistribution,
-							eventSize=eventSize))
+							eventSize=eventSize,
+							callsByCaller=callsByCaller))
 }
+.LoadMinCallsForId <- function(
+		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes,
+		datadir, metadata, id,
+		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
+		grtransform, grtransformName, nominalPosition) {
+	calls <- .CachedLoadCallsForId(datadir, metadata, id,
+		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
+		grtransform, grtransformName, nominalPosition) %>%
+		mutate(nominalPosition=nominalPosition)
+	if (is.null(calls)) {
+		return(NULL)
+	}
+	if (ignore.duplicates) {
+		calls <- calls %>% filter(!duptp)
+	}
+	if (ignore.interchromosomal) {
+		calls <- calls %>% filter(!is.na(svLen))
+	}
+	if (!is.null(mineventsize)) {
+		calls <- calls %>% filter(is.na(svLen) | abs(svLen + insLen) >= mineventsize)
+	}
+	if (!is.null(maxeventsize)) {
+		calls <- calls %>% filter(is.na(svLen) | abs(svLen + insLen) <= maxeventsize)
+	}
+	if (is.null(metadata$CX_MULTIMAPPING_LOCATIONS)) {
+		metadata$CX_MULTIMAPPING_LOCATIONS <- NA_integer_
+	}
+	if (!is.null(eventtypes)) {
+		calls <- calls %>% filter(simpleEvent %in% eventtypes)
+	}
+	calls <- calls %>% mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative")))
+	return(calls)
+}
+
 .CachedLoadCallsForId <- function(datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName, nominalPosition) {
@@ -473,6 +445,12 @@ import.sv.bedpe.dir <- function(dir) {
 	mcalls <- NULL
 	for (includeFiltered in c(TRUE, FALSE)) {
 		calls <- .ScoreVariantsFromTruthVCF(callgr=callgr, truthgr=truthgr, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, id=id, requiredHits=requiredHits)
+		calls$calls$snp10bp <- callgr$snp10bp
+		calls$calls$snp50bp <- callgr$snp50bp
+		calls$calls$snp100bp <- callgr$snp100bp
+		calls$truth$snp10bp <- truthgr$snp10bp
+		calls$truth$snp50bp <- truthgr$snp50bp
+		calls$truth$snp100bp <- truthgr$snp100bp
 		mergedcalls <- calls$calls
 		if (!is.null(calls$truth)) {
 			calls$truth <- calls$truth %>% mutate(duptp=FALSE)
@@ -481,7 +459,7 @@ import.sv.bedpe.dir <- function(dir) {
 		}
 		mcalls <- rbind(mcalls, mergedcalls %>% mutate(CallSet = ifelse(includeFiltered, "High & Low confidence", "High confidence only")))
 	}
-	return(mcalls)
+	return(mcalls %>% select(-ignore.strand, -maxgap))
 }
 .CachedTransformVcf <- function(datadir, metadata, id, grtransform, grtransformName, nominalPosition) {
 	cachekey <- list(datadir, id, grtransformName, nominalPosition)
@@ -519,18 +497,18 @@ import.sv.bedpe.dir <- function(dir) {
 	if (!is.null(vcftransform)) {
 		vcf <- vcftransform(vcf)
 	}
-	# homology annotation
-	ihomlendt <- .CachedLoadInexactHomologyAnnotation(datadir, id)
-	if (is.null(ihomlendt)) {
-		return(NULL)
-	}
-	# remove breakend suffix and get the longest homology length
-	ihomlendt <- ihomlendt %>%
-		dplyr::mutate(vcfId=str_replace(breakpointid, "_bp[0-9]+$", "")) %>%
-		dplyr::group_by(vcfId) %>%
-		dplyr::summarise(ihomlen=max(ihomlen))
-	ihomlen <- ihomlendt$ihomlen
-	names(ihomlen) <- ihomlendt$vcfId
+	# # homology annotation
+	# ihomlendt <- .CachedLoadInexactHomologyAnnotation(datadir, id)
+	# if (is.null(ihomlendt)) {
+	# 	return(NULL)
+	# }
+	# # remove breakend suffix and get the longest homology length
+	# ihomlendt <- ihomlendt %>%
+	# 	dplyr::mutate(vcfId=str_replace(breakpointid, "_bp[0-9]+$", "")) %>%
+	# 	dplyr::group_by(vcfId) %>%
+	# 	dplyr::summarise(ihomlen=max(ihomlen))
+	# ihomlen <- ihomlendt$ihomlen
+	# names(ihomlen) <- ihomlendt$vcfId
 	vcf <- withqual(vcf, caller)
 	gr <- breakpointRanges(vcf, nominalPosition, suffix="_bp")
 	if (!is.null(grtransform)) {
@@ -545,7 +523,18 @@ import.sv.bedpe.dir <- function(dir) {
 	#gr$svLen <- NULL
 	gr$insSeq <- NULL
 	#gr$insLen <- NULL
-	gr$ihomlen <- ihomlen[gr$vcfId]
+
+	# gr$ihomlen <- ihomlen[gr$vcfId]
+	# annotate nearby SNP/indel counts
+	gr$snp10bp <- 0
+	gr$snp50bp <- 0
+	gr$snp100bp <- 0
+	if (!is.null(metadata$CX_SNP_TRUTH)) {
+		snpgr <- .CachedRawVcfGRanges(datadir, metadata$CX_SNP_TRUTH)
+		gr$snp10bp <- countOverlaps(gr, snps, maxgap=10)
+		gr$snp50bp <- countOverlaps(gr, snps, maxgap=50)
+		gr$snp100bp <- countOverlaps(gr, snps, maxgap=100)
+	}
 	return(gr)
 }
 .CachedLoadInexactHomologyAnnotation <- function(datadir, id) {
@@ -582,4 +571,25 @@ import.sv.bedpe.dir <- function(dir) {
 	names(dt) <- c("breakpointid", "ihomlen")
 	return(dt)
 }
-
+.CachedRawVcfGRanges <- function(datadir, filename, strip=TRUE) {
+	cachekey <- list(datadir, filename, strip)
+	cachedir <- ".Rcache/rawvcfgr"
+	result <- loadCache(key=cachekey, dirs=cachedir)
+	if (is.null(result)) {
+		write(sprintf(".CachedRawVcfGRanges %s (%s)", filename, getChecksum(cachekey)), stderr())
+		file <- filename
+		if (!file.exists(file)) {
+			file <- list.files(datadir, pattern=filename, full.names=TRUE)
+		}
+		result <- rowRanges(readVcf(file, ""))
+		if (strip) {
+			# minimal GRanges object
+			names(result) <- NULL
+			mcols(result) <- NULL
+		}
+		if (!is.null(result)) {
+			saveCache(result, key=cachekey, dirs=cachedir)
+		}
+	}
+	return(result)
+}

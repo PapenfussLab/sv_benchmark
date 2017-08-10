@@ -276,7 +276,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
 
 	hits$QUAL <- callgr$QUAL[hits$queryHits]
-	hits <- hits[order(-hits$QUAL),]
+	hits <- hits[order(-hits$QUAL),] # sort by qual so the highest QUAL writes last when doing hit assignments on subjectHits or queryHits
 	hits$dup <- duplicated(hits$subjectHits)
 	hitcount <- hits %>%
 		group_by(queryHits) %>%
@@ -303,6 +303,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	calldf$sizeerror[hits$queryHits] <- hits$sizeerror
 	calldf$simpleEvent <- simpleEventType(callgr)
 	calldf$repeatClass <- callgr$repeatClass
+	calldf$breakendId <- names(callgr)
 
 	truthdf <- NULL
 	if (requiredHits == 1) {
@@ -322,6 +323,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 		truthdf$repeatClass <- truthgr$repeatClass
 		# using caller-defined homology length
 		truthdf$HOMLEN[hits$subjectHits] <- callgr[hits$queryHits]$HOMLEN
+		truthdf$breakendId <- names(truthgr)
 	}
 	return(list(calls=calldf, truth=truthdf))
 }
