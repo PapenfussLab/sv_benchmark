@@ -16,8 +16,8 @@ library(ggplot2)
 library(scales)
 
 fdf <- .LoadGraphDataFrame(TRUE, TRUE, 51, NULL, "DEL", 100,
-		datadir="./data.na12878",
-		metadata=LoadCachedMetadata("./data.na12878"),
+		datadir="./data.chm",
+		metadata=LoadCachedMetadata("./data.chm"),
 		maxgap=200,
 	sizemargin=0.25,
 	ignore.strand=TRUE,

@@ -531,9 +531,9 @@ import.sv.bedpe.dir <- function(dir) {
 	gr$snp100bp <- 0
 	if (!is.null(metadata$CX_SNP_TRUTH)) {
 		snpgr <- .CachedRawVcfGRanges(datadir, metadata$CX_SNP_TRUTH)
-		gr$snp10bp <- countOverlaps(gr, snps, maxgap=10)
-		gr$snp50bp <- countOverlaps(gr, snps, maxgap=50)
-		gr$snp100bp <- countOverlaps(gr, snps, maxgap=100)
+		gr$snp10bp <- countOverlaps(gr, snpgr, maxgap=10)
+		gr$snp50bp <- countOverlaps(gr, snpgr, maxgap=50)
+		gr$snp100bp <- countOverlaps(gr, snpgr, maxgap=100)
 	}
 	return(gr)
 }
