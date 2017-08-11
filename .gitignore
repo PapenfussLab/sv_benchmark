@@ -6,3 +6,5 @@
 /R/eps
 /.Rhistory
 .DS_Store
+*.Rcache*
+R/exploratory_plots.html
