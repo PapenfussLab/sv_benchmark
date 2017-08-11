@@ -65,21 +65,26 @@ withqual <- function(vcf, caller) {
 	if (is.null(rowRanges(vcf)$QUAL)) {
 		rowRanges(vcf)$QUAL <- NA_real_
 	}
-	if (!is.na(caller) && !is.null(caller) && any(is.na(rowRanges(vcf)$QUAL))) {
-		caller <- str_extract(caller, "^[^/]+") # strip version
-		# use total read support as a qual proxy
-		if (caller %in% c("delly")) {
-			altqual <- ifelse(is.na(info(vcf)$PE), 0, info(vcf)$PE) + ifelse(is.na(info(vcf)$SR), 0, info(vcf)$SR)
-		} else if (caller %in% c("crest")) {
-			altqual <- ifelse(is.na(info(vcf)$right_softclipped_read_count), 0, info(vcf)$right_softclipped_read_count) + ifelse(is.na(info(vcf)$left_softclipped_read_count), 0, info(vcf)$left_softclipped_read_count)
-		} else if (caller %in% c("pindel")) {
-			altqual <- geno(vcf)$AD[,1,2]
-		} else if (caller %in% c("lumpy")) {
-			altqual <- unlist(info(vcf)$SU)
-		} else if (caller %in% c("cortex")) {
-			altqual <- geno(vcf)$COV[,1,1]
+	if (any(is.na(rowRanges(vcf)$QUAL))) {
+		if (!is.na(caller) && !is.null(caller)) {
+			caller <- str_extract(caller, "^[^/]+") # strip version
+			# use total read support as a qual proxy
+			if (caller %in% c("delly")) {
+				altqual <- ifelse(is.na(info(vcf)$PE), 0, info(vcf)$PE) + ifelse(is.na(info(vcf)$SR), 0, info(vcf)$SR)
+			} else if (caller %in% c("crest")) {
+				altqual <- ifelse(is.na(info(vcf)$right_softclipped_read_count), 0, info(vcf)$right_softclipped_read_count) + ifelse(is.na(info(vcf)$left_softclipped_read_count), 0, info(vcf)$left_softclipped_read_count)
+			} else if (caller %in% c("pindel")) {
+				altqual <- geno(vcf)$AD[,1,2]
+			} else if (caller %in% c("lumpy")) {
+				altqual <- unlist(info(vcf)$SU)
+			} else if (caller %in% c("cortex")) {
+				altqual <- geno(vcf)$COV[,1,1]
+			}
+			rowRanges(vcf)$QUAL <- ifelse(is.na(rowRanges(vcf)$QUAL), altqual, rowRanges(vcf)$QUAL)
+		} else {
+			# use a placeholder QUAL for truth sets
+			rowRanges(vcf)$QUAL <- 1
 		}
-		rowRanges(vcf)$QUAL <- ifelse(is.na(rowRanges(vcf)$QUAL), altqual, rowRanges(vcf)$QUAL)
 	}
 	if (any(is.na(rowRanges(vcf)$QUAL))) {
 		#if (is.null(caller) && is.na(caller)) {

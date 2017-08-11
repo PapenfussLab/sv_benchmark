@@ -152,7 +152,7 @@ import.sv.bedpe.dir <- function(dir) {
 		datadir, metadata,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName) {
-	cachekey <- cachekey <- list(
+	cachekey <- list(
 		ignore.duplicates=ignore.duplicates, ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize, eventtypes=eventtypes, rocSlicePoints=rocSlicePoints,
 		datadir=datadir,
 		maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgrName=truthgrName,
@@ -327,12 +327,8 @@ import.sv.bedpe.dir <- function(dir) {
 	rocbyrepeat <- rocby(calls, repeatClass)
 	# calls$ihomlenBin <- cut(abs(calls$ihomlen), breaks=c(-1000000000, 1, 2, 3, 4, 5, 10, 20, 50, 100, 1000000000), right=FALSE, labels=c("0","1","2", "3", "4", "5-9", "10-19", "20-49", "50-99", "100+"))
 	# rocbyrepeat <- rocby(calls, ihomlenBin)
-	nominalCalls$snp10bin <- cut(nominalCalls$snp10bp, breaks=c(-1000000000, 1, 2, 3, 6, 10, 50, 100, 1000000000), right=FALSE, labels=c("0","1","2", "3-5", "6-9", "10-49", "50-99", "100+"))
 	nominalCalls$snp50bin <- cut(nominalCalls$snp50bp, breaks=c(-1000000000, 1, 2, 3, 6, 10, 50, 100, 1000000000), right=FALSE, labels=c("0","1","2", "3-5", "6-9", "10-49", "50-99", "100+"))
-	nominalCalls$snp100bin <- cut(nominalCalls$snp100bp, breaks=c(-1000000000, 1, 2, 3, 6, 10, 50, 100, 1000000000), right=FALSE, labels=c("0","1","2", "3-5", "6-9", "10-49", "50-99", "100+"))
-	rocbysnp10 <- rocby(nominalCalls, snp10bin)
 	rocbysnp50 <- rocby(nominalCalls, snp50bin)
-	rocbysnp100 <- rocby(nominalCalls, snp100bin)
 
 	#browser()
 	bpErrorDistribution <- bind_rows(calls, nominalCalls) %>%
@@ -361,9 +357,7 @@ import.sv.bedpe.dir <- function(dir) {
 							roc=roc,
 							rocbyrepeat=rocbyrepeat,
 							#rocbyihomlen=rocbyihomlen,
-							rocbysnp10=rocbysnp10,
 							rocbysnp50=rocbysnp50,
-							rocbysnp100=rocbysnp100,
 							bpErrorDistribution=bpErrorDistribution,
 							eventSize=eventSize,
 							callsByCaller=callsByCaller))
@@ -445,12 +439,8 @@ import.sv.bedpe.dir <- function(dir) {
 	mcalls <- NULL
 	for (includeFiltered in c(TRUE, FALSE)) {
 		calls <- .ScoreVariantsFromTruthVCF(callgr=callgr, truthgr=truthgr, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, id=id, requiredHits=requiredHits)
-		calls$calls$snp10bp <- callgr$snp10bp
 		calls$calls$snp50bp <- callgr$snp50bp
-		calls$calls$snp100bp <- callgr$snp100bp
-		calls$truth$snp10bp <- truthgr$snp10bp
 		calls$truth$snp50bp <- truthgr$snp50bp
-		calls$truth$snp100bp <- truthgr$snp100bp
 		mergedcalls <- calls$calls
 		if (!is.null(calls$truth)) {
 			calls$truth <- calls$truth %>% mutate(duptp=FALSE)
@@ -461,6 +451,57 @@ import.sv.bedpe.dir <- function(dir) {
 	}
 	return(mcalls %>% select(-ignore.strand, -maxgap))
 }
+.LoadCallMatrixForIds <- function(datadir, metadata, ids,
+		maxgap, sizemargin, ignore.strand,
+		# .CachedTransformVcf
+		grtransform, grtransformName) {
+	# include truth in table
+	truthids <- GetId((metadata %>% filter(Id %in% ids))$CX_REFERENCE_VCF)
+	ids <- unique(c(ids, truthids))
+
+	grlist <- lapply(ids, function(id) {
+		gr <- .CachedTransformVcf(datadir=datadir, metadata=metadata, id=id, grtransform=grtransform, grtransformName=grtransformName, nominalPosition=FALSE)
+		gr$Id <- id
+		return(gr)
+	})
+	names(grlist) <- ids
+	allgr <- GRangesList(grlist)
+	allgr <- unlist(allgr, recursive=TRUE, use.names=FALSE)
+	for (sid in ids) {
+		colname <- paste0("Id", sid)
+		mcols(allgr)[[colname]] <- -1
+		for (qid in ids) {
+			mcols(allgr[allgr$Id==qid])[[colname]] <- .CacheMatchingQuals(grlist[[sid]], grlist[[qid]],
+				datadir, sid, qid, maxgap, sizemargin, ignore.strand, grtransformName)
+		}
+	}
+	return(allgr)
+}
+.CacheMatchingQuals <- function(
+	subjectgr, querygr,
+	datadir, subjectid, queryid, maxgap, sizemargin, ignore.strand, grtransformName) {
+	cachekey <- list(datadir, subjectid, queryid, maxgap, sizemargin, ignore.strand, grtransformName)
+	cachedir <- ".Rcache/pairwiseQUAL"
+	result <- loadCache(key=cachekey, dirs=cachedir)
+	if (is.null(result)) {
+		write(sprintf(".findMatchingQuals %s %s (%s)", subjectid, queryid, getChecksum(cachekey)), stderr())
+		result <- .findMatchingQuals(subjectgr, querygr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
+		if (!is.null(result)) {
+			saveCache(result, key=cachekey, dirs=cachedir)
+		}
+	}
+	return(result)
+}
+.findMatchingQuals <- function(gr, allgr, maxgap, sizemargin, ignore.strand, missingQUAL=-1) {
+		hits <- findBreakpointOverlaps(gr, allgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
+		hits$QUAL <- gr$QUAL[hits$queryHits]
+		hits <- hits[order(-hits$QUAL),] # sort by qual so the highest QUAL writes last when doing hit assignments on subjectHits or queryHits
+		# -1 for mismatch
+		result <- rep(-1, length(allgr))
+		result[hits$subjectHits] <- hits$QUAL
+		return(result)
+}
+
 .CachedTransformVcf <- function(datadir, metadata, id, grtransform, grtransformName, nominalPosition) {
 	cachekey <- list(datadir, id, grtransformName, nominalPosition)
 	cachedir <- ".Rcache/vcfgr"
@@ -526,14 +567,13 @@ import.sv.bedpe.dir <- function(dir) {
 
 	# gr$ihomlen <- ihomlen[gr$vcfId]
 	# annotate nearby SNP/indel counts
-	gr$snp10bp <- 0
 	gr$snp50bp <- 0
-	gr$snp100bp <- 0
 	if (!is.null(metadata$CX_SNP_TRUTH)) {
 		snpgr <- .CachedRawVcfGRanges(datadir, metadata$CX_SNP_TRUTH)
-		gr$snp10bp <- countOverlaps(gr, snpgr, maxgap=10)
+		if ("b1112f1c3cbd28c464f58fc5c5c02f9b" == id) {
+			browser()
+		}
 		gr$snp50bp <- countOverlaps(gr, snpgr, maxgap=50)
-		gr$snp100bp <- countOverlaps(gr, snpgr, maxgap=100)
 	}
 	return(gr)
 }
