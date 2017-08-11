@@ -467,39 +467,45 @@ import.sv.bedpe.dir <- function(dir) {
 	names(grlist) <- ids
 	allgr <- GRangesList(grlist)
 	allgr <- unlist(allgr, recursive=TRUE, use.names=FALSE)
-	for (sid in ids) {
-		colname <- paste0("Id", sid)
+	for (qid in ids) {
+		colname <- paste0("Id", qid)
 		mcols(allgr)[[colname]] <- -1
-		for (qid in ids) {
-			mcols(allgr[allgr$Id==qid])[[colname]] <- .CacheMatchingQuals(grlist[[sid]], grlist[[qid]],
-				datadir, sid, qid, maxgap, sizemargin, ignore.strand, grtransformName)
+		for (sid in ids) {
+			if (qid <= sid) {
+				mcols(allgr[allgr$Id==qid])[[colname]] <- .CacheMatchingQuals(grlist[[qid]], grlist[[sid]], datadir, qid, sid, maxgap, sizemargin, ignore.strand, grtransformName)$bestSubjectQUALforQuery
+			} else {
+				mcols(allgr[allgr$Id==qid])[[colname]] <- .CacheMatchingQuals(grlist[[sid]], grlist[[qid]], datadir, sid, qid, maxgap, sizemargin, ignore.strand, grtransformName)$bestQueryQUALforSubject
+			}
 		}
 	}
 	return(allgr)
 }
-.CacheMatchingQuals <- function(
-	subjectgr, querygr,
-	datadir, subjectid, queryid, maxgap, sizemargin, ignore.strand, grtransformName) {
-	cachekey <- list(datadir, subjectid, queryid, maxgap, sizemargin, ignore.strand, grtransformName)
+.CacheMatchingQuals <- function(querygr, subjectgr, datadir, queryid, subjectid, maxgap, sizemargin, ignore.strand, grtransformName) {
+	cachekey <- list(datadir, queryid, subjectid, maxgap, sizemargin, ignore.strand, grtransformName)
 	cachedir <- ".Rcache/pairwiseQUAL"
 	result <- loadCache(key=cachekey, dirs=cachedir)
 	if (is.null(result)) {
-		write(sprintf(".findMatchingQuals %s %s (%s)", subjectid, queryid, getChecksum(cachekey)), stderr())
-		result <- .findMatchingQuals(subjectgr, querygr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
+		write(sprintf(".findMatchingQuals %s %s (%s)", queryid, subjectid, getChecksum(cachekey)), stderr())
+		result <- .findMatchingQuals(querygr, subjectgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
 		if (!is.null(result)) {
 			saveCache(result, key=cachekey, dirs=cachedir)
 		}
 	}
 	return(result)
 }
-.findMatchingQuals <- function(gr, allgr, maxgap, sizemargin, ignore.strand, missingQUAL=-1) {
-		hits <- findBreakpointOverlaps(gr, allgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
-		hits$QUAL <- gr$QUAL[hits$queryHits]
-		hits <- hits[order(-hits$QUAL),] # sort by qual so the highest QUAL writes last when doing hit assignments on subjectHits or queryHits
-		# -1 for mismatch
-		result <- rep(-1, length(allgr))
-		result[hits$subjectHits] <- hits$QUAL
-		return(result)
+.findMatchingQuals <- function(querygr, subjectgr, maxgap, sizemargin, ignore.strand, missingQUAL=-1) {
+		hits <- findBreakpointOverlaps(querygr, subjectgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
+		hits$queryQUAL <- querygr$QUAL[hits$queryHits]
+		hits$subjectQUAL <- subjectgr$QUAL[hits$subjectHits]
+
+		hits <- hits[order(-hits$queryQUAL),] # sort by qual so the highest QUAL writes last when doing assignments
+		bestQueryQUALforSubject <- rep(missingQUAL, length(subjectgr)) # -1 for mismatch
+		bestQueryQUALforSubject[hits$subjectHits] <- hits$queryQUAL
+
+		hits <- hits[order(-hits$subjectQUAL),]
+		bestSubjectQUALforQuery <- rep(missingQUAL, length(querygr))
+		bestSubjectQUALforQuery[hits$queryHits] <- hits$subjectQUAL
+		return(list(bestQueryQUALforSubject=bestQueryQUALforSubject, bestSubjectQUALforQuery=bestSubjectQUALforQuery))
 }
 
 .CachedTransformVcf <- function(datadir, metadata, id, grtransform, grtransformName, nominalPosition) {
