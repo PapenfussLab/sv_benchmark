@@ -439,8 +439,11 @@ import.sv.bedpe.dir <- function(dir) {
 	mcalls <- NULL
 	for (includeFiltered in c(TRUE, FALSE)) {
 		calls <- .ScoreVariantsFromTruthVCF(callgr=callgr, truthgr=truthgr, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, id=id, requiredHits=requiredHits)
-		calls$calls$snp50bp <- callgr$snp50bp
-		calls$truth$snp50bp <- truthgr$snp50bp
+		# can't do straight-forward calls$calls$snp50bp <- callgr$snp50bp if includeFiltered is FALSE
+		calls$calls$snp50bp <- NA_integer_
+		calls$calls[calls$calls$breakendId,]$snp50bp <- callgr[calls$calls$breakendId]$snp50bp
+		calls$truth$snp50bp <- NA_integer_
+		calls$truth[calls$truth$breakendId,]$snp50bp <- truthgr[calls$truth$breakendId]$snp50bp
 		mergedcalls <- calls$calls
 		if (!is.null(calls$truth)) {
 			calls$truth <- calls$truth %>% mutate(duptp=FALSE)
@@ -576,9 +579,6 @@ import.sv.bedpe.dir <- function(dir) {
 	gr$snp50bp <- 0
 	if (!is.null(metadata$CX_SNP_TRUTH)) {
 		snpgr <- .CachedRawVcfGRanges(datadir, metadata$CX_SNP_TRUTH)
-		if ("b1112f1c3cbd28c464f58fc5c5c02f9b" == id) {
-			browser()
-		}
 		gr$snp50bp <- countOverlaps(gr, snpgr, maxgap=50)
 	}
 	return(gr)

@@ -16,8 +16,8 @@ library(ggplot2)
 library(scales)
 
 fdf <- .LoadGraphDataFrame(TRUE, TRUE, 51, NULL, "DEL", 100,
-		datadir="./data.chm",
-		metadata=LoadCachedMetadata("./data.chm"),
+		datadir="../data.chm",
+		metadata=LoadCachedMetadata("../data.chm"),
 		maxgap=200,
 	sizemargin=0.25,
 	ignore.strand=TRUE,
@@ -28,8 +28,8 @@ fdf <- .LoadGraphDataFrame(TRUE, TRUE, 51, NULL, "DEL", 100,
 	grtransformName="test")
 
 callmat <- .LoadCallMatrixForIds(
-	datadir="./data.chm",
-	metadata=LoadCachedMetadata("./data.chm"),
+	datadir="../data.chm",
+	metadata=LoadCachedMetadata("../data.chm"),
 	ids=c("acd889cc16741fb0fba62faa4f7005f3", "8dcad8fe04f4ebc0ad3254ab4420cdc8"),
 	maxgap=200,
 	sizemargin=0.25,
