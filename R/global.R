@@ -12,8 +12,8 @@ enableBookmarking(store = "url")
 options("R.cache::compress" = TRUE)
 
 # load all metadata
-md <- lapply(list.files(dataLocation, pattern = "data.*", full.names = TRUE), function(dir) LoadCachedMetadata(dir))
-names(md) <- str_replace(list.files(dataLocation, pattern = "data.*"), "data.", "")
+md <- lapply(list.files(dataLocation, pattern = "^data\\..*$", full.names = TRUE), function(dir) LoadCachedMetadata(dir))
+names(md) <- str_replace(list.files(dataLocation, pattern = "^data\\..*$"), "data.", "")
 # hack fix for:
 # Error: incompatible type (data index: 4, column: 'CX_MULTIMAPPING_LOCATIONS', was collecting: integer (dplyr::Collecter_Impl<13>), incompatible with data of type: character
 md <- lapply(md, function(x) { x$CX_MULTIMAPPING_LOCATIONS <- as.integer(x$CX_MULTIMAPPING_LOCATIONS) ; x})
