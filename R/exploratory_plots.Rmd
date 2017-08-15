@@ -5,7 +5,9 @@ date: "11/08/2017"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+Works as-is when pasted into the terminal with `getwd() == [...]/sv_benchmark`. Also knits OK.
+
+```{r}
 source("global.R")
 source("shinyCache2.R")
 source("libplot.R")
@@ -13,8 +15,8 @@ source("libplot.R")
 require("tidyverse")
 
 callmat <- .LoadCallMatrixForIds(
-	datadir="../data.chm",
-	metadata=LoadCachedMetadata("../data.chm"),
+	datadir="./data.chm",
+	metadata=LoadCachedMetadata("./data.chm"),
 	ids=c("acd889cc16741fb0fba62faa4f7005f3", "8dcad8fe04f4ebc0ad3254ab4420cdc8"),
 	maxgap=200,
 	sizemargin=0.25,
