@@ -8,3 +8,5 @@
 .DS_Store
 *.Rcache*
 R/exploratory_plots.html
+*.Rdata
+*.Rhistory
