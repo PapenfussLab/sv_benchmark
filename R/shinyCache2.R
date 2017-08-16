@@ -249,17 +249,17 @@ import.sv.bedpe.dir <- function(dir) {
 		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes,
 		datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-		grtransform, grtransformName, FALSE) %>%
-		mutate(nominalPosition=FALSE)
+		grtransform, grtransformName, FALSE)
 	nominalCalls <- .LoadMinCallsForId(
 		ignore.duplicates, ignore.interchromosomal, mineventsize, maxeventsize, eventtypes,
 		datadir, metadata, id,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-		grtransform, grtransformName, TRUE) %>%
-		mutate(nominalPosition=TRUE)
+		grtransform, grtransformName, TRUE)
 	if (is.null(calls)) {
 		return(NULL)
 	}
+	calls <- calls %>% mutate(nominalPosition=FALSE)
+	nominalCalls <- nominalCalls %>% mutate(nominalPosition=FALSE)
 	md <- metadata %>%
 		select(Id, CX_ALIGNER, CX_ALIGNER_MODE, CX_MULTIMAPPING_LOCATIONS, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH)
 	if (!is.null(metadata$CX_REFERENCE_VCF_VARIANTS)) {
@@ -368,39 +368,33 @@ import.sv.bedpe.dir <- function(dir) {
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName, nominalPosition) {
 	calls <- .CachedLoadCallsForId(datadir, metadata, id,
+		ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
-		grtransform, grtransformName, nominalPosition) %>%
-		mutate(nominalPosition=nominalPosition)
+		grtransform, grtransformName, nominalPosition)
 	if (is.null(calls)) {
 		return(NULL)
 	}
+	calls <- calls %>% mutate(nominalPosition=nominalPosition)
 	if (ignore.duplicates) {
 		calls <- calls %>% filter(!duptp)
 	}
-	if (ignore.interchromosomal) {
-		calls <- calls %>% filter(!is.na(svLen))
-	}
-	if (!is.null(mineventsize)) {
-		calls <- calls %>% filter(is.na(svLen) | abs(svLen + insLen) >= mineventsize)
-	}
-	if (!is.null(maxeventsize)) {
-		calls <- calls %>% filter(is.na(svLen) | abs(svLen + insLen) <= maxeventsize)
+	if (!is.null(eventtypes)) {
+		calls <- calls %>% filter(simpleEvent %in% eventtypes)
 	}
 	if (is.null(metadata$CX_MULTIMAPPING_LOCATIONS)) {
 		metadata$CX_MULTIMAPPING_LOCATIONS <- NA_integer_
-	}
-	if (!is.null(eventtypes)) {
-		calls <- calls %>% filter(simpleEvent %in% eventtypes)
 	}
 	calls <- calls %>% mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative")))
 	return(calls)
 }
 
 .CachedLoadCallsForId <- function(datadir, metadata, id,
+		ignore.interchromosomal, mineventsize, maxeventsize,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName, nominalPosition) {
 	cachekey <- list(
 		datadir=datadir, id=id,
+		ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize,
 		maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgrName=truthgrName,
 		grtransformName=grtransformName, nominalPosition=nominalPosition)
 	cachedir <- ".Rcache/Calls"
@@ -409,6 +403,7 @@ import.sv.bedpe.dir <- function(dir) {
 		write(sprintf(".LoadCallsForId %s (%s)", id, getChecksum(cachekey)), stderr())
 		result <- .LoadCallsForId(
 			datadir=datadir, metadata=metadata, id=id,
+			ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize,
 			maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, requiredHits=requiredHits, truthgr=truthgr,
 			grtransform=grtransform, grtransformName=grtransformName, nominalPosition=nominalPosition)
 		if (!is.null(result)) {
@@ -418,6 +413,7 @@ import.sv.bedpe.dir <- function(dir) {
 	return(result)
 }
 .LoadCallsForId <- function(datadir, metadata, id,
+		ignore.interchromosomal, mineventsize, maxeventsize,
 		# ScoreVariantsFromTruth
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr,
 		# .CachedTransformVcf
@@ -427,12 +423,12 @@ import.sv.bedpe.dir <- function(dir) {
 		if (is.na(truthid) | is.null(truthid)) {
 			stop("Missing truth for ", id)
 		}
-		truthgr <- .CachedTransformVcf(datadir=datadir, metadata=metadata, id=truthid, grtransform=grtransform, grtransformName=grtransformName, nominalPosition=nominalPosition)
+		truthgr <- .FilteredTransformVcf(datadir=datadir, metadata=metadata, id=truthid, ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize, grtransform=grtransform, grtransformName=grtransformName, nominalPosition=nominalPosition)
 	}
 	if (is.null(truthgr)) {
 		stop("Missing truth for ", id)
 	}
-	callgr <- .CachedTransformVcf(datadir=datadir, metadata=metadata, id=id, grtransform=grtransform, grtransformName=grtransformName, nominalPosition=nominalPosition)
+	callgr <- .FilteredTransformVcf(datadir=datadir, metadata=metadata, id=id, ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize, grtransform=grtransform, grtransformName=grtransformName, nominalPosition=nominalPosition)
 	if (is.null(callgr)) {
 		return(NULL)
 	}
@@ -440,10 +436,8 @@ import.sv.bedpe.dir <- function(dir) {
 	for (includeFiltered in c(TRUE, FALSE)) {
 		calls <- .ScoreVariantsFromTruthVCF(callgr=callgr, truthgr=truthgr, includeFiltered=includeFiltered, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand, id=id, requiredHits=requiredHits)
 		# can't do straight-forward calls$calls$snp50bp <- callgr$snp50bp if includeFiltered is FALSE
-		calls$calls$snp50bp <- NA_integer_
-		calls$calls[calls$calls$breakendId,]$snp50bp <- callgr[calls$calls$breakendId]$snp50bp
-		calls$truth$snp50bp <- NA_integer_
-		calls$truth[calls$truth$breakendId,]$snp50bp <- truthgr[calls$truth$breakendId]$snp50bp
+		calls$calls$snp50bp <- callgr$snp50bp[calls$calls$breakendId]
+		calls$truth$snp50bp <- truthgr$snp50bp[calls$truth$breakendId]
 		mergedcalls <- calls$calls
 		if (!is.null(calls$truth)) {
 			calls$truth <- calls$truth %>% mutate(duptp=FALSE)
@@ -455,15 +449,17 @@ import.sv.bedpe.dir <- function(dir) {
 	return(mcalls %>% select(-ignore.strand, -maxgap))
 }
 .LoadCallMatrixForIds <- function(datadir, metadata, ids,
+		ignore.interchromosomal, mineventsize, maxeventsize,
 		maxgap, sizemargin, ignore.strand,
 		# .CachedTransformVcf
 		grtransform, grtransformName) {
 	# include truth in table
 	truthids <- GetId((metadata %>% filter(Id %in% ids))$CX_REFERENCE_VCF)
 	ids <- unique(c(ids, truthids))
-
 	grlist <- lapply(ids, function(id) {
-		gr <- .CachedTransformVcf(datadir=datadir, metadata=metadata, id=id, grtransform=grtransform, grtransformName=grtransformName, nominalPosition=FALSE)
+		gr <- .FilteredTransformVcf(datadir=datadir, metadata=metadata, id=id,
+			ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize,
+			grtransform=grtransform, grtransformName=grtransformName, nominalPosition=FALSE)
 		gr$Id <- id
 		return(gr)
 	})
@@ -510,7 +506,33 @@ import.sv.bedpe.dir <- function(dir) {
 		bestSubjectQUALforQuery[hits$queryHits] <- hits$subjectQUAL
 		return(list(bestQueryQUALforSubject=bestQueryQUALforSubject, bestSubjectQUALforQuery=bestSubjectQUALforQuery))
 }
-
+.FilteredTransformVcf <- function(datadir, metadata, id,
+																	ignore.interchromosomal, mineventsize, maxeventsize,
+																	grtransform, grtransformName, nominalPosition) {
+	cachekey <- list(datadir, id, grtransformName, nominalPosition, ignore.interchromosomal, mineventsize, maxeventsize)
+	cachedir <- ".Rcache/fvcfgr"
+	assert_that(!is.null(id))
+	assert_that(!is.na(id))
+	result <- loadCache(key=cachekey, dirs=cachedir)
+	if (is.null(result)) {
+		result <- .CachedTransformVcf(datadir, metadata, id, grtransform, grtransformName, nominalPosition)
+		if (ignore.interchromosomal) {
+			result <- result[!is.na(result$svLen)]
+		}
+		if (!is.null(mineventsize)) {
+			result <- result[is.na(result$svLen) | abs(result$svLen + result$insLen) >= mineventsize]
+		}
+		if (!is.null(maxeventsize)) {
+			result <- result[is.na(result$svLen) | abs(result$svLen + result$insLen) <= mineventsize]
+		}
+		# sanity adjustments to filters
+		result <- result[names(result) %in% result$partner & result$partner %in% names(result)]
+		if (!is.null(result)) {
+			saveCache(result, key=cachekey, dirs=cachedir)
+		}
+	}
+	return(result)
+}
 .CachedTransformVcf <- function(datadir, metadata, id, grtransform, grtransformName, nominalPosition) {
 	cachekey <- list(datadir, id, grtransformName, nominalPosition)
 	cachedir <- ".Rcache/vcfgr"

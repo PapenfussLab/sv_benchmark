@@ -30,7 +30,17 @@ fdf <- .LoadGraphDataFrame(TRUE, TRUE, 51, NULL, "DEL", 100,
 callmat <- .LoadCallMatrixForIds(
 	datadir="../data.chm",
 	metadata=LoadCachedMetadata("../data.chm"),
-	ids=c("acd889cc16741fb0fba62faa4f7005f3", "8dcad8fe04f4ebc0ad3254ab4420cdc8"),
+	#ids=c("acd889cc16741fb0fba62faa4f7005f3", "8dcad8fe04f4ebc0ad3254ab4420cdc8"),
+	ids=c(
+		"00000000000000000000000000000001",
+		"16c58fbcc5633564b10ebe8f78d87883",
+		"40c68f29b6d7cb2358f31a7073250406",
+		"43a13d07730deb934e9fc01e3b3cd26f",
+		"8dcad8fe04f4ebc0ad3254ab4420cdc8",
+		"9d134f160ac68c0445002fbb78db4a5e",
+		"acd889cc16741fb0fba62faa4f7005f3",
+		"b1112f1c3cbd28c464f58fc5c5c02f9b"),
+	ignore.interchromosomal=TRUE, mineventsize=51, maxeventsize=NULL,
 	maxgap=200,
 	sizemargin=0.25,
 	ignore.strand=TRUE,
@@ -39,9 +49,9 @@ callmat <- .LoadCallMatrixForIds(
 )
 
 gdf <- .LoadGraphDataFrameForId(TRUE, TRUE, 51, NULL, "DEL", 100,
-		datadir="./data.na12878",
-		metadata=LoadCachedMetadata("./data.na12878"),
-		id="676904146cce653bb2e31a77b4d3e037",
+		datadir="../data.chm",
+		metadata=LoadCachedMetadata("../data.chm"),
+		id="b1112f1c3cbd28c464f58fc5c5c02f9b",
 		maxgap=200,
 	sizemargin=0.25,
 	ignore.strand=TRUE,
@@ -70,11 +80,20 @@ calldf <- calldf %>%
 	mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative")))
 
 callgr <- .CachedTransformVcf(
-	datadir="./data.na12878",
-	metadata=LoadCachedMetadata("./data.na12878"),
-	id="676904146cce653bb2e31a77b4d3e037",
-	grtransform=simoptions$grtransform[["DAC"]],
-	grtransformName="DAC",
+	datadir="../data.chm",
+	metadata=LoadCachedMetadata("../data.chm"),
+	id="acd889cc16741fb0fba62faa4f7005f3",
+	ignore.interchromosomal=TRUE, mineventsize=51, maxeventsize=NULL,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test",
+	nominalPosition=FALSE)
+
+callgr <- .CachedTransformVcf(
+	datadir="../data.chm",
+	metadata=LoadCachedMetadata("../data.chm"),
+	id="acd889cc16741fb0fba62faa4f7005f3",
+	grtransform=.primaryHumanOnly,
+	grtransformName="test",
 	nominalPosition=FALSE)
 
 
@@ -233,5 +252,4 @@ ggplot(callsByCallerWithCount %>%
 	aes(x=Id, fill=as.factor(count)) +
 	#aes(group=paste(Id, CallSet), x=paste(CX_CALLER, Id, CallSet), fill=as.factor(count)) +
 	geom_bar()
-
 
