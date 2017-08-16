@@ -7,7 +7,12 @@ output: html_document
 
 ## Load data
 
-Works as-is when pasted into the terminal with `getwd() == [...]/sv_benchmark`. Also knits OK.
+Works as-is when pasted into the terminal with 
+```
+setwd("~/Projects/sv_benchmark")
+```
+
+Also knits OK.
 
 ```{r}
 source("global.R")
@@ -18,12 +23,19 @@ require("tidyverse")
 require("cowplot")
 
 caller_ids <- c(
+    "00000000000000000000000000000001",
+    "16c58fbcc5633564b10ebe8f78d87883",
+    "40c68f29b6d7cb2358f31a7073250406",
+    "43a13d07730deb934e9fc01e3b3cd26f",
+    "8dcad8fe04f4ebc0ad3254ab4420cdc8",
+    "94bb6deef9f1bf1f9027a47e8488ae4f",
+    "9d134f160ac68c0445002fbb78db4a5e",
     "acd889cc16741fb0fba62faa4f7005f3",
-    "8dcad8fe04f4ebc0ad3254ab4420cdc8")
+    "b1112f1c3cbd28c464f58fc5c5c02f9b")
 
 callmat <- .LoadCallMatrixForIds(
-	datadir = "./data.chm",
-	metadata = LoadCachedMetadata("./data.chm"),
+	datadir = "../data.chm",
+	metadata = LoadCachedMetadata("../data.chm"),
 	ids = caller_ids,
 	maxgap = 200,
 	sizemargin = 0.25,
