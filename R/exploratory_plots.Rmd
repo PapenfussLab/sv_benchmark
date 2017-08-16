@@ -23,7 +23,6 @@ require("tidyverse")
 require("cowplot")
 
 caller_ids <- c(
-    "00000000000000000000000000000001",
     "16c58fbcc5633564b10ebe8f78d87883",
     "40c68f29b6d7cb2358f31a7073250406",
     "43a13d07730deb934e9fc01e3b3cd26f",
@@ -40,8 +39,8 @@ callmat <- .LoadCallMatrixForIds(
 	maxgap = 200,
 	sizemargin = 0.25,
 	ignore.strand = TRUE,
-	grtransform= .primaryHumanOnly,
-	grtransformName= "test"
+	grtransform = .primaryHumanOnly,
+	grtransformName = "test"
 )
 ```
 
