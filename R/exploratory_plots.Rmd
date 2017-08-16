@@ -5,6 +5,8 @@ date: "11/08/2017"
 output: html_document
 ---
 
+## Load data
+
 Works as-is when pasted into the terminal with `getwd() == [...]/sv_benchmark`. Also knits OK.
 
 ```{r}
@@ -13,18 +15,31 @@ source("shinyCache2.R")
 source("libplot.R")
 
 require("tidyverse")
+require("cowplot")
+
+caller_ids <- c(
+    "acd889cc16741fb0fba62faa4f7005f3",
+    "8dcad8fe04f4ebc0ad3254ab4420cdc8")
 
 callmat <- .LoadCallMatrixForIds(
-	datadir="./data.chm",
-	metadata=LoadCachedMetadata("./data.chm"),
-	ids=c("acd889cc16741fb0fba62faa4f7005f3", "8dcad8fe04f4ebc0ad3254ab4420cdc8"),
-	maxgap=200,
-	sizemargin=0.25,
-	ignore.strand=TRUE,
-	grtransform=.primaryHumanOnly,
-	grtransformName="test"
+	datadir = "./data.chm",
+	metadata = LoadCachedMetadata("./data.chm"),
+	ids = caller_ids,
+	maxgap = 200,
+	sizemargin = 0.25,
+	ignore.strand = TRUE,
+	grtransform= .primaryHumanOnly,
+	grtransformName= "test"
 )
+```
 
+```{r}
+getCacheRootPath()
+```
+
+### As data frame
+
+```{r}
 callmat_df <-
     callmat %>%
     as.data.frame() %>%
@@ -33,6 +48,56 @@ callmat_df <-
 callmat_df
 ```
 
+### Some exploration
+
 ```{r}
-getCacheRootPath()
+sum(callmat_df$QUAL == -1)
 ```
+
+Showing the different scales of the (query) QUAL scores, and the different
+counts of variants called by caller:
+
+```{r}
+qplot(log10(QUAL), data = callmat_df) + 
+    facet_wrap(
+        ~Id,
+        scales = "free_y")
+```
+
+
+## As long data frame
+
+```{r}
+callmat_df_long <-
+    callmat_df %>% 
+    gather(
+        16:18, 
+        key = subject_id, 
+        value = subject_qual) %>%
+    filter(
+        subject_qual != -1)
+
+callmat_df_long
+```
+
+### Truth stacked barplot
+
+```{r}
+
+```
+
+### Matrix of rank scatterplots
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
