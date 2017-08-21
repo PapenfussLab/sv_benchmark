@@ -85,12 +85,13 @@ callmat_df_long <-
     callmat_df %>% 
     gather(
         17:(17 + length(caller_ids) - 1), 
-        key = subject_id, 
-        value = subject_qual) %>%
+        key = subject_vcf_id, 
+        value = subject_vcf_qual) %>%
     filter(
-        subject_qual != -1) %>%
+        subject_vcf_qual != -1) %>%
     rename(
-        query_id = Id)
+        query_vcf_qual = QUAL,
+        query_vcf_id = Id)
 
 callmat_df_long
 ```
@@ -101,17 +102,32 @@ callmat_df_long
 truth_query_df <-
     callmat_df_long %>%
     filter(
-        query_id == "00000000000000000000000000000001")
+        query_vcf_id == "00000000000000000000000000000001")
 ```
 
 ### Truth stacked barplot
 
+```{r}
+## What does VcfId represent?
+truth_query_df %>% group_by(vcfId) %>% summarise(count = n())
+## Most of these are 2.
+```
 
+### Matrix of rank correlations
 
-### Matrix of rank scatterplots
+This is not doing what I want/hoped:
 
 ```{r}
+corr_df <- 
+    callmat_df_long %>% 
+    group_by(query_vcf_id, subject_vcf_id) %>% 
+    summarise(
+        spearman_corr = cor(
+            query_vcf_qual, 
+            subject_vcf_qual,
+            method = "spearman"))
 
+corr_df
 ```
 
 
