@@ -466,10 +466,14 @@ import.sv.bedpe.dir <- function(dir) {
 	names(grlist) <- ids
 	allgr <- GRangesList(grlist)
 	allgr <- unlist(allgr, recursive=TRUE, use.names=FALSE)
-	for (qid in ids) {
-		colname <- paste0("Id", qid)
+	# initialise to -1 to indicate no match
+	for (id in ids) {
+		colname <- paste0("Id", id)
 		mcols(allgr)[[colname]] <- -1
+	}
+	for (qid in ids) {
 		for (sid in ids) {
+			colname <- paste0("Id", sid)
 			if (qid <= sid) {
 				mcols(allgr[allgr$Id==qid])[[colname]] <- .CacheMatchingQuals(grlist[[qid]], grlist[[sid]], datadir, qid, sid, maxgap, sizemargin, ignore.strand, grtransformName)$bestSubjectQUALforQuery
 			} else {
@@ -497,11 +501,11 @@ import.sv.bedpe.dir <- function(dir) {
 		hits$queryQUAL <- querygr$QUAL[hits$queryHits]
 		hits$subjectQUAL <- subjectgr$QUAL[hits$subjectHits]
 
-		hits <- hits[order(-hits$queryQUAL),] # sort by qual so the highest QUAL writes last when doing assignments
+		hits <- hits[order(hits$queryQUAL),] # sort by qual so the highest QUAL writes last when doing assignments
 		bestQueryQUALforSubject <- rep(missingQUAL, length(subjectgr)) # -1 for mismatch
 		bestQueryQUALforSubject[hits$subjectHits] <- hits$queryQUAL
 
-		hits <- hits[order(-hits$subjectQUAL),]
+		hits <- hits[order(hits$subjectQUAL),]
 		bestSubjectQUALforQuery <- rep(missingQUAL, length(querygr))
 		bestSubjectQUALforQuery[hits$queryHits] <- hits$subjectQUAL
 		return(list(bestQueryQUALforSubject=bestQueryQUALforSubject, bestSubjectQUALforQuery=bestSubjectQUALforQuery))

@@ -1,6 +1,11 @@
 #!/usr/bin/env Rscript
 source("global.R")
 source("shinyCache2.R")
+library(ggplot2)
+library(scales)
+datadir <- "../data.chm"
+setCacheRootPath(datadir)
+
 library("optparse")
 parser <- OptionParser(option_list=list(
 	make_option(c("-p", "--plot"), action="store_true", default=FALSE, help="Generate plots")
@@ -12,12 +17,11 @@ write(commandArgs(trailingOnly=TRUE), stderr())
 write(names(opt), stderr())
 write(opt$plot, stderr())
 
-library(ggplot2)
-library(scales)
+
 
 fdf <- .LoadGraphDataFrame(TRUE, TRUE, 51, NULL, "DEL", 100,
-		datadir="../data.chm",
-		metadata=LoadCachedMetadata("../data.chm"),
+		datadir=datadir,
+		metadata=LoadCachedMetadata(datadir),
 		maxgap=200,
 	sizemargin=0.25,
 	ignore.strand=TRUE,
@@ -27,9 +31,32 @@ fdf <- .LoadGraphDataFrame(TRUE, TRUE, 51, NULL, "DEL", 100,
 	grtransform=.primaryHumanOnly,
 	grtransformName="test")
 
+
+dellymat <- .LoadCallMatrixForIds(
+	datadir=datadir,
+	metadata=LoadCachedMetadata(datadir),
+	ids=c("9d134f160ac68c0445002fbb78db4a5e"), # why does DELLY require so much memory?
+	ignore.interchromosomal=TRUE, mineventsize=51, maxeventsize=NULL,
+	maxgap=200,
+	sizemargin=0.25,
+	ignore.strand=TRUE,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test"
+)
+mantamat <- .LoadCallMatrixForIds(
+	datadir=datadir,
+	metadata=LoadCachedMetadata(datadir),
+	ids=c("00000000000000000000000000000001", "16c58fbcc5633564b10ebe8f78d87883"),
+	ignore.interchromosomal=TRUE, mineventsize=51, maxeventsize=NULL,
+	maxgap=200,
+	sizemargin=0.25,
+	ignore.strand=TRUE,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test"
+)
 callmat <- .LoadCallMatrixForIds(
-	datadir="../data.chm",
-	metadata=LoadCachedMetadata("../data.chm"),
+	datadir=datadir,
+	metadata=LoadCachedMetadata(datadir),
 	#ids=c("acd889cc16741fb0fba62faa4f7005f3", "8dcad8fe04f4ebc0ad3254ab4420cdc8"),
 	ids=c(
 		"00000000000000000000000000000001",
@@ -37,9 +64,9 @@ callmat <- .LoadCallMatrixForIds(
 		"40c68f29b6d7cb2358f31a7073250406",
 		"43a13d07730deb934e9fc01e3b3cd26f",
 		"8dcad8fe04f4ebc0ad3254ab4420cdc8",
-		"9d134f160ac68c0445002fbb78db4a5e",
 		"acd889cc16741fb0fba62faa4f7005f3",
-		"b1112f1c3cbd28c464f58fc5c5c02f9b"),
+		"b1112f1c3cbd28c464f58fc5c5c02f9b",
+		"9d134f160ac68c0445002fbb78db4a5e"),
 	ignore.interchromosomal=TRUE, mineventsize=51, maxeventsize=NULL,
 	maxgap=200,
 	sizemargin=0.25,
@@ -49,8 +76,8 @@ callmat <- .LoadCallMatrixForIds(
 )
 
 gdf <- .LoadGraphDataFrameForId(TRUE, TRUE, 51, NULL, "DEL", 100,
-		datadir="../data.chm",
-		metadata=LoadCachedMetadata("../data.chm"),
+		datadir=datadir,
+		metadata=LoadCachedMetadata(datadir),
 		id="b1112f1c3cbd28c464f58fc5c5c02f9b",
 		maxgap=200,
 	sizemargin=0.25,
@@ -80,8 +107,8 @@ calldf <- calldf %>%
 	mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative")))
 
 callgr <- .CachedTransformVcf(
-	datadir="../data.chm",
-	metadata=LoadCachedMetadata("../data.chm"),
+	datadir=datadir,
+	metadata=LoadCachedMetadata(datadir),
 	id="acd889cc16741fb0fba62faa4f7005f3",
 	ignore.interchromosomal=TRUE, mineventsize=51, maxeventsize=NULL,
 	grtransform=.primaryHumanOnly,
@@ -89,8 +116,8 @@ callgr <- .CachedTransformVcf(
 	nominalPosition=FALSE)
 
 callgr <- .CachedTransformVcf(
-	datadir="../data.chm",
-	metadata=LoadCachedMetadata("../data.chm"),
+	datadir=datadir,
+	metadata=LoadCachedMetadata(datadir),
 	id="acd889cc16741fb0fba62faa4f7005f3",
 	grtransform=.primaryHumanOnly,
 	grtransformName="test",
