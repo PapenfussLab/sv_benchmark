@@ -31,10 +31,13 @@ caller_ids <- c(
 	"9d134f160ac68c0445002fbb78db4a5e",
 	"acd889cc16741fb0fba62faa4f7005f3",
 	"b1112f1c3cbd28c464f58fc5c5c02f9b")
+
+data_dir <- "../data.chm"
+    
     
 callmat <- .LoadCallMatrixForIds(
-	datadir = "../data.chm",
-	metadata = LoadCachedMetadata("../data.chm"),
+	datadir = data_dir,
+	metadata = LoadCachedMetadata(data_dir),
 	ids = caller_ids,
 	ignore.interchromosomal = TRUE, 
 	mineventsize = 51, 
