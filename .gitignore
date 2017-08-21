@@ -10,3 +10,6 @@
 R/exploratory_plots.html
 *.Rdata
 *.Rhistory
+data.chm/
+input.chm/
+input.common/
