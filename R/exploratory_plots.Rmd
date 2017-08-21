@@ -31,7 +31,7 @@ caller_ids <- c(
 	"9d134f160ac68c0445002fbb78db4a5e",
 	"acd889cc16741fb0fba62faa4f7005f3",
 	"b1112f1c3cbd28c464f58fc5c5c02f9b")
-
+    
 callmat <- .LoadCallMatrixForIds(
 	datadir = "../data.chm",
 	metadata = LoadCachedMetadata("../data.chm"),
@@ -43,8 +43,7 @@ callmat <- .LoadCallMatrixForIds(
 	sizemargin = 0.25,
 	ignore.strand = TRUE,
 	grtransform = .primaryHumanOnly,
-	grtransformName = "test"
-)
+	grtransformName = "test")
 ```
 
 ```{r}
@@ -85,20 +84,29 @@ qplot(log10(QUAL), data = callmat_df) +
 callmat_df_long <-
     callmat_df %>% 
     gather(
-        16:18, 
+        17:(17 + length(caller_ids) - 1), 
         key = subject_id, 
         value = subject_qual) %>%
     filter(
-        subject_qual != -1)
+        subject_qual != -1) %>%
+    rename(
+        query_id = Id)
 
 callmat_df_long
 ```
 
-### Truth stacked barplot
+#### Truth-as-query df
 
 ```{r}
-
+truth_query_df <-
+    callmat_df_long %>%
+    filter(
+        query_id == "00000000000000000000000000000001")
 ```
+
+### Truth stacked barplot
+
+
 
 ### Matrix of rank scatterplots
 
