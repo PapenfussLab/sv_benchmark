@@ -112,6 +112,9 @@ truth_query_df <-
 truth_query_df %>% group_by(vcfId) %>% summarise(count = n())
 ## Most of these are 2.
 ```
+```{r}
+(truth_query_df %>% group_by(vcfId) %>% summarise(count = n()))$count %>% table
+```
 
 ### Matrix of rank correlations
 
