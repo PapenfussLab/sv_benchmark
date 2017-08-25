@@ -475,9 +475,11 @@ import.sv.bedpe.dir <- function(dir) {
 		for (sid in ids) {
 			colname <- paste0("Id", sid)
 			if (qid <= sid) {
-				mcols(allgr[allgr$Id==qid])[[colname]] <- .CacheMatchingQuals(grlist[[qid]], grlist[[sid]], datadir, qid, sid, maxgap, sizemargin, ignore.strand, grtransformName)$bestSubjectQUALforQuery
+				cmq <- .CacheMatchingQuals(grlist[[qid]], grlist[[sid]], datadir, qid, sid, maxgap, sizemargin, ignore.strand, grtransformName)
+				mcols(allgr[allgr$Id==qid])[[colname]] <- cmq$bestSubjectQUALforQuery
 			} else {
-				mcols(allgr[allgr$Id==qid])[[colname]] <- .CacheMatchingQuals(grlist[[sid]], grlist[[qid]], datadir, sid, qid, maxgap, sizemargin, ignore.strand, grtransformName)$bestQueryQUALforSubject
+				cmq <- .CacheMatchingQuals(grlist[[sid]], grlist[[qid]], datadir, sid, qid, maxgap, sizemargin, ignore.strand, grtransformName)
+				mcols(allgr[allgr$Id==qid])[[colname]] <- cmq$bestQueryQUALforSubject
 			}
 		}
 	}
@@ -496,19 +498,38 @@ import.sv.bedpe.dir <- function(dir) {
 	}
 	return(result)
 }
-.findMatchingQuals <- function(querygr, subjectgr, maxgap, sizemargin, ignore.strand, missingQUAL=-1) {
+.findMatchingQuals <- function(querygr, subjectgr, maxgap, sizemargin, ignore.strand, missingQUAL=-1, duplicateHitQUAL=-2) {
 		hits <- findBreakpointOverlaps(querygr, subjectgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
 		hits$queryQUAL <- querygr$QUAL[hits$queryHits]
 		hits$subjectQUAL <- subjectgr$QUAL[hits$subjectHits]
 
-		hits <- hits[order(hits$queryQUAL),] # sort by qual so the highest QUAL writes last when doing assignments
-		bestQueryQUALforSubject <- rep(missingQUAL, length(subjectgr)) # -1 for mismatch
-		bestQueryQUALforSubject[hits$subjectHits] <- hits$queryQUAL
+		bestQueryQUALforSubject <- rep(missingQUAL, length(subjectgr))
+		if (is.null(duplicateHitQUAL)) {
+			hits <- hits[order(hits$queryQUAL),] # sort by qual so the highest QUAL writes last when doing assignments
+			bestQueryQUALforSubject[hits$subjectHits] <- hits$queryQUAL
+		} else {
+			bestQueryQUALforSubject[hits$subjectHits] <- duplicateHitQUAL
+			# take only the highest scoring hit
+			hits <- hits[order(-hits$subjectQUAL, hits$queryQUAL),]
+			bestHits <- hits[!duplicated(hits$queryHits),]
+			bestQueryQUALforSubject[bestHits$subjectHits] <- bestHits$queryQUAL
+		}
 
-		hits <- hits[order(hits$subjectQUAL),]
 		bestSubjectQUALforQuery <- rep(missingQUAL, length(querygr))
-		bestSubjectQUALforQuery[hits$queryHits] <- hits$subjectQUAL
-		return(list(bestQueryQUALforSubject=bestQueryQUALforSubject, bestSubjectQUALforQuery=bestSubjectQUALforQuery))
+		if (is.null(duplicateHitQUAL)) {
+			hits <- hits[order(hits$subjectQUAL),] # sort by qual so the highest QUAL writes last when doing assignments
+			bestSubjectQUALforQuery[hits$queryHits] <- hits$subjectQUAL
+		} else {
+			bestSubjectQUALforQuery[hits$queryHits] <- duplicateHitQUAL
+			# take only the highest scoring hit
+			hits <- hits[order(-hits$queryQUAL, hits$subjectQUAL),]
+			bestHits <- hits[!duplicated(hits$subjectHits),]
+			bestSubjectQUALforQuery[bestHits$queryHits] <- bestHits$subjectQUAL
+		}
+
+		return(list(
+			bestQueryQUALforSubject=bestQueryQUALforSubject,
+			bestSubjectQUALforQuery=bestSubjectQUALforQuery))
 }
 .FilteredTransformVcf <- function(datadir, metadata, id,
 																	ignore.interchromosomal, mineventsize, maxeventsize,

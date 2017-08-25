@@ -134,6 +134,7 @@ truth_hit_count_df$hit_count %>% table
 Maybe it would be worth including a negative for over-called values
 
 ```{r}
+require(stringr)
 abbreviate_id <- function(vcf_id) {
     str_sub(vcf_id, -7, -1)
 }
@@ -147,8 +148,7 @@ truth_query_barplot <-
         x = abbreviate_id(subject_vcf_id))) +
     scale_y_continuous(expand = c(0,0)) +
     geom_bar(aes(fill = factor(hit_count)), color = "black") +
-    scale_fill_brewer() +
-    coord_flip()
+    scale_fill_brewer()
     
 truth_query_barplot
 ```
