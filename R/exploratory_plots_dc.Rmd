@@ -61,7 +61,7 @@ callgr <- .LoadCallMatrixForIds(
 	grtransform=.primaryHumanOnly,
 	grtransformName="test"
 )
-callgr <- callgr[simpleEventType(callgr) == "DEL"]
+# callgr <- callgr[simpleEventType(callgr) == "DEL"]
 
 source("sv_benchmark.R")
 callgr$simpleEvent <- simpleEventType(callgr)
@@ -228,6 +228,76 @@ ggplot(df) +
 	#stat_smooth(method="gam", method.args=list(family=binomial()))
 ```
 
+Trying a stacked plot w/ a histogram:
+
+```{r}
+require(cowplot)
+
+test_df <- 
+    df %>%
+    filter(id == "1139a1e6ef2d598098fe5c2ff609052a")
+
+ci_plot <-
+    test_df %>%
+    ggplot() +
+	aes(x=logqmean,
+		ymin=prec_lower,
+		y=prec,
+		ymax=prec_upper) +
+	coord_cartesian(ylim=c(0,1)) + 
+	geom_errorbar(aes(alpha = n > 10), color = "grey70") +
+    scale_alpha_manual(values = c(0, 1)) +
+	geom_point(aes(color = n > 10)) +
+    scale_color_manual(values = c("grey70", "#396AB1")) +
+    cowplot::theme_cowplot() +
+    cowplot::background_grid(major = "xy", minor = "none") +
+    theme(
+        legend.position = "none",
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        plot.margin = unit(c(1, 1, -0.2, 1), "lines"))
+
+hist_plot <-
+    test_df %>%
+    ggplot() +
+    aes(x = logqmean, y = -log10(n)) +
+    geom_col(
+        # Width manually in here?
+    ) +
+    cowplot::theme_nothing() +
+    theme(
+        plot.margin = unit(c(0, 1, 1, 1), "lines")) +
+    scale_y_continuous(expand = c(0,0))
+```
+
+```{r}
+ci_plot
+```
+
+```{r}
+hist_plot
+```
+
+```{r}
+hist_grob <-
+    ggplotGrob(hist_plot)
+
+ci_grob <-
+    ggplotGrob(ci_plot)
+```
+
+```{r}
+require(gtable)
+require(gridExtra)
+
+g <- gridExtra::rbind.gtable(
+    ci_grob, hist_grob, 
+    size = "first")
+
+grid.newpage()
+grid.draw(g)
+```
 
 Try raw smoothing
 ```{r}
