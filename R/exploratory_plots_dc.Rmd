@@ -265,10 +265,17 @@ hist_plot <-
     geom_col(
         # Width manually in here?
     ) +
-    cowplot::theme_nothing() +
+    # cowplot::theme_nothing() +
+    cowplot::background_grid(major = "xy", minor = "none") +
     theme(
+        axis.line = element_blank(),
+        axis.ticks = element_blank(),
         plot.margin = unit(c(0, 1, 1, 1), "lines")) +
-    scale_y_continuous(expand = c(0,0))
+    scale_y_continuous(
+        expand = c(0,0)
+        # Doesn't appear to work yet
+        # breaks = function(y_limits) {1:(y_limits[2] + 1)}
+        )
 ```
 
 ```{r}
@@ -294,6 +301,36 @@ require(gridExtra)
 g <- gridExtra::rbind.gtable(
     ci_grob, hist_grob, 
     size = "first")
+
+grid.newpage()
+grid.draw(g)
+```
+
+Try `grid.arrange` -- note that it doesn't handle the shared
+axes properly:
+
+```{r}
+g1 <- grid.arrange(
+    ci_grob, hist_grob, ncol = 1)
+
+grid.newpage()
+grid.draw(g1)
+```
+
+Rearrange heights above via the approach at ```http://felixfan.github.io/stacking-plots-same-x/#different-heights-same-widths```
+
+```{r}
+ci_built <-
+    ggplot_build(ci_plot)
+
+hist_built <-
+    ggplot_build(hist_plot)
+
+layout_indices <- grep("panel", g$layout$name)
+
+panels <- g$layout$t[layout_indices]
+
+g$heights[panels] <- g$heights[panels] * c(3,1)
 
 grid.newpage()
 grid.draw(g)
