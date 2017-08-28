@@ -452,41 +452,69 @@ import.sv.bedpe.dir <- function(dir) {
 		ignore.interchromosomal, mineventsize, maxeventsize,
 		maxgap, sizemargin, ignore.strand,
 		# .CachedTransformVcf
-		grtransform, grtransformName) {
+		grtransform, grtransformName, nominalPosition) {
 	# include truth in table
 	truthids <- GetId((metadata %>% filter(Id %in% ids))$CX_REFERENCE_VCF)
 	ids <- unique(c(ids, truthids))
 	grlist <- lapply(ids, function(id) {
 		gr <- .FilteredTransformVcf(datadir=datadir, metadata=metadata, id=id,
 			ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize,
-			grtransform=grtransform, grtransformName=grtransformName, nominalPosition=FALSE)
+			grtransform=grtransform, grtransformName=grtransformName, nominalPosition=nominalPosition)
 		gr$Id <- id
+		names(gr) <- paste0("Id", id, names(gr))
+		gr$partner <- paste0("Id", id, gr$partner)
 		return(gr)
 	})
 	names(grlist) <- ids
 	allgr <- GRangesList(grlist)
 	allgr <- unlist(allgr, recursive=TRUE, use.names=FALSE)
+	allgr$ignore.filtered=FALSE
+
+	allgrfiltered <- GRangesList(grlist)
+	allgrfiltered <- unlist(allgr, recursive=TRUE, use.names=FALSE)
+	allgrfiltered$ignore.filtered=TRUE
+	allgrfiltered <- allgrfiltered[allgrfiltered$FILTER %in% c(".", "PASS")]
+	names(allgrfiltered) <- paste0("f", names(allgrfiltered))
+	allgrfiltered$partner <- paste0("f", allgrfiltered$partner)
+	allgr <- c(allgr, allgrfiltered)
+
 	# initialise to -1 to indicate no match
 	for (id in ids) {
 		colname <- paste0("Id", id)
 		mcols(allgr)[[colname]] <- -1
+		colname <- paste0("fId", id)
+		mcols(allgr)[[colname]] <- -1
 	}
-	for (qid in ids) {
-		for (sid in ids) {
-			colname <- paste0("Id", sid)
-			if (qid <= sid) {
-				cmq <- .CacheMatchingQuals(grlist[[qid]], grlist[[sid]], datadir, qid, sid, maxgap, sizemargin, ignore.strand, grtransformName)
-				mcols(allgr[allgr$Id==qid])[[colname]] <- cmq$bestSubjectQUALforQuery
-			} else {
-				cmq <- .CacheMatchingQuals(grlist[[sid]], grlist[[qid]], datadir, sid, qid, maxgap, sizemargin, ignore.strand, grtransformName)
-				mcols(allgr[allgr$Id==qid])[[colname]] <- cmq$bestQueryQUALforSubject
+	for (ignore.filtered.q in c(TRUE, FALSE)) {
+		for (ignore.filtered.s in c(TRUE, FALSE)) {
+			for (qid in ids) {
+				for (sid in ids) {
+					colname <- paste0(ifelse(ignore.filtered.s, "", "f"), "Id", sid)
+					qgr <- grlist[[qid]]
+					if (ignore.filtered.q) {
+						qgr <- qgr[qgr$FILTER %in% c(".", "PASS")]
+					}
+					sgr <- grlist[[sid]]
+					if (ignore.filtered.s) {
+						sgr <- sgr[sgr$FILTER %in% c(".", "PASS")]
+					}
+					if (qid <= sid) {
+						cmq <- .CacheMatchingQuals(qgr, sgr, datadir, qid, sid, maxgap, sizemargin, ignore.strand, grtransformName)
+						mcols(allgr[allgr$Id==qid & allgr$ignore.filtered==ignore.filtered.q])[[colname]] <- cmq$bestSubjectQUALforQuery
+					} else {
+						cmq <- .CacheMatchingQuals(sgr, qgr, datadir, sid, qid, maxgap, sizemargin, ignore.strand, grtransformName)
+						mcols(allgr[allgr$Id==qid & allgr$ignore.filtered==ignore.filtered.q])[[colname]] <- cmq$bestQueryQUALforSubject
+					}
+				}
 			}
 		}
 	}
 	return(allgr)
 }
 .CacheMatchingQuals <- function(querygr, subjectgr, datadir, queryid, subjectid, maxgap, sizemargin, ignore.strand, grtransformName) {
-	cachekey <- list(datadir, queryid, subjectid, maxgap, sizemargin, ignore.strand, grtransformName)
+	cachekey <- list(datadir, queryid, subjectid, maxgap, sizemargin, ignore.strand, grtransformName,
+		# effectively the same as adding ignore.filtered but reuses the cache entry
+		queryLength=length(querygr), subjectLength=length(subjectgr))
 	cachedir <- ".Rcache/pairwiseQUAL"
 	result <- loadCache(key=cachekey, dirs=cachedir)
 	if (is.null(result)) {

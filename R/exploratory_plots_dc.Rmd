@@ -26,7 +26,8 @@ callmat <- .LoadCallMatrixForIds(
 	sizemargin=0.25,
 	ignore.strand=TRUE,
 	grtransform=.primaryHumanOnly,
-	grtransformName="test"
+	grtransformName="test",
+	nominalPosition=FALSE
 )
 
 datadir <- "../data.na12878"
@@ -36,7 +37,7 @@ ids <- c(
 		"6ae03359fcf0a39aa236a0aaea7ea915",
 		"8aaf2886ffe782e666661d6b890b330a",
 		"80dd0c2aa34964f330702ee3d0bfa53f",
-		"1139a1e6ef2d598098fe5c2ff609052a",
+		#"1139a1e6ef2d598098fe5c2ff609052a", manta/0.29.6
 		"26511afa5055a939fdf99a2ac24938cc",
 		"a6cbc4fc76337d871ef899d51fbae0d9",
 		"b6aeda0d81ff8c839e381b57898dc3d8",
@@ -59,15 +60,16 @@ callgr <- .LoadCallMatrixForIds(
 	sizemargin=0.25,
 	ignore.strand=TRUE,
 	grtransform=.primaryHumanOnly,
-	grtransformName="test"
+	grtransformName="test",
+	nominalPosition=FALSE
 )
 # callgr <- callgr[simpleEventType(callgr) == "DEL"]
 
 source("sv_benchmark.R")
 callgr$simpleEvent <- simpleEventType(callgr)
 callgr <- callgr[!is.na(callgr$svLen) & abs(callgr$svLen) < 50000]
-names(callgr) <- NULL # could be duplicates
 callgr$QUAL[is.na(callgr$QUAL)] <- 1
+callgr$CallSet <- ifelse(callgr$ignore.filtered, "All calls", "Default calls")
 
 ```
 
@@ -92,19 +94,21 @@ Rolling window of precision
 require(tidyverse)
 require(zoo)
 require(ggplot2)
-for (id in ids) {
-	print(data.frame(qual=callgr[callgr$Id==id]$QUAL, tp=callgr[callgr$Id==id]$Id00000000000000000000000000000001 != -1) %>%
-		arrange(qual) %>%
-		mutate(
-			windowprec100=rollmean(tp, k=100, fill=FALSE, align="right"),
-			windowprec250=rollmean(tp, k=250, fill=FALSE, align="right"),
-			windowprec1000=rollmean(tp, k=1000, fill=FALSE, align="right")
-			) %>%
-		ggplot(aes(x=qual)) +
-		geom_point(aes(y=windowprec100), colour="red") +
-		geom_point(aes(y=windowprec250), colour="green") +
-		geom_point(aes(y=windowprec1000), colour="blue"))
-}
+
+data.frame(Id=callgr$Id, CallSet=callgr$CallSet, qual=callgr$QUAL, tp=callgr$Id00000000000000000000000000000001 != -1) %>%
+	group_by(Id, CallSet) %>%
+	arrange(qual) %>%
+	mutate(
+		windowprec100=rollmean(tp, k=100, fill=FALSE, align="right"),
+		windowprec250=rollmean(tp, k=250, fill=FALSE, align="right"),
+		windowprec1000=rollmean(tp, k=1000, fill=FALSE, align="right")
+		) %>%
+	ggplot(aes(x=qual)) +
+	geom_point(aes(y=windowprec100), colour="red") +
+	geom_point(aes(y=windowprec250), colour="green") +
+	geom_point(aes(y=windowprec1000), colour="blue") +
+	coord_cartesian(ylim=c(0,1))
+	facet_wrap(~ Id + CallSet, scales="free")
 ```
 
 Leon suggested that a lowess fit was more appropriate as it weights nearby points according to their distance in QUAL space
@@ -200,15 +204,15 @@ for (id in ids) {
 ```{r}
 require(binom)
 df <- data.frame(
-		id=callgr$Id,
+		Id=callgr$Id,
 		q=callgr$QUAL,
 		logq=log10(callgr$QUAL + 1),
 		tp=callgr$Id00000000000000000000000000000001 != -1) %>%
-	group_by(id) %>%
+	group_by(Id) %>%
 	mutate(
 		qbin=as.numeric(as.character(cut(q, breaks=(0:100)/100*max(q), labels=(0:99)/100*max(q)))),
 		logqbin=as.numeric(as.character(cut(logq, breaks=(0:100)/100*max(logq), labels=(0:99)/100*max(logq))))) %>%
-	group_by(id, logqbin) %>%
+	group_by(Id, logqbin) %>%
 	summarise(
 		qmean=mean(q),
 		logqmean=mean(logq),
@@ -224,7 +228,7 @@ ggplot(df) +
 	coord_cartesian(ylim=c(0,1)) + 
 	geom_errorbar(aes(alpha=pmin(1, n/20))) +
 	geom_point(colour="blue") + #aes(size=log10(n)), 
-	facet_wrap(~ id, scales="free")
+	facet_grip(~ Id + CallSet, scales="free")
 	#stat_smooth(method="gam", method.args=list(family=binomial()))
 ```
 
@@ -357,23 +361,28 @@ Precision/recall plot
 
 ```{r}
 
-callgr$caller_hits_ex_truth <- rowSums(as.matrix(as.data.frame(mcols(callgr)[,str_detect(names(mcols(callgr)), "Id[a-f0-9]+") &
-		!(names(mcols(callgr)) %in% c(
-			"Id00000000000000000000000000000000",
-			"Id00000000000000000000000000000001",
-			"Id00000000000000000000000000000002",
-			"Id00000000000000000000000000000003"))])) != -1)
+callgr$caller_hits_ex_truth <- rowSums(as.matrix(as.data.frame(mcols(callgr)[,
+	str_detect(names(mcols(callgr)), "^fId[a-f0-9]+") & !(names(mcols(callgr)) %in% c(
+			"fId00000000000000000000000000000000",
+			"fId00000000000000000000000000000001",
+			"fId00000000000000000000000000000002",
+			"fId00000000000000000000000000000003"))])) != -1)
 
-rocby <- function(callgr, ..., rocSlicePoints=100, truthid="00000000000000000000000000000001") {
-	eventCount <- sum(callgr$Id == truthid)
+rocby <- function(callgr, ..., rocSlicePoints=100, truthid="00000000000000000000000000000001", ignore.duplicates=TRUE) {
 	groupingCols <- quos(...)
 	callgr$truth <- mcols(callgr)[[paste0("Id",truthid)]]
+	# TODO: filter duplicate calls
+	if (ignore.duplicates) {
+		# ignore calls that have a -2 in the truth column (don't touch the truth set though!)
+		callgr <- callgr[callgr$Id != truthid & callgr$truth != -2]
+	}
+	eventCount <- sum(callgr$Id == truthid)
 	as.data.frame(callgr) %>%
 		dplyr::select(Id, CallSet, !!!groupingCols, QUAL, truth) %>%
 		group_by(Id, CallSet, !!!groupingCols, QUAL) %>%
 		summarise(
-			fp=sum(truth == -1),
-			tp=sum(truth != -1)) %>%
+			fp=sum(truth < 0),
+			tp=sum(truth >= 0)) %>%
 		group_by(Id, CallSet, !!!groupingCols) %>%
 		arrange(desc(QUAL)) %>%
 		mutate(
@@ -438,11 +447,11 @@ ggplot(rocby(callgr, caller_hits_ex_truth, truthid="0000000000000000000000000000
 	aes(y=precision, x=tp, colour=Id, linetype=CallSet) +
 	geom_line() +
 	facet_wrap( ~ caller_hits_ex_truth, scale="free") + 
-	scale_colour_brewer(palette="Set1")
-	labs(title="Precision-Recall by number of callers sharing call")
+	scale_colour_brewer(palette="Set1") + 
+	labs(title="Precision-Recall by number of callers sharing call") +
+	coord_cartesian(ylim=c(0,1))
 
 ```
-
 
 Overall ROCs by truth set
 
@@ -461,6 +470,23 @@ ggplot(rocfull %>% filter(!(Id %in% c("00000000000000000000000000000000", "00000
 
 ```
 
+By SNP/indel context
+
+```{r}
+callgr$snp50bpbin <- cut(callgr$snp50bp, breaks=c(0, 1, 2, 3, 4, 5, 1000), right=FALSE)
+ggplot(rocby(callgr, snp50bpbin, truthid="00000000000000000000000000000003") %>%
+		filter(!(Id %in% c(
+			"00000000000000000000000000000000",
+			"00000000000000000000000000000001",
+			"00000000000000000000000000000002",
+			"00000000000000000000000000000003")))) +
+	aes(y=precision, x=tp, colour=Id, linetype=CallSet) +
+	geom_line() +
+	facet_wrap( ~ snp50bpbin, scale="free") + 
+	scale_colour_brewer(palette="Set1")
+	labs(title="Precision-Recall by number of flanking SNVs/indels")
+
+```
 
 Missed by GRIDSS
 ```{r}
