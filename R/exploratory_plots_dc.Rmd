@@ -220,6 +220,7 @@ df <- data.frame(
 		prec=sum(tp)/n(),
 		prec_lower=binom.confint(sum(tp), n(), 0.95, methods="exact")$lower,
 		prec_upper=binom.confint(sum(tp), n(), 0.95, methods="exact")$upper)
+
 ggplot(df) +
 	aes(x=logqmean,
 		ymin=prec_lower,
@@ -228,7 +229,9 @@ ggplot(df) +
 	coord_cartesian(ylim=c(0,1)) + 
 	geom_errorbar(aes(alpha=pmin(1, n/20))) +
 	geom_point(colour="blue") + #aes(size=log10(n)), 
-	facet_grip(~ Id + CallSet, scales="free")
+	facet_grid(
+	    ~ Id # + CallSet
+	    , scales="free")
 	#stat_smooth(method="gam", method.args=list(family=binomial()))
 ```
 
@@ -237,9 +240,12 @@ Trying a stacked plot w/ a histogram:
 ```{r}
 require(cowplot)
 
+test_id <- "26511afa5055a939fdf99a2ac24938cc"
+
 test_df <- 
     df %>%
-    filter(id == "1139a1e6ef2d598098fe5c2ff609052a")
+    ungroup() %>%
+    filter(Id == test_id)
 
 ci_plot <-
     test_df %>%
@@ -249,7 +255,7 @@ ci_plot <-
 		y=prec,
 		ymax=prec_upper) +
 	coord_cartesian(ylim=c(0,1)) + 
-	geom_errorbar(aes(alpha = n > 10), color = "grey70") +
+	geom_linerange(aes(alpha = n > 10), color = "grey70") +
     scale_alpha_manual(values = c(0, 1)) +
 	geom_point(aes(color = n > 10)) +
     scale_color_manual(values = c("grey70", "#396AB1")) +
@@ -260,12 +266,17 @@ ci_plot <-
         axis.text.x = element_blank(),
         axis.title.x = element_blank(),
         axis.ticks.x = element_blank(),
-        plot.margin = unit(c(1, 1, -0.2, 1), "lines"))
+        plot.margin = unit(c(1, 1, -0.2, 1), "lines")) +
+    ggtitle(test_id)
 
 hist_plot <-
     test_df %>%
     ggplot() +
-    aes(x = logqmean, y = -log10(n)) +
+    aes(x = logqmean, y = log10(n)) +
+    scale_y_reverse(
+        expand = c(0,0),
+        breaks = c(1,2,3,4)
+    ) +
     geom_col(
         # Width manually in here?
     ) +
@@ -274,12 +285,7 @@ hist_plot <-
     theme(
         axis.line = element_blank(),
         axis.ticks = element_blank(),
-        plot.margin = unit(c(0, 1, 1, 1), "lines")) +
-    scale_y_continuous(
-        expand = c(0,0)
-        # Doesn't appear to work yet
-        # breaks = function(y_limits) {1:(y_limits[2] + 1)}
-        )
+        plot.margin = unit(c(0, 1, 1, 1), "lines"))
 ```
 
 ```{r}
@@ -301,35 +307,19 @@ ci_grob <-
 ```{r}
 require(gtable)
 require(gridExtra)
+require(grid)
 
 g <- gridExtra::rbind.gtable(
     ci_grob, hist_grob, 
     size = "first")
 
-grid.newpage()
-grid.draw(g)
-```
-
-Try `grid.arrange` -- note that it doesn't handle the shared
-axes properly:
-
-```{r}
-g1 <- grid.arrange(
-    ci_grob, hist_grob, ncol = 1)
-
-grid.newpage()
-grid.draw(g1)
+grid::grid.newpage()
+grid::grid.draw(g)
 ```
 
 Rearrange heights above via the approach at ```http://felixfan.github.io/stacking-plots-same-x/#different-heights-same-widths```
 
 ```{r}
-ci_built <-
-    ggplot_build(ci_plot)
-
-hist_built <-
-    ggplot_build(hist_plot)
-
 layout_indices <- grep("panel", g$layout$name)
 
 panels <- g$layout$t[layout_indices]
@@ -339,6 +329,87 @@ g$heights[panels] <- g$heights[panels] * c(3,1)
 grid.newpage()
 grid.draw(g)
 ```
+
+Package this up into a function:
+
+```{r}
+ci_plot <- function(test_id, test_df) {
+    ci_ggplot <-
+        test_df %>%
+        ggplot() +
+    	aes(x = logqmean,
+    		ymin = prec_lower,
+    		y = prec,
+    		ymax = prec_upper) +
+    	coord_cartesian(ylim = c(0,1)) + 
+    	geom_linerange(aes(alpha = n > 10), color = "grey70") +
+        scale_alpha_manual(values = c(0, 1)) +
+    	geom_point(aes(color = n > 10)) +
+        scale_color_manual(values = c("grey70", "#396AB1")) +
+        cowplot::theme_cowplot() +
+        cowplot::background_grid(major = "xy", minor = "none") +
+        theme(
+            legend.position = "none",
+            axis.text.x = element_blank(),
+            axis.title.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            plot.margin = unit(c(1, 1, -0.2, 1), "lines")) +
+        ggtitle(test_id)
+    
+    return(ci_ggplot)
+}
+
+flipped_hist_plot <- function(test_df) {
+    hist_ggplot <- 
+        test_df %>%
+        ggplot() +
+        aes(x = logqmean, y = log10(n)) +
+        scale_y_reverse(
+            expand = c(0,0),
+            breaks = c(1,2,3,4)
+        ) +
+        geom_col(
+            # Width manually in here?
+        ) +
+        # cowplot::theme_nothing() +
+        cowplot::background_grid(major = "xy", minor = "none") +
+        theme(
+            axis.line = element_blank(),
+            axis.ticks = element_blank(),
+            plot.margin = unit(c(0, 1, 1, 1), "lines"))
+    
+    return(hist_ggplot)
+}
+
+stacked_precision_plot <- function(test_id, df) {
+    test_df <- df[Id == test_id]
+    
+    hist_grob <-
+        flipped_hist_plot(test_df) %>%
+        ggplotGrob(hist_plot)
+
+    ci_grob <-
+        ci_plot(test_id, test_df) %>%
+        ggplotGrob(ci_plot)
+    
+    combined_grob <- 
+        gridExtra::rbind.gtable(
+        ci_grob, hist_grob, 
+        size = "first")
+    
+    layout_indices <- grep("panel", combined_grob$layout$name)
+
+    panels <- combined_grob$layout$t[layout_indices]
+
+    combined_grob$heights[panels] <- 
+        combined_grob$heights[panels] * c(3,1)
+}
+
+
+
+```
+
+
 
 Try raw smoothing
 ```{r}
