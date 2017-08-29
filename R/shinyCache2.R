@@ -463,6 +463,8 @@ import.sv.bedpe.dir <- function(dir) {
 		gr$Id <- id
 		names(gr) <- paste0("Id", id, names(gr))
 		gr$partner <- paste0("Id", id, gr$partner)
+		# Force filters to match on both sides
+		gr$FILTER <- ifelse(gr$FILTER %in% c(".", "PASS"), partner(gr)$FILTER, gr$FILTER)
 		return(gr)
 	})
 	names(grlist) <- ids
