@@ -46,6 +46,7 @@ ids <- c(
 		#"f75b305c5579449e347c1b87832e65d8", #gasv
 		"f849b9493f2dd5dc20b6b7e49e1c89d7",
 		"fa5f9a52d3b67a206cb6e581053a9269")
+
 callgr <- .LoadCallMatrixForIds(
 	datadir=datadir,
 	metadata=LoadCachedMetadata(datadir),
@@ -66,6 +67,7 @@ callgr <- .LoadCallMatrixForIds(
 # callgr <- callgr[simpleEventType(callgr) == "DEL"]
 
 source("sv_benchmark.R")
+metadata <- LoadCachedMetadata(datadir)
 callgr$simpleEvent <- simpleEventType(callgr)
 callgr <- callgr[!is.na(callgr$svLen) & abs(callgr$svLen) < 50000]
 callgr$QUAL[is.na(callgr$QUAL)] <- 1
@@ -250,11 +252,11 @@ test_df <-
 ci_plot <-
     test_df %>%
     ggplot() +
-	aes(x=logqmean,
-		ymin=prec_lower,
-		y=prec,
-		ymax=prec_upper) +
-	coord_cartesian(ylim=c(0,1)) + 
+	aes(x = logqmean,
+		ymin = prec_lower,
+		y = prec,
+		ymax = prec_upper) +
+	coord_cartesian(ylim = c(0,1)) + 
 	geom_linerange(aes(alpha = n > 10), color = "grey70") +
     scale_alpha_manual(values = c(0, 1)) +
 	geom_point(aes(color = n > 10)) +
@@ -333,19 +335,48 @@ grid.draw(g)
 Package this up into a function:
 
 ```{r}
-ci_plot <- function(test_id, test_df) {
+get_binned_qual_data <- function(callgr, bin_by) {
+    
+    df <- data.frame(
+		Id=callgr$Id,
+		q=callgr$QUAL,
+		logq=log10(callgr$QUAL + 1),
+		tp=callgr$Id00000000000000000000000000000001 != -1) %>%
+	group_by(Id) %>%
+	mutate(
+		qbin=as.numeric(as.character(cut(q, breaks=(0:100)/100*max(q), labels=(0:99)/100*max(q)))),
+		logqbin=as.numeric(as.character(cut(logq, breaks=(0:100)/100*max(logq), labels=(0:99)/100*max(logq))))) %>%
+        group_by(Id, .dots = bin_by) %>%
+	summarise(
+		qmean=mean(q),
+		logqmean=mean(logq),
+		n=n(),
+		prec=sum(tp)/n(),
+		prec_lower=binom.confint(sum(tp), n(), 0.95, methods="exact")$lower,
+		prec_upper=binom.confint(sum(tp), n(), 0.95, methods="exact")$upper)
+
+}
+
+
+ci_plot <- function(test_id, test_df, qual_column) {
+    
+    caller_name <- (metadata %>% filter(Id == test_id))$CX_CALLER
+    
     ci_ggplot <-
         test_df %>%
         ggplot() +
-    	aes(x = logqmean,
+    	aes_string(x = qual_column) +
+        aes(
     		ymin = prec_lower,
     		y = prec,
     		ymax = prec_upper) +
     	coord_cartesian(ylim = c(0,1)) + 
-    	geom_linerange(aes(alpha = n > 10), color = "grey70") +
-        scale_alpha_manual(values = c(0, 1)) +
-    	geom_point(aes(color = n > 10)) +
-        scale_color_manual(values = c("grey70", "#396AB1")) +
+    	geom_linerange(
+    	    aes(alpha = factor(n <= 10, levels = c(F, T))), 
+    	    color = "grey70") +
+        scale_alpha_manual(values = c(1, 0)) +
+    	geom_point(aes(color = factor(n <= 10, levels = c(F, T)))) +
+        scale_color_manual(values = c("#396AB1", "grey70")) +
         cowplot::theme_cowplot() +
         cowplot::background_grid(major = "xy", minor = "none") +
         theme(
@@ -354,21 +385,25 @@ ci_plot <- function(test_id, test_df) {
             axis.title.x = element_blank(),
             axis.ticks.x = element_blank(),
             plot.margin = unit(c(1, 1, -0.2, 1), "lines")) +
-        ggtitle(test_id)
+        ggtitle(caller_name)
     
     return(ci_ggplot)
 }
 
-flipped_hist_plot <- function(test_df) {
+flipped_hist_plot <- function(test_df, qual_column) {
+
     hist_ggplot <- 
         test_df %>%
         ggplot() +
-        aes(x = logqmean, y = log10(n)) +
+        aes_string(
+            x = qual_column
+        ) +
+        aes(y = log10(n)) +
         scale_y_reverse(
             expand = c(0,0),
-            breaks = c(1,2,3,4)
-        ) +
-        geom_col(
+            breaks = c(1,2,3,4),
+            ylim = c(0, 4)) +
+        geom_point(
             # Width manually in here?
         ) +
         # cowplot::theme_nothing() +
@@ -381,16 +416,22 @@ flipped_hist_plot <- function(test_df) {
     return(hist_ggplot)
 }
 
-stacked_precision_plot <- function(test_id, df) {
-    test_df <- df[Id == test_id]
+stacked_precision_plot <- function(
+    test_id, callgr, qual_column = "logqmean") {
+    
+    bin_by <- str_replace(qual_column, "mean", "bin")
+    
+    test_df <- 
+        get_binned_qual_data(callgr, bin_by) %>%
+        filter(Id == test_id)
     
     hist_grob <-
-        flipped_hist_plot(test_df) %>%
-        ggplotGrob(hist_plot)
+        flipped_hist_plot(test_df, qual_column) %>%
+        ggplotGrob()
 
     ci_grob <-
-        ci_plot(test_id, test_df) %>%
-        ggplotGrob(ci_plot)
+        ci_plot(test_id, test_df, qual_column) %>%
+        ggplotGrob()
     
     combined_grob <- 
         gridExtra::rbind.gtable(
@@ -403,12 +444,38 @@ stacked_precision_plot <- function(test_id, df) {
 
     combined_grob$heights[panels] <- 
         combined_grob$heights[panels] * c(3,1)
+    
+    return(combined_grob)
 }
 
-
-
+grid.newpage()
+grid.draw(stacked_precision_plot(test_id, callgr, "qmean"))
 ```
 
+All the ids:
+
+```{r}
+all_id_precision_plot_grobs <-
+    map(
+        ids, 
+        (function(caller_id) {
+            caller_name <- (metadata %>% filter(Id == caller_id))$CX_CALLER
+            stacked_precision_plot(
+                caller_id, callgr,
+                ifelse(
+                    StripCallerVersion(caller_name) %in% c("manta", "hydra"),
+                    "qmean",
+                    "logqmean"
+                ))}))
+```
+
+```{r}
+grid.newpage()
+first_four <- do.call(cbind, all_id_precision_plot_grobs[1:4])
+second_four <- do.call(cbind, all_id_precision_plot_grobs[5:8])
+all_eight <- rbind(first_four, second_four)
+grid.draw(all_eight)
+```
 
 
 Try raw smoothing
@@ -576,7 +643,9 @@ Unique by annotation
 truthvcf <- readVcf("../data.chm/00000000000000000000000000000001.vcf", "")
 repeattruth <- info(truthvcf)$REPEAT_TYPE
 names(repeattruth) <- names(rowRanges(truthvcf))
-truthgr <- breakpointRanges(truthvcf, info_columns="REPEAT_TYPE")
+truthgr <- breakpointRanges(truthvcf, 
+                            info_columns="REPEAT_TYPE" # chm-specific
+                            )
 truthgr$repeatAnn <- ifelse(is.na(truthgr$REPEAT_TYPE), "NotMasked", truthgr$REPEAT_TYPE)
 callgr$repeatAnn <- ""
 callgr$repeatAnn[callgr$Id =="00000000000000000000000000000001"] <- repeattruth[callgr$vcfId[callgr$Id =="00000000000000000000000000000001"]]
