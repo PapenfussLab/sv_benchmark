@@ -672,23 +672,94 @@ ggplot(as.data.frame(callgr[callgr$Id =="00000000000000000000000000000001"])) +
 
 ```
 
+## MDS plot
+
+```{r}
+call_df <-
+    mcols(callgr) %>% 
+    as.data.frame() %>% 
+    as.tbl()
+
+call_df_idcols <-
+    call_df %>%
+    select(starts_with("Id"), starts_with("fId"))
+```
+
+### First, with truth as query
+
+```{r}
+call_df_truth_query <-
+    call_df_idcols %>%
+    filter(Id == "00000000000000000000000000000001")
+
+truth_query_hit_matrix <-
+    call_df_truth_query %>%
+    select(-Id) %>%
+    as.matrix %>%
+    (function(x) {x != -1}) %>%
+    t()
+```
+
+#### Using the LogisticPCA package
+
+```{r}
+require(logisticPCA)
+```
+
+```{r}
+logsvd_model <- 
+    logisticSVD(
+        truth_query_hit_matrix, 
+        k = 2)
+```
+
+```{r}
+raw_caller_ids <- 
+    rownames(truth_query_hit_matrix) 
+
+caller_ids <-
+    raw_caller_ids %>%
+    str_replace(".?Id", "")
+
+caller_name_lookup <- 
+    ifelse(is.na(metadata$CX_CALLER),
+           str_trunc(metadata$Id, width = 5, side = "left", ellipsis = ""),
+           metadata$CX_CALLER)
+
+names(caller_name_lookup) <- metadata$Id
+
+caller_names <-
+    caller_name_lookup[caller_ids]
+
+caller_names[is.na(caller_names)] <-
+    names(caller_names)[is.na(caller_names)]
+```
 
 
+```{r}
+require(cowplot)
+require(ggrepel)
+
+exp_fam_pca_plot <-
+    plot(logsvd_model, type = "scores") + 
+    geom_point(aes(color = str_detect(raw_caller_ids, "fId"))) +
+    ggtitle("Exponential Family PCA of call") + 
+    ggrepel::geom_label_repel(aes(label = caller_names)) +
+    cowplot::background_grid(minor = "none")
+
+exp_fam_pca_plot
+```
 
 
+* * * * * *
 
-
-
-
-
-
-
-
-
-
-
-
-
+```{r}
+caller_similarity_matrix <-
+    call_df_idcols %>%
+    select(-Id) %>%
+    as.matrix() %>%
+    (function(x) {x != -1})
+```
 
 
 
