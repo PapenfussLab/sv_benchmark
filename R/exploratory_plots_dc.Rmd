@@ -385,7 +385,8 @@ ci_plot <- function(test_id, test_df, qual_column) {
             axis.title.x = element_blank(),
             axis.ticks.x = element_blank(),
             plot.margin = unit(c(1, 1, -0.2, 1), "lines")) +
-        ggtitle(caller_name)
+        ggtitle(StripCallerVersion(caller_name)) +
+        ylab("precision")
     
     return(ci_ggplot)
 }
@@ -396,22 +397,26 @@ flipped_hist_plot <- function(test_df, qual_column) {
         test_df %>%
         ggplot() +
         aes_string(
-            x = qual_column
+            x = qual_column,
+            xend = qual_column
         ) +
         aes(y = log10(n)) +
         scale_y_reverse(
             expand = c(0,0),
-            breaks = c(1,2,3,4),
-            ylim = c(0, 4)) +
-        geom_point(
-            # Width manually in here?
-        ) +
+            breaks = 1:6,
+            labels = c("10", "", "1k", "", "100k", ""),
+            limits = c(7,0)) +
+        geom_segment(
+            yend = 0, 
+            color = "grey50") +
         # cowplot::theme_nothing() +
         cowplot::background_grid(major = "xy", minor = "none") +
         theme(
             axis.line = element_blank(),
             axis.ticks = element_blank(),
-            plot.margin = unit(c(0, 1, 1, 1), "lines"))
+            plot.margin = unit(c(0, 1, 1, 1), "lines")) +
+        ylab("# calls") +
+        xlab(str_replace(qual_column, "qmean", " quality score"))
     
     return(hist_ggplot)
 }
@@ -443,7 +448,7 @@ stacked_precision_plot <- function(
     panels <- combined_grob$layout$t[layout_indices]
 
     combined_grob$heights[panels] <- 
-        combined_grob$heights[panels] * c(3,1)
+        combined_grob$heights[panels] * c(2,1)
     
     return(combined_grob)
 }
@@ -463,7 +468,8 @@ all_id_precision_plot_grobs <-
             stacked_precision_plot(
                 caller_id, callgr,
                 ifelse(
-                    StripCallerVersion(caller_name) %in% c("manta", "hydra"),
+                    StripCallerVersion(caller_name) %in% 
+                        c("manta", "hydra"),
                     "qmean",
                     "logqmean"
                 ))}))
@@ -471,10 +477,9 @@ all_id_precision_plot_grobs <-
 
 ```{r}
 grid.newpage()
-first_four <- do.call(cbind, all_id_precision_plot_grobs[1:4])
-second_four <- do.call(cbind, all_id_precision_plot_grobs[5:8])
-all_eight <- rbind(first_four, second_four)
-grid.draw(all_eight)
+do.call(
+    function(...) grid.arrange(..., ncol = 3), 
+    all_id_precision_plot_grobs)
 ```
 
 
