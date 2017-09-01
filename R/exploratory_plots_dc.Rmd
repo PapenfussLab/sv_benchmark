@@ -761,6 +761,16 @@ caller_similarity_matrix <-
     (function(x) {x != -1})
 ```
 
+## Plot 3
+
+```{r}
+# Depends on caller_hits_ex_truth computed above
+truth_hits_df <-
+    callgr[callgr$Id == "00000000000000000000000000000001"] %>%
+    as.data.frame() %>% as.tbl() %>%
+    filter(CallSet == "Default calls")
+```
+
 
 
 
