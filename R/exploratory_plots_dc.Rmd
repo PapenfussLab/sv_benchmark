@@ -67,7 +67,11 @@ callgr <- .LoadCallMatrixForIds(
 # callgr <- callgr[simpleEventType(callgr) == "DEL"]
 
 source("sv_benchmark.R")
-metadata <- LoadCachedMetadata(datadir)
+
+metadata <- 
+    LoadCachedMetadata(datadir) %>% 
+    as.tbl()
+
 callgr$simpleEvent <- simpleEventType(callgr)
 callgr <- callgr[!is.na(callgr$svLen) & abs(callgr$svLen) < 50000]
 callgr$QUAL[is.na(callgr$QUAL)] <- 1
@@ -768,9 +772,73 @@ caller_similarity_matrix <-
 truth_hits_df <-
     callgr[callgr$Id == "00000000000000000000000000000001"] %>%
     as.data.frame() %>% as.tbl() %>%
-    filter(CallSet == "Default calls")
+    # Remove duplicates (filtered vs. unfiltered meaningless for truth)
+    filter(CallSet == "Default calls") %>%
+    # Remove non-filtered subject columns
+    select(vcfId, caller_hits_ex_truth, 
+           starts_with("fId"), -starts_with("fId0000000000000"))
 ```
 
+```{r}
+truth_hits_df$caller_hits_ex_truth %>% table()
+```
+
+```{r}
+truth_hits_df_long <-
+    truth_hits_df %>%
+    gather(key = "CallSet_Id_subject", value = "qual", starts_with("fId"))
+```
+
+Double-checking `caller_hits_ex_truth`:
+
+```{r}
+truth_hit_count_df <-
+    truth_hits_df_long %>%
+    group_by(vcfId) %>%
+    summarise(caller_hits_ex_truth_2 = sum(qual != -1) / 2)
+```
+
+```{r}
+test_df <- 
+    truth_hits_df %>% 
+    left_join(truth_hit_count_df) %>% 
+    select(caller_hits_ex_truth, caller_hits_ex_truth_2)
+
+all(test_df$caller_hits_ex_truth == test_df$caller_hits_ex_truth_2)
+```
+
+```{r}
+require(cowplot)
+
+truth_hits_df_long %>% 
+    # Note: -2 is placeholder for duplicate hit
+    filter(qual != -1) %>%
+    left_join(truth_hit_count_df) %>%
+    ggplot(aes(
+        x = caller_name_lookup[
+            str_replace(CallSet_Id_subject, "fId", "")])) +
+    scale_y_continuous(expand = c(0,0)) +
+    geom_bar(aes(fill = factor(caller_hits_ex_truth)), color = "black") +
+    scale_fill_brewer(name = "# callers\nsharing") +
+    xlab("caller") +
+    coord_flip() +
+    ggtitle("Sharing and distribution of true calls")
+
+# Add truth
+# Add correct caller names/pretty labels
+# Add plot titles
+# Try "caller-as-query" version -- facet -- Yes!
+```
+
+### TO DO
+
+-   Common false positive calls by repeat masker annotation,
+    event size, ENCODE blacklist
+-   Stacked bar chart -- all vs. truth, but *also*
+    each-as-query
+-   Why do the 7-of-7 precision-recall curves reach different
+    x-positions? Is it due to de-duplication (-2s), 
+    duplication, ... ?
 
 
 
