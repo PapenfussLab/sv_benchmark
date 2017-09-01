@@ -24,7 +24,7 @@ LoadCachedMetadata <- function(datadir) {
 		if (str_detect(datadir, "na12878$")) {
 			if (is.null(metadata$CX_REFERENCE_VCF)) {
 				# Hack to force a default truth even if none exists
-				metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000002.reference.vcf"
+				metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000002.reference.vcf" # TODO: why is the broken?
 			}
 			if (is.null(metadata$CX_SNP_TRUTH)) {
 				# use the bwa/bcftools calls
@@ -392,6 +392,9 @@ import.sv.bedpe.dir <- function(dir) {
 		ignore.interchromosomal, mineventsize, maxeventsize,
 		maxgap, sizemargin, ignore.strand, requiredHits, truthgr, truthgrName,
 		grtransform, grtransformName, nominalPosition) {
+	if (is.null(truthgrName) || is.na(truthgrName) || truthgrName == "") {
+		truthgrName <- GetId((metadata %>% filter(Id==id))$CX_REFERENCE_VCF)
+	}
 	cachekey <- list(
 		datadir=datadir, id=id,
 		ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize,
