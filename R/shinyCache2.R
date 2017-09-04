@@ -96,7 +96,6 @@ LoadPlotData <- function(
 	cacheroot <- getCacheRootPath()
 	setCacheRootPath(datadir)
 	metadata <- LoadCachedMetadata(datadir)
-	truthgr <- NULL
 	truthgrName <- ""
 	if (!is.null(truthbedpedir)) {
 		truthgrName <- truthbedpedir
@@ -481,7 +480,9 @@ import.sv.bedpe.dir <- function(dir) {
 	allgrfiltered <- allgrfiltered[allgrfiltered$FILTER %in% c(".", "PASS")]
 	names(allgrfiltered) <- paste0("f", names(allgrfiltered))
 	allgrfiltered$partner <- paste0("f", allgrfiltered$partner)
+
 	allgr <- c(allgr, allgrfiltered)
+	allgr$CallSet = ifelse(allgr$ignore.filtered, "High confidence only", "High & Low confidence")
 
 	# initialise to -1 to indicate no match
 	for (id in ids) {
