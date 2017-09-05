@@ -661,6 +661,23 @@ import.sv.bedpe.dir <- function(dir) {
 	if (!is.null(metadata$CX_SNP_TRUTH)) {
 		snpgr <- .CachedRawVcfGRanges(datadir, metadata$CX_SNP_TRUTH)
 		gr$snp50bp <- countOverlaps(gr, snpgr, maxgap=50)
+		if (!nominalPosition) {
+			# we want to calculate SNVs in the 50bp window around the nominal
+			# position so as to ensure that two callers making the same call
+			# report the same snp50 count regardless of the confidence interval
+			# of the call
+			# the nominal position call set and the confidence interval
+			# call sets can differ as grtransform can perform filtering
+			# The names should still match since we perform our filtering
+			# after we generate the breakpoint GRanges
+			nomgr <- gr
+			nomgr <- breakpointRanges(vcf, TRUE, suffix="_bp")
+			if (!is.null(grtransform)) {
+				nomgr <- grtransform(nomgr, metadata)
+			}
+			nomgr <- nomgr[names(nomgr) %in% names(gr)]
+			gr[names(nomgr)]$snp50bp <- countOverlaps(nomgr, snpgr, maxgap=50)
+		}
 	}
 	return(gr)
 }
