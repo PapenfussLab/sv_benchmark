@@ -837,14 +837,17 @@ shared_calls_plot <-
     shared_calls_plot_df %>%
     ggplot(aes(
         x = caller_name,
-        fill = caller_hits_ex_truth_2)) +
+        fill = factor(caller_hits_ex_truth_2 / 2 - 1))) +
+    facet_grid(factor(1 - is_truth) ~ ., scales = "free", space = "free") +
     scale_y_continuous(expand = c(0,0)) +
     geom_bar(color = "black") +
     scale_fill_brewer(palette = "Blues", name = "# callers\nsharing") +
     xlab("") +
     coord_flip() +
     ggtitle("Sharing and distribution of true calls") +
-    theme_cowplot()
+    theme_cowplot() +
+    # Blanks out "is_truth" panels
+    theme(strip.text = element_blank(), strip.background = element_blank())
 
 # Add truth and subtract 1
 # Add correct caller names/pretty labels
@@ -881,10 +884,10 @@ precision_recall_by_shared_calls_plot <-
 	    linetype = "call set",
 	    x = "# true positives",
 	    y = "precision") +
-	coord_cartesian(ylim=c(0,1))
+	coord_cartesian(ylim=c(0,1)) +
+    theme_cowplot()
 
-
-
+precision_recall_by_shared_calls_plot
 ```
 
 #### Arrange these into a grid
