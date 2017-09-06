@@ -623,17 +623,6 @@ By SNP/indel context
 
 ```{r}
 callgr$snp50bpbin <- cut(callgr$snp50bp, breaks=c(0, 1, 2, 3, 4, 5, 1000), right=FALSE)
-ggplot(rocby(callgr, snp50bpbin, truthid="00000000000000000000000000000003") %>%
-		filter(!(Id %in% c(
-			"00000000000000000000000000000000",
-			"00000000000000000000000000000001",
-			"00000000000000000000000000000002",
-			"00000000000000000000000000000003")))) +
-	aes(y=precision, x=tp, colour=Id, linetype=CallSet) +
-	geom_line() +
-	facet_wrap( ~ snp50bpbin, scale="free") + 
-	scale_colour_brewer(palette="Set1")
-	labs(title="Precision-Recall by number of flanking SNVs/indels")
 
 ```
 
@@ -676,6 +665,19 @@ ggplot(as.data.frame(callgr[callgr$Id =="00000000000000000000000000000001"])) +
 	theme(axis.text.x=element_text(angle=90,hjust=1)) +
 	facet_wrap(simpleEvent ~ cut(abs(svLen), breaks=c(0, 50, 100, 1000, 100000), right=FALSE), scales = "free")
 
+```
+
+# pull in TRF annotation
+```{r}
+
+callgr$trf <- overlapsAny(callgr, grtrf[[1]], type="any")
+ggplot(rocby(callgr, trf, truth_id=truth_id) %>% filter(Id != truth_id) %>% left_join(metadata)) +
+		aes(y=precision, x=tp / 2, colour=StripCallerVersion(CX_CALLER), linetype=CallSet) +
+		geom_line() +
+		caller_colour_scheme +
+		facet_wrap( ~ trf, scales="free") +
+		scale_y_continuous(limits=c(0,1)) +
+		labs(title=paste("Precision-Recall by presence of tandem repeat at breakpoint\n", sample_name, truth_name), colour="Caller")
 ```
 
 ## MDS plot
