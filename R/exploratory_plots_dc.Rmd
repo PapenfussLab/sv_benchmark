@@ -85,7 +85,7 @@ PCA plot of calls made
 
 ```{r}
 
-calldf <- mcols(callmat)
+calldf <- mcols(callgr)
 calldf <- calldf[,(1+which("Id" == names(calldf))):length(names(calldf))]
 callm <- as.matrix(calldf)
 
@@ -654,8 +654,8 @@ Unique by annotation
 truthvcf <- readVcf("../data.chm/00000000000000000000000000000001.vcf", "")
 repeattruth <- info(truthvcf)$REPEAT_TYPE
 names(repeattruth) <- names(rowRanges(truthvcf))
-truthgr <- breakpointRanges(truthvcf, 
-                            info_columns="REPEAT_TYPE" # chm-specific
+truthgr <- breakpointRanges(truthvcf 
+                            # , info_columns="REPEAT_TYPE" # chm-specific
                             )
 truthgr$repeatAnn <- ifelse(is.na(truthgr$REPEAT_TYPE), "NotMasked", truthgr$REPEAT_TYPE)
 callgr$repeatAnn <- ""
@@ -775,20 +775,28 @@ truth_hits_df <-
     callgr[callgr$Id == "00000000000000000000000000000001"] %>%
     as.data.frame() %>% as.tbl() %>%
     # Remove duplicates (filtered vs. unfiltered meaningless for truth)
-    filter(CallSet == "Default calls") %>%
+    # filter(CallSet == "Default calls") %>%
     # Remove non-filtered subject columns
-    select(vcfId, caller_hits_ex_truth, 
-           starts_with("fId"), -starts_with("fId0000000000000"))
+    select(vcfId,
+           matches("fId.+"), # "f" is for "full"
+           -ends_with("0000000"), # Ignore other truth sets
+           -ends_with("0000002"),
+           -ends_with("0000003"),
+           -ends_with("0000004")
+           ) 
 ```
 
 ```{r}
-truth_hits_df$caller_hits_ex_truth %>% table()
+# truth_hits_df$caller_hits_ex_truth %>% table()
 ```
 
 ```{r}
 truth_hits_df_long <-
     truth_hits_df %>%
-    gather(key = "CallSet_Id_subject", value = "qual", starts_with("fId"))
+    gather(
+        key = "CallSet_Id_subject", 
+        value = "qual", 
+        starts_with("fId")) # "f" is for "full"
 ```
 
 Double-checking `caller_hits_ex_truth`:
@@ -801,36 +809,103 @@ truth_hit_count_df <-
 ```
 
 ```{r}
-test_df <- 
-    truth_hits_df %>% 
-    left_join(truth_hit_count_df) %>% 
-    select(caller_hits_ex_truth, caller_hits_ex_truth_2)
+# test_df <- 
+#    truth_hits_df %>% 
+#    left_join(truth_hit_count_df) %>% 
+#    select(caller_hits_ex_truth, caller_hits_ex_truth_2)
 
-all(test_df$caller_hits_ex_truth == test_df$caller_hits_ex_truth_2)
+# all(test_df$caller_hits_ex_truth == test_df$caller_hits_ex_truth_2)
 ```
 
 ```{r}
 require(cowplot)
 
-truth_hits_df_long %>% 
+shared_calls_plot <-
+    truth_hits_df_long %>% 
     # Note: -2 is placeholder for duplicate hit
     filter(qual != -1) %>%
     left_join(truth_hit_count_df) %>%
+    mutate(
+        caller_name = caller_name_lookup[
+                str_replace(CallSet_Id_subject, "fId", "")] # "f" is for "full"
+                %>% StripCallerVersion(),
+        is_truth = caller_name == "00001"
+    ) %>%
     ggplot(aes(
-        x = caller_name_lookup[
-            str_replace(CallSet_Id_subject, "fId", "")])) +
+        x = caller_name,
+        fill = caller_hits_ex_truth_2)) +
     scale_y_continuous(expand = c(0,0)) +
-    geom_bar(aes(fill = factor(caller_hits_ex_truth)), color = "black") +
+    geom_bar(color = "black") +
     scale_fill_brewer(name = "# callers\nsharing") +
-    xlab("caller") +
+    xlab("") +
     coord_flip() +
     ggtitle("Sharing and distribution of true calls")
 
-# Add truth
+# Add truth and subtract 1
 # Add correct caller names/pretty labels
 # Add plot titles
 # Try "caller-as-query" version -- facet -- Yes!
+
+shared_calls_plot
 ```
+
+```{r}
+precision_recall_by_shared_calls_plot <-
+    rocby(
+        callgr, caller_hits_ex_truth, 
+        truthid="00000000000000000000000000000003") %>% 
+    filter(!(Id %in% c(
+        "00000000000000000000000000000000", 
+        "00000000000000000000000000000001", 
+        "00000000000000000000000000000002", 
+        "00000000000000000000000000000003"))) %>%
+    ggplot() +
+	aes(y = precision, 
+	    x = tp, 
+	    colour = StripCallerVersion(caller_name_lookup[Id]), 
+	    linetype = CallSet) +
+	geom_line() +
+	facet_wrap(
+	    ~ factor(caller_hits_ex_truth, levels = max(caller_hits_ex_truth):1),
+	    scale = "free",
+	    ncol = 2) + 
+	scale_colour_brewer(palette = "Set1") + 
+	labs(
+	    title = "Precision-recall by number of callers sharing call",
+	    color = "caller",
+	    linetype = "call set",
+	    x = "# true positives",
+	    y = "precision") +
+	coord_cartesian(ylim=c(0,1))
+
+
+
+```
+
+#### Arrange these into a grid
+
+```{r}
+precision_recall_by_shared_calls_grob <-
+    ggplotGrob(precision_recall_by_shared_calls_plot)
+
+shared_calls_grob <-
+    ggplotGrob(shared_calls_plot)
+
+layout_matrix <-
+    cbind(c(1,3), c(2,2))
+
+fig_3_grob <-
+    grid.arrange(
+    grobs = list(
+        shared_calls_plot, 
+        precision_recall_by_shared_calls_grob,
+        grid.rect(gp=gpar(fill=NA))),
+    layout_matrix = layout_matrix)
+
+grid.newpage()
+grid.draw(fig_3_grob)
+```
+
 
 ### TO DO
 
