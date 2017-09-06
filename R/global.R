@@ -50,7 +50,10 @@ if (!exists("grrm")) {
 	}
 	setCacheRootPath(cacheroot)
 }
-
+if (!exists("grtrf")) {
+	grtrf <- list()
+	grtrf[["hg38"]] <- import(paste0(dataLocation, "/input.common/Homo sapiens HG38 (2,5,7,50, centr. excluded) Full Genome_repeats.bed"))
+}
 # helper functions
 PrettyAligner <- function(dataaligners) {
     dataaligners <- unique(dataaligners)

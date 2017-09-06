@@ -260,7 +260,7 @@ import.sv.bedpe.dir <- function(dir) {
 	calls <- calls %>% mutate(nominalPosition=FALSE)
 	nominalCalls <- nominalCalls %>% mutate(nominalPosition=FALSE)
 	md <- metadata %>%
-		select(Id, CX_ALIGNER, CX_ALIGNER_MODE, CX_MULTIMAPPING_LOCATIONS, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH)
+		dplyr::select(Id, CX_ALIGNER, CX_ALIGNER_MODE, CX_MULTIMAPPING_LOCATIONS, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH)
 	if (!is.null(metadata$CX_REFERENCE_VCF_VARIANTS)) {
 		md$CX_REFERENCE_VCF_VARIANTS <- metadata$CX_REFERENCE_VCF_VARIANTS
 		md$eventtype <- PrettyVariants(md$CX_REFERENCE_VCF_VARIANTS)
@@ -272,14 +272,14 @@ import.sv.bedpe.dir <- function(dir) {
 	}
 	#browser()
 	mostSensitiveAligner <- calls %>%
-		select(Id, CallSet, tp) %>%
+		dplyr::select(Id, CallSet, tp) %>%
 		group_by(Id, CallSet) %>%
 		summarise(tp=sum(tp)) %>%
 		ungroup() %>%
 		arrange(desc(tp)) %>%
 		left_join(md, by="Id") %>%
 		distinct(CallSet, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF, .keep_all = TRUE) %>%
-		select(Id, CallSet)
+		dplyr::select(Id, CallSet)
 	callsByEventSize <- NULL
 	if (!is.null(md$eventtype)) { # only generate callsByEventSize for simulation data sets
 		callsByEventSize <- calls %>%
@@ -296,8 +296,8 @@ import.sv.bedpe.dir <- function(dir) {
 	rocby <- function(rocdf, ...) {
 		groupingCols <- quos(...)
 		rocdf %>%
-				select(Id, CallSet, !!!groupingCols, QUAL, tp, fp, fn) %>%
-				rbind(rocdf %>% select(Id, CallSet, !!!groupingCols) %>% distinct(Id, CallSet, !!!groupingCols) %>% mutate(QUAL=max(rocdf$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
+				dplyr::select(Id, CallSet, !!!groupingCols, QUAL, tp, fp, fn) %>%
+				rbind(rocdf %>% dplyr::select(Id, CallSet, !!!groupingCols) %>% distinct(Id, CallSet, !!!groupingCols) %>% mutate(QUAL=max(rocdf$QUAL) + 1, tp=0, fp=0, fn=0)) %>%
 				#filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
 				group_by(Id, CallSet, !!!groupingCols) %>%
 				arrange(desc(QUAL)) %>%
@@ -311,7 +311,7 @@ import.sv.bedpe.dir <- function(dir) {
 				summarise(fp=max(fp), fn=max(fn), QUAL=min(QUAL)) %>%
 				# subsample along tp and tp+fp axis
 				group_by(Id, CallSet, !!!groupingCols) %>%
-				slice(unique(c(
+				dplyr::slice(unique(c(
 					1,
 					findInterval(seq(0, max(tp), max(tp)/rocSlicePoints), tp),
 					findInterval(seq(0, max(tp + fp), max(tp + fp)/rocSlicePoints), tp + fp),
@@ -332,19 +332,19 @@ import.sv.bedpe.dir <- function(dir) {
 	#browser()
 	bpErrorDistribution <- bind_rows(calls, nominalCalls) %>%
 		filter(tp) %>%
-		select(Id, CallSet, nominalPosition, bperror) %>%
+		dplyr::select(Id, CallSet, nominalPosition, bperror) %>%
 		group_by(Id, CallSet, nominalPosition, bperror) %>%
 		summarize(n=n())
 	bpErrorDistribution <- bpErrorDistribution %>%
 		left_join(bpErrorDistribution %>% group_by(Id, CallSet, nominalPosition) %>% summarize(count=sum(n))) %>%
 		ungroup() %>%
 		mutate(rate=n/count) %>%
-		select(-count) %>%
+		dplyr::select(-count) %>%
 		left_join(md, by="Id")
 
 	eventSize <- calls %>%
 		mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative"))) %>%
-		select(Id, CallSet, svLen, Classification) %>%
+		dplyr::select(Id, CallSet, svLen, Classification) %>%
 		left_join(md, by="Id")
 
 	callsByCaller <- calls %>%
@@ -448,7 +448,7 @@ import.sv.bedpe.dir <- function(dir) {
 		}
 		mcalls <- rbind(mcalls, mergedcalls %>% mutate(CallSet = ifelse(includeFiltered, "High & Low confidence", "High confidence only")))
 	}
-	return(mcalls %>% select(-ignore.strand, -maxgap))
+	return(mcalls %>% dplyr::select(-ignore.strand, -maxgap))
 }
 .LoadCallMatrixForIds <- function(datadir, metadata, ids,
 		ignore.interchromosomal, mineventsize, maxeventsize,
@@ -579,10 +579,10 @@ import.sv.bedpe.dir <- function(dir) {
 			result <- result[!is.na(result$svLen)]
 		}
 		if (!is.null(mineventsize)) {
-			result <- result[is.na(result$svLen) | abs(result$svLen + result$insLen) >= mineventsize]
+			result <- result[is.na(result$svLen) | pmax(abs(result$svLen), result$insLen) >= mineventsize]
 		}
 		if (!is.null(maxeventsize)) {
-			result <- result[is.na(result$svLen) | abs(result$svLen + result$insLen) <= mineventsize]
+			result <- result[is.na(result$svLen) | pmax(abs(result$svLen), result$insLen) <= mineventsize]
 		}
 		# sanity adjustments to filters
 		result <- result[names(result) %in% result$partner & result$partner %in% names(result)]
@@ -723,7 +723,7 @@ import.sv.bedpe.dir <- function(dir) {
 		write(sprintf(".CachedRawVcfGRanges %s (%s)", filename, getChecksum(cachekey)), stderr())
 		file <- filename
 		if (!file.exists(file)) {
-			file <- list.files(datadir, pattern=filename, full.names=TRUE)
+			file <- list.files(datadir, pattern=paste0(filename, "$"), full.names=TRUE)
 		}
 		result <- rowRanges(readVcf(file, ""))
 		if (strip) {
