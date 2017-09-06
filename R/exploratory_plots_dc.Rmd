@@ -751,7 +751,8 @@ exp_fam_pca_plot <-
     geom_point(aes(color = str_detect(raw_caller_ids, "fId"))) +
     ggtitle("Exponential Family PCA of call") + 
     ggrepel::geom_label_repel(aes(label = caller_names)) +
-    cowplot::background_grid(minor = "none")
+    cowplot::background_grid(minor = "none") +
+    theme_cowplot()
 
 exp_fam_pca_plot
 ```
@@ -820,7 +821,7 @@ truth_hit_count_df <-
 ```{r}
 require(cowplot)
 
-shared_calls_plot <-
+shared_calls_plot_df <-
     truth_hits_df_long %>% 
     # Note: -2 is placeholder for duplicate hit
     filter(qual != -1) %>%
@@ -830,16 +831,20 @@ shared_calls_plot <-
                 str_replace(CallSet_Id_subject, "fId", "")] # "f" is for "full"
                 %>% StripCallerVersion(),
         is_truth = caller_name == "00001"
-    ) %>%
+    )
+
+shared_calls_plot <-
+    shared_calls_plot_df %>%
     ggplot(aes(
         x = caller_name,
         fill = caller_hits_ex_truth_2)) +
     scale_y_continuous(expand = c(0,0)) +
     geom_bar(color = "black") +
-    scale_fill_brewer(name = "# callers\nsharing") +
+    scale_fill_brewer(palette = "Blues", name = "# callers\nsharing") +
     xlab("") +
     coord_flip() +
-    ggtitle("Sharing and distribution of true calls")
+    ggtitle("Sharing and distribution of true calls") +
+    theme_cowplot()
 
 # Add truth and subtract 1
 # Add correct caller names/pretty labels
