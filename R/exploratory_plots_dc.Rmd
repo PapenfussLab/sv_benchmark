@@ -483,9 +483,13 @@ all_id_precision_plot_grobs <-
 
 ```{r}
 grid.newpage()
-do.call(
-    function(...) grid.arrange(..., ncol = 3), 
-    all_id_precision_plot_grobs)
+
+combined_grobs <-
+    do.call(
+        function(...) grid.arrange(..., ncol = 3), 
+        all_id_precision_plot_grobs)
+
+grid.draw(combined_grobs)
 ```
 
 
@@ -1022,14 +1026,18 @@ dup_plot_df <- callgr %>%
 ```
 
 ```{r}
-dup_plot <- ggplot(dup_plot_df) +
+dup_plot <- 
+    ggplot(dup_plot_df) +
     aes(x = caller_name, y = prop_isDup, color = CallSet) +
+    geom_errorbar(ymin = 0, ymax = .5, color = "grey50", width = .1) +
+    geom_errorbar(ymin = .5, ymax = 1, color = "grey50", width = .1) +
     geom_point(alpha = 0.7, size = 5) +
     scale_color_brewer(palette = "Dark2", name = "") +
-    cowplot::background_grid(major = "y", minor = "none", colour.major = "grey50") +
     # Actually: percentage of calls overlapping one of higher quality
     labs(x = "", y = "duplicate calls") +
-    scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+    scale_y_continuous(labels = scales::percent, limits = c(0, 1), expand = c(.05,.05)) +
+    theme(axis.line = element_blank(), axis.ticks.y = element_blank(), 
+          axis.text.y = element_text(margin = margin(t = 0, r = -10, b = 0, l = 0))) +
     coord_flip()
 
 dup_plot
