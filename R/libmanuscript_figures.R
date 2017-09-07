@@ -3,6 +3,10 @@ source("sv_benchmark.R")
 source("shinyCache2.R")
 library(tidyverse)
 library(ggplot2)
+library(cowplot)
+library(colorspace)
+library(grid)
+library(gridExtra)
 
 rocby <- function(callgr, ..., rocSlicePoints=100, truth_id, ignore.duplicates=TRUE) {
 	groupingCols <- quos(...)
@@ -100,6 +104,10 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 		stop(paste("Missing VCF records for ", missing_callers))
 	}
 
+	# Suggestion: colors from 
+	# http://ksrowell.com/blog-visualizing-data/2012/02/02/optimal-colors-for-graphs/
+	# i.e.
+	# c("#396AB1", "#DA7C30", "#3E9651", "#CC2529", "#535154", "#6B4C9A", "#922428", "#948B3D")
 	caller_colour_scheme <- scale_colour_brewer(palette="Set1")
 
 	# Figure 1: prec_recall
@@ -167,6 +175,441 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 		scale_y_continuous(limits=c(0,1)) +
 		labs(title=paste("Precision-Recall by presence of tandem repeat at breakpoint\n", sample_name, truth_name), colour="Caller")
 }
+
+## Plot utility functions ############################################
+
+qual_or_read_count <- function(caller_name) {
+    ifelse(
+        caller_name %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
+        "read count",
+        "quality score")
+}
+
+caller_name_lookup_func <- function(metadata, truth_name) {
+    
+    caller_name_lookup_vec <- 
+        ifelse(is.na(metadata$CX_CALLER),
+               truth_name,
+               metadata$CX_CALLER)
+    
+    names(caller_name_lookup_vec) <- metadata$Id
+    
+    caller_name_lookup <- function(ids) {
+        StripCallerVersion(caller_name_lookup_vec[ids])
+    }
+}
+
+## Figure 3 ##########################################################
+
+shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
+    
+    caller_name_lookup <- caller_name_lookup_func(metadata, truth_name)
+    
+    truth_hits_df <-
+        callgr[callgr$Id == truth_id] %>%
+        as.data.frame() %>% as.tbl() %>%
+        # Remove duplicates (filtered vs. unfiltered meaningless for truth)
+        filter(CallSet == "High & Low confidence") %>%
+        # Remove non-filtered subject columns
+        select(vcfId, matches("fId.+"))
+    
+    truth_hits_df_long <-
+        truth_hits_df %>%
+        gather(
+            key = "CallSet_Id_subject", 
+            value = "qual", 
+            # "f" is for "full"
+            starts_with("fId"))
+    
+    shared_calls_plot_df <-
+        truth_hits_df_long %>% 
+        # Note: -2 is placeholder for duplicate hit
+        filter(qual != -1) %>%
+        left_join(truth_hit_count_df) %>%
+        mutate(
+            caller_name = caller_name_lookup(Id),
+            is_truth = caller_name == truth_name)
+    
+    n_callers_plus_truth <-
+        length(table(shared_calls_plot_df$caller_name))
+    
+    n_callers_palette <-
+        c("black", 
+          sequential_hcl(
+              n_callers_plus_truth - 2,
+              h = 235, c. = c(30, 20), l = c(20, 100)),
+          "white") %>%
+        rev()
+    
+    shared_calls_plot_base <-
+        shared_calls_plot_df %>%
+        ggplot(aes(
+            x = caller_name,
+            fill = factor(caller_hits_ex_truth / 2 - 1))) +
+        facet_grid(
+            factor(1 - is_truth) ~ ., 
+            scales = "free", space = "free") +
+        scale_y_continuous(expand = c(0,0)) +
+        geom_bar(color = "black") +
+        scale_fill_manual(
+            values = n_callers_palette, 
+            name = "# callers\nsharing") +
+        xlab("") +
+        coord_flip() +
+        ggtitle("Sharing and distribution of true positive calls") +
+        theme_cowplot()
+    
+    plot_out <-
+        shared_calls_plot_base +
+        # Blanks out "is_truth" panels
+        theme(strip.text = element_blank(), 
+              strip.background = element_blank())
+    
+    return(plot_out)
+}
+
+shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
+    
+    false_positive_plot_df <-
+        callgr[callgr$Id != truth_id] %>%
+        as.data.frame() %>% as.tbl() %>%
+        # Exclude High confidence only hitting a truth call, inc. duplicate true positives
+        filter(
+            !!truth_id < 0) %>%
+        # Remove duplicates (filtered vs. unfiltered meaningless for truth)
+        # filter(CallSet == "High and low confidence") %>%
+        # Remove non-filtered subject columns
+        select(Id, CallSet, caller_hits_ex_truth, matches("fId")) %>%
+        gather(key = subject_Id_CallSet, value = QUAL, matches("fId")) %>%
+        filter(
+            (paste0("fId", Id) == subject_Id_CallSet) & 
+            (QUAL != -2)) %>%
+        left_join(metadata) %>%
+        mutate(
+            # does this need the `caller_name_lookup` function?
+            caller_name = StripCallerVersion(CX_CALLER),
+            is_truth = is.na(CX_CALLER))
+    
+    plot_out <-
+        false_positive_plot_df %>%
+        ggplot(aes(
+            x = caller_name,
+            fill = factor(caller_hits_ex_truth))) +
+        facet_grid(factor(1 - is_truth) ~ ., scales = "free", space = "free") +
+        scale_y_continuous(expand = c(0,0)) +
+        geom_bar(color = "black") +
+        scale_fill_manual(values = n_callers_palette, name = "# callers\nsharing") +
+        xlab("") +
+        coord_flip(
+            # Not sure what to do about this manual cutoff
+            # ylim = c(0, 40000)
+        ) +
+        theme(
+            strip.text = element_blank(), strip.background = element_blank()) +
+        ggtitle("Sharing and distribution of false positive calls") +
+        theme_cowplot()
+    
+    return(plot_out)
+}
+
+prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name, caller_colour_scheme) {
+    
+    caller_name_lookup <- caller_name_lookup_func(metadata, truth_name)
+    
+    plot_out <-
+        rocby(callgr, caller_hits_ex_truth, truthid = truth_id) %>% 
+        filter(Id != truth_id) %>%
+        ggplot() +
+        aes(y = precision,
+            x = tp,
+            colour = caller_name_lookup(Id), 
+            linetype = CallSet) +
+        geom_line() +
+        facet_wrap(
+            ~ factor(caller_hits_ex_truth, levels = max(caller_hits_ex_truth):1),
+            scale = "free",
+            ncol = 2) + 
+        caller_colour_scheme() + 
+        labs(
+            title = "Precision-recall by number of callers sharing call",
+            color = "caller",
+            linetype = "call set",
+            x = "# true positives",
+            y = "precision") +
+        coord_cartesian(ylim=c(0,1)) +
+        theme_cowplot()
+        # Possibly add percentage labels? y axis gridlines?
+        # Add endpoint showing properties of call set.
+    
+    return(plot_out)
+}
+
+duplicate_call_prop_plot <- function(callgr, truth_id) {
+    
+    dup_plot_df <- 
+        callgr %>%
+        as.data.frame() %>% as.tbl() %>%
+        # dirty hack to get truth not gathered
+        select(Id, CallSet, !!truth_id, matches("fId")) %>%
+        gather(key = subject_Id_CallSet, value = QUAL, matches("fId")) %>%
+        filter(paste0("fId",Id)==subject_Id_CallSet) %>%
+        mutate(
+            isTp = (!!truth_id) != -1,
+            isFp = !isTp,
+            isDup = QUAL == -2) %>%
+        group_by(Id, CallSet) %>%
+        summarise(prop_isDup = sum(isDup) / n()) %>%
+        ungroup() %>%
+        left_join(metadata) %>%
+        mutate(caller_name = StripCallerVersion(CX_CALLER))
+
+    plot_out <- 
+        ggplot(dup_plot_df) +
+        aes(x = caller_name, y = prop_isDup, color = CallSet) +
+        geom_point(alpha = 0.7, size = 5) +
+        scale_color_brewer(palette = "Dark2", name = "") +
+        cowplot::background_grid(
+            major = "y", minor = "none", colour.major = "grey50") +
+        # Actually: percentage of calls overlapping one of higher 
+        # quality.
+        labs(x = "", y = "duplicate calls") +
+        scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+        coord_flip()
+    
+    return(plot_out)
+}
+
+fig_3_grob <- function(callgr, metadata, truth_id, truth_name) {
+    
+    prec_recall_by_shared_grob <-
+        prec_recall_by_shared_plot(
+            callgr, metadata, truth_id, truth_name) %>%
+        ggplotGrob()
+    
+    
+    shared_tp_calls_grob <- 
+        shared_tp_calls_plot(
+            callgr, metadata, truth_id, truth_name) %>%
+        ggplotGrob()
+    
+    shared_fp_calls_grob <-
+        shared_fp_calls_plot(callgr, truth_id, metadata)
+    
+    layout_matrix <- cbind(c(1, 2), c(3, 3))
+    
+    fig_3_grob <-
+        grid.arrange(
+            grobs = list(
+                shared_tp_calls_grob,
+                shared_fp_calls_grob,
+                precision_recall_by_shared_calls_grob),
+            layout_matrix = layout_matrix)
+}
+
+## Figure 2 ##########################################################
+
+get_binned_qual_data <- function(callgr, bin_by) {
+    
+    df <- data.frame(
+        Id = callgr$Id,
+        q = callgr$QUAL,
+        logq = log10(callgr$QUAL + 1),
+        tp = callgr$Id00000000000000000000000000000001 != -1) %>%
+        group_by(Id) %>%
+        mutate(
+            qbin = as.numeric(as.character(
+                cut(q, 
+                    breaks=(0:100)/100 * max(q), 
+                    labels = (0:99)/100 * max(q)))),
+            logqbin = as.numeric(as.character(
+                cut(logq,
+                    breaks = (0:100)/100 * max(logq), 
+                    labels = (0:99)/100 * max(logq))))) %>%
+        group_by(Id, .dots = bin_by) %>%
+        summarise(
+            qmean = mean(q),
+            logqmean = mean(logq),
+            n = n(),
+            prec = sum(tp)/n(),
+            prec_lower = binom.confint(sum(tp), n(), 0.95, methods = "exact")$lower,
+            prec_upper = binom.confint(sum(tp), n(), 0.95, methods = "exact")$upper)
+    
+}
+
+
+ci_plot <- function(test_id, test_df, qual_column) {
+    
+    caller_name <- (metadata %>% filter(Id == test_id))$CX_CALLER
+    
+    ci_ggplot <-
+        test_df %>%
+        ggplot() +
+        aes_string(x = qual_column) +
+        aes(
+            ymin = prec_lower,
+            y = prec,
+            ymax = prec_upper) +
+        coord_cartesian(ylim = c(0,1)) + 
+        geom_linerange(
+            aes(alpha = factor(n <= 10, levels = c(F, T))), 
+            color = "grey70") +
+        scale_alpha_manual(values = c(1, 0)) +
+        geom_point(aes(color = factor(n <= 10, levels = c(F, T)))) +
+        scale_color_manual(values = c("#396AB1", "grey70")) +
+        cowplot::theme_cowplot() +
+        cowplot::background_grid(major = "xy", minor = "none") +
+        theme(
+            legend.position = "none",
+            axis.text.x = element_blank(),
+            axis.title.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            plot.margin = unit(c(1, 1, -0.2, 1), "lines")) +
+        ggtitle(StripCallerVersion(caller_name)) +
+        ylab("precision")
+    
+    return(ci_ggplot)
+}
+
+flipped_hist_plot <- function(test_df, qual_column) {
+    
+    hist_ggplot <- 
+        test_df %>%
+        ggplot() +
+        aes_string(
+            x = qual_column,
+            xend = qual_column
+        ) +
+        aes(y = log10(n)) +
+        scale_y_reverse(
+            expand = c(0,0),
+            breaks = 1:6,
+            labels = c("10", "", "1k", "", "100k", ""),
+            limits = c(7,0)) +
+        geom_segment(
+            yend = 0, 
+            color = "grey50") +
+        # cowplot::theme_nothing() +
+        cowplot::background_grid(major = "xy", minor = "none") +
+        theme(
+            axis.line = element_blank(),
+            axis.ticks = element_blank(),
+            plot.margin = unit(c(0, 1, 1, 1), "lines")) +
+        ylab("# calls") +
+        xlab(str_replace(qual_column, "qmean", " quality score"))
+    
+    return(hist_ggplot)
+}
+
+stacked_precision_plot <- function(
+    test_id, callgr, qual_column = "logqmean") {
+    
+    bin_by <- str_replace(qual_column, "mean", "bin")
+    
+    test_df <- 
+        get_binned_qual_data(callgr, bin_by) %>%
+        filter(Id == test_id)
+    
+    hist_grob <-
+        flipped_hist_plot(test_df, qual_column) %>%
+        ggplotGrob()
+    
+    ci_grob <-
+        ci_plot(test_id, test_df, qual_column) %>%
+        ggplotGrob()
+    
+    combined_grob <- 
+        gridExtra::rbind.gtable(
+            ci_grob, hist_grob, 
+            size = "first")
+    
+    layout_indices <- grep("panel", combined_grob$layout$name)
+    
+    panels <- combined_grob$layout$t[layout_indices]
+    
+    combined_grob$heights[panels] <- 
+        combined_grob$heights[panels] * c(2,1)
+    
+    return(combined_grob)
+}
+
+
+fig_3_grob <- function(caller_ids, callgr, metadata) {
+    
+    all_grobs <-
+        map(
+            caller_ids, 
+            (function(caller_id) {
+                caller_name <- (metadata %>% filter(Id == caller_id))$CX_CALLER
+                stacked_precision_plot(
+                    caller_id, callgr,
+                    ifelse(
+                        StripCallerVersion(caller_name) %in% 
+                            c("manta", "hydra"),
+                        "qmean",
+                        "logqmean"))}))
+    
+    combined_grob <-
+        do.call(
+            function(...) grid.arrange(..., ncol = 3), 
+            all_grobs)
+    
+    return(combined_grob)
+}
+
+## Duplicates plot ###################################################
+
+duplicates_ggplot <- function(callgr, truth_id, metadata) {
+    
+    dup_plot_df <- callgr %>%
+        as.data.frame() %>% as.tbl() %>%
+        # dirty hack to get truth not gathered
+        select(Id, CallSet, !!truth_id, matches("fId")) %>%
+        gather(key = subject_Id_CallSet, value = QUAL, matches("fId")) %>%
+        filter(paste0("fId",Id)==subject_Id_CallSet) %>%
+        mutate(
+            isTp = (!!truth_id) != -1,
+            isFp = !isTp,
+            isDup = QUAL == -2) %>%
+        group_by(Id, CallSet) %>%
+        summarise(prop_isDup = sum(isDup) / n()) %>%
+        ungroup() %>%
+        left_join(metadata) %>%
+        mutate(caller_name = StripCallerVersion(CX_CALLER))
+    
+    dup_plot <- ggplot(dup_plot_df) +
+        aes(x = caller_name, y = prop_isDup, color = CallSet) +
+        geom_point(alpha = 0.7, size = 5) +
+        scale_color_brewer(palette = "Dark2", name = "") +
+        cowplot::background_grid(major = "y", minor = "none", colour.major = "grey50") +
+        # Actually: percentage of calls overlapping one of higher quality
+        labs(x = "", y = "duplicate calls") +
+        scale_y_continuous(
+            labels = scales::percent, 
+            limits = c(0, 1)
+            # expand = c(0, 0) ? Or some other way to get 0-100% lines?
+            ) +
+        coord_flip()
+    
+    dup_plot
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
