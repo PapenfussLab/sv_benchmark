@@ -185,6 +185,7 @@ qual_or_read_count <- function(caller_name) {
         caller_name %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
         "read count",
         "quality score")
+    # ... or log quality score! Or log read count ?!?!?!
 }
 
 metadata_annotate <- function(df, metadata, ...) {
@@ -202,36 +203,46 @@ shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
         as.data.frame() %>% as.tbl() %>%
         filter(truthQUAL >= 0 | Id == truth_id) %>%
         # Remove duplicates (filtered vs. unfiltered meaningless for truth)
-        filter(CallSet == "High & Low confidence") %>%
         # Remove non-filtered subject columns
-        dplyr::select(Id, caller_hits_ex_truth) %>%
+        dplyr::select(Id, CallSet, caller_hits_ex_truth) %>%
         mutate(is_truth = Id==truth_id) %>%
         metadata_annotate(metadata)
     
     n_callers_plus_truth <-
         length(unique(truth_hits_df$caller_name))
     
-    n_callers_palette <-
+    n_callers_palette <- function(hue = 235) {
         c("black", 
           sequential_hcl(
               n_callers_plus_truth - 2,
-              h = 235, c. = c(30, 20), l = c(20, 100)),
+              h = hue, c. = c(30, 20), l = c(40, 100)),
           "white") %>%
         rev()
+    }
     
     shared_calls_plot_base <-
         truth_hits_df %>%
+        mutate(truth_factor=factor(1 - is_truth)) %>%
         ggplot(aes(
             # TODO: does this break caller ordering?
-            x = ifelse(is_truth, truth_name, as.character(caller_name)),
-            fill = factor(caller_hits_ex_truth))) +
+            # Check the use of group aesthetic here (CallSet, Id ...)
+            x = CallSet,
+            fill = interaction(factor(caller_hits_ex_truth), CallSet)
+            # group = interaction(Id, CallSet)
+            )) +
         facet_grid(
-            factor(1 - is_truth) ~ ., 
-            scales = "free", space = "free") +
+            truth_factor + Id ~ ., 
+            labeller = labeller(
+                truth_factor=function(s) {rep("", length(s))},
+                Id=function(s) {ifelse(s==truth_id, truth_name,
+                                       as.character((data.frame(Id=s) %>%
+                                       metadata_annotate(metadata))$caller_name))}),
+            switch = "y") +
         scale_y_continuous(expand = c(0,0)) +
-        geom_bar(color = "black") +
+        # scale_x_discrete(labels = )
+        geom_bar(size = 0.5, color = "black", width = 1) +
         scale_fill_manual(
-            values = n_callers_palette, 
+            values = c(n_callers_palette(235), n_callers_palette(90)), 
             name = "# callers\nsharing") +
         xlab("") +
         coord_flip() +
@@ -241,8 +252,11 @@ shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
     plot_out <-
         shared_calls_plot_base +
         # Blanks out "is_truth" panels
-        theme(strip.text = element_blank(), 
-              strip.background = element_blank())
+        theme(strip.text.y = element_text(angle = 180, hjust = 1),
+              strip.background = element_blank(),
+              axis.text.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              axis.line.y = element_blank())
     
     return(plot_out)
 }
