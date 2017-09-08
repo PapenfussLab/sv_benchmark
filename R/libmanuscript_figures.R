@@ -82,11 +82,9 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 	    ggplot() +
 		aes(y=precision, x=tp / 2, colour=StripCallerVersion(CX_CALLER), linetype=CallSet) +
 		geom_line() +
-		caller_colour_scheme +
 		facet_grid(snp50bpbin ~ ., scales="free") +
-	    cowplot::theme_cowplot() +
-	    background_grid("xy", "none") %+replace% 
-	    theme(panel.border = element_rect(color = "grey90", linetype = 1, size = 0.2)) +
+	    rocby_theme + 
+	    caller_colour_scheme +
 		labs(title=paste("Precision-Recall by flanking SNV/indels within 50bp of SV call\n", sample_name, truth_name))
 	
 	saveplot(paste0(fileprefix, "prec_recall_by_snvindel"))
@@ -102,22 +100,22 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 	    ggplot() +
 		aes(y=precision, x=tp / 2, colour=StripCallerVersion(CX_CALLER), linetype=CallSet) +
 		geom_line() +
-		caller_colour_scheme +
-	    cowplot::theme_cowplot() +
-	    background_grid("xy", "none") %+replace% 
-	    theme(panel.border = element_rect(color = "grey90", linetype = 1, size = 0.2)) +
+	    rocby_theme + 
+	    caller_colour_scheme +
 		facet_grid(simpleEvent ~ eventSizeBin, scales="free") +
 		labs(title=paste("Precision-Recall by event size and type\n", sample_name, truth_name),
 			colour="Caller")
 
-	pr_by_event_size_type_ggplot_2 <-
+	
+	pr_by_event_type_repeats_ggplot <-
 	    rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
 	    filter(Id != truth_id) %>%
 	    left_join(metadata) %>%
 	    ggplot() +
 		aes(y=precision, x=tp / 2, colour=StripCallerVersion(CX_CALLER), linetype=CallSet) +
 		geom_line() +
-		caller_colour_scheme +
+	    rocby_theme + 
+	    caller_colour_scheme +
 		facet_wrap(simpleEvent ~ repeatClass, scales="free") +
 		scale_y_continuous(limits=c(0,1)) +
 		labs(title=paste("Precision-Recall by event size and type\n", sample_name, truth_name),
@@ -143,7 +141,7 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 		    colour="Caller")
 }
 
-## ROC by ... function ###############################################
+## ROC by ... utilities ##############################################
 
 rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=TRUE) {
     groupingCols <- quos(...)
@@ -235,6 +233,11 @@ caller_colour_scheme <-
         values = c("#396AB1", "#DA7C30", "#3E9651", "#CC2529", 
                    "#535154", "#6B4C9A", "#922428", "#948B3D",
         rep("black", 100)))
+
+rocby_theme <-
+    cowplot::theme_cowplot() +
+    background_grid("xy", "none", colour.major = "grey70") %+replace% 
+    theme(panel.border = element_rect(color = "grey70", linetype = 1, size = 0.2))
 
 ## Figure 3 ##########################################################
 
