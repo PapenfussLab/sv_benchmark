@@ -21,7 +21,7 @@ rocby <- function(callgr, ..., rocSlicePoints=100, truth_id, ignore.duplicates=T
 		callgr <- callgr[callgr$Id == truth_id | callgr$truthQUAL != -2]
 		truthhitsdf <- callgr %>%
 			as.data.frame() %>%
-			filter(Id == truth_id & CallSet == "High & Low confidence") %>%
+			filter(Id == truth_id & CallSet == ALL_CALLS) %>%
 			dplyr::select(!!!groupingCols, dplyr::matches("f?Id.+", ignore.case=FALSE)) %>%
 			gather(key="Id_CallSet", value="QUAL", dplyr::matches("f?Id.+", ignore.case=FALSE)) %>%
 			filter() %>%
@@ -29,7 +29,7 @@ rocby <- function(callgr, ..., rocSlicePoints=100, truth_id, ignore.duplicates=T
 				fp=0,
 				tp=QUAL >= 0,
 				fn=QUAL < 0,
-				CallSet=ifelse(str_detect(Id_CallSet, "^fId"),"High & Low confidence", "High confidence only"),
+				CallSet=ifelse(str_detect(Id_CallSet, "^fId"), ALL_CALLS, PASS_CALLS),
 				Id=str_replace(Id_CallSet, "f?Id", "")) %>%
 			dplyr::select(-Id_CallSet)
 		rocdf <- callgr %>%
@@ -194,6 +194,15 @@ metadata_annotate <- function(df, metadata, ...) {
         mutate(caller_name = StripCallerVersion(CX_CALLER))
 }
 
+n_callers_palette <- function(caller_count, hue = 235) {
+    c("black", 
+      sequential_hcl(
+          caller_count - 2,
+          h = hue, c. = c(30, 20), l = c(40, 100)),
+      "white") %>%
+        rev()
+}
+
 ## Figure 3 ##########################################################
 
 shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
@@ -211,16 +220,7 @@ shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
     n_callers_plus_truth <-
         length(unique(truth_hits_df$caller_name))
     
-    n_callers_palette <- function(hue = 235) {
-        c("black", 
-          sequential_hcl(
-              n_callers_plus_truth - 2,
-              h = hue, c. = c(30, 20), l = c(40, 100)),
-          "white") %>%
-        rev()
-    }
-    
-    shared_calls_plot_base <-
+    plot_out <-
         truth_hits_df %>%
         mutate(truth_factor=factor(1 - is_truth)) %>%
         ggplot(aes(
@@ -242,15 +242,12 @@ shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
         # scale_x_discrete(labels = )
         geom_bar(size = 0.5, color = "black", width = 1) +
         scale_fill_manual(
-            values = c(n_callers_palette(235), n_callers_palette(90)), 
+            values = c(n_callers_palette(n_callers_plus_truth, 235), n_callers_palette(n_callers_plus_truth, 90)), 
             name = "# callers\nsharing") +
         xlab("") +
         coord_flip() +
         ggtitle("Sharing and distribution of true positive calls") +
-        theme_cowplot()
-    
-    plot_out <-
-        shared_calls_plot_base +
+        theme_cowplot() +
         # Blanks out "is_truth" panels
         theme(strip.text.y = element_text(angle = 180, hjust = 1),
               strip.background = element_blank(),
@@ -266,17 +263,19 @@ shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
     false_positive_plot_df <-
         callgr[callgr$Id != truth_id] %>%
         as.data.frame() %>% as.tbl() %>%
-        # Exclude High confidence only hitting a truth call, inc. duplicate true positives
         filter(truthQUAL < 0) %>%
-        # Remove duplicates (filtered vs. unfiltered meaningless for truth)
-        # filter(CallSet == "High and low confidence") %>%
-        # Remove non-filtered subject columns
-        dplyr::select(Id, CallSet, caller_hits_ex_truth, dplyr::matches("fId")) %>%
-        gather(key = subject_Id_CallSet, value = QUAL, dplyr::matches("fId")) %>%
-        filter(
-            (paste0("fId", Id) == subject_Id_CallSet) & 
-            (QUAL != -2)) %>%
+        # remove duplicate fp calls
+        dplyr::select(Id, CallSet, caller_hits_ex_truth, dplyr::matches("f?Id.", ignore.case = FALSE)) %>%
+        gather(key = subject_Id_CallSet, value = QUAL, dplyr::matches("f?Id.", ignore.case = FALSE)) %>%
+        mutate(subject_Id=str_replace(subject_Id_CallSet, "f?Id", ""),
+               subject_CallSet=ifelse(str_detect(subject_Id_CallSet, "^f"),
+                                      ALL_CALLS,
+                                      PASS_CALLS)) %>%
+        filter(Id == subject_Id, CallSet == subject_CallSet, QUAL != -2) %>%
         metadata_annotate(metadata, truth_id, truth_name)
+    
+    n_callers_plus_truth <-
+        length(unique(false_positive_plot_df$caller_name))
     
     ymax_shared <- (false_positive_plot_df %>%
         filter(caller_hits_ex_truth > 1) %>%
@@ -284,22 +283,39 @@ shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
         summarize(n=n()) %>%
         group_by() %>%
         summarise(n=max(n)))$n
-        
+    
     plot_out <-
         false_positive_plot_df %>%
         ggplot(aes(
-            x = caller_name,
-            fill = factor(caller_hits_ex_truth))) +
+            # TODO: does this break caller ordering?
+            # Check the use of group aesthetic here (CallSet, Id ...)
+            x = CallSet,
+            fill = interaction(factor(caller_hits_ex_truth), CallSet)
+        )) +
+        facet_grid(
+            Id ~ ., 
+            labeller = labeller(
+                Id=function(s) {ifelse(s==truth_id, truth_name,
+                                       as.character((data.frame(Id=s) %>%
+                                                         metadata_annotate(metadata))$caller_name))}),
+            switch = "y") +
         scale_y_continuous(expand = c(0,0)) +
-        geom_bar(color = "black") +
-        scale_fill_manual(values = n_callers_palette, name = "# callers\nsharing") +
+        # scale_x_discrete(labels = )
+        geom_bar(size = 0.5, color = "black", width = 1) +
+        #geom_text(false_positive_plot_df)
+        scale_fill_manual(
+            values = c(n_callers_palette(n_callers_plus_truth, 235), n_callers_palette(n_callers_plus_truth, 90)), 
+            name = "# callers\nsharing") +
         xlab("") +
         coord_flip(ylim=c(0, 1.1 * ymax_shared)) +
-        theme(
-            strip.text = element_blank(), strip.background = element_blank()) +
         ggtitle("Sharing and distribution of false positive calls") +
-        theme_cowplot()
-    
+        theme_cowplot() +
+        # Blanks out "is_truth" panels
+        theme(strip.text.y = element_text(angle = 180, hjust = 1),
+              strip.background = element_blank(),
+              axis.text.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              axis.line.y = element_blank())
     return(plot_out)
 }
 

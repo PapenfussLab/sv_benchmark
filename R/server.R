@@ -227,7 +227,7 @@ function(input, output, session) {
 			}
 			plotdf <- plotdf %>%
 				mutate(fill=if_else(nominalPosition, "Nominal position", "Incorporating caller\nconfidence interval and\nreported microhomology")) %>%
-				filter(CallSet=="High & Low confidence")
+				filter(CallSet==ALL_CALLS)
 			p <- ggplot() +
 				aes(x=bperror, y=rate, fill=fill) +
 				#geom_bar(stat="identity") +

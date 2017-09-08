@@ -446,7 +446,7 @@ import.sv.bedpe.dir <- function(dir) {
 			calls$calls <- calls$calls %>% filter(!tp) # take the truth vcf version of tp calls since it has the actual event size
 			mergedcalls <- rbind(calls$calls, calls$truth)
 		}
-		mcalls <- rbind(mcalls, mergedcalls %>% mutate(CallSet = ifelse(includeFiltered, "High & Low confidence", "High confidence only")))
+		mcalls <- rbind(mcalls, mergedcalls %>% mutate(CallSet = ifelse(includeFiltered, ALL_CALLS, PASS_CALLS)))
 	}
 	return(mcalls %>% dplyr::select(-ignore.strand, -maxgap))
 }
@@ -482,7 +482,7 @@ import.sv.bedpe.dir <- function(dir) {
 	allgrfiltered$partner <- paste0("f", allgrfiltered$partner)
 
 	allgr <- c(allgr, allgrfiltered)
-	allgr$CallSet = ifelse(allgr$ignore.filtered, "High confidence only", "High & Low confidence")
+	allgr$CallSet = ifelse(allgr$ignore.filtered, PASS_CALLS, ALL_CALLS)
 
 	# initialise to -1 to indicate no match
 	for (id in ids) {

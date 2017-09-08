@@ -11,6 +11,10 @@ mainPlotHeight <- 800
 enableBookmarking(store = "url")
 options("R.cache::compress" = TRUE)
 
+
+ALL_CALLS <- "High & Low confidence"
+PASS_CALLS <- "High confidence only"
+
 # load all metadata
 md <- lapply(list.files(dataLocation, pattern = "^data\\..*$", full.names = TRUE), function(dir) LoadCachedMetadata(dir))
 names(md) <- str_replace(list.files(dataLocation, pattern = "^data\\..*$"), "data.", "")
