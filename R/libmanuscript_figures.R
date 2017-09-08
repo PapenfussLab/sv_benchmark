@@ -1,12 +1,15 @@
 source("global.R")
 source("sv_benchmark.R")
 source("shinyCache2.R")
+
 library(tidyverse)
 library(ggplot2)
 library(cowplot)
 library(colorspace)
 library(grid)
 library(gridExtra)
+
+library(binom)
 
 ## Main figure-generating function ###################################
 
@@ -46,12 +49,6 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 		stop(paste("Missing VCF records for ", missing_callers))
 	}
 
-	# Suggestion: colors from 
-	# http://ksrowell.com/blog-visualizing-data/2012/02/02/optimal-colors-for-graphs/
-	# i.e.
-	# c("#396AB1", "#DA7C30", "#3E9651", "#CC2529", "#535154", "#6B4C9A", "#922428", "#948B3D")
-	caller_colour_scheme <- scale_colour_brewer(palette="Set1")
-
 	# Figure 1: prec_recall
 	rocby(callgr, simpleEvent, truth_id=truth_id) %>%
 	    filter(Id != truth_id) %>%
@@ -78,28 +75,46 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 
 	# Figure 4:
 	callgr$snp50bpbin <- cut(callgr$snp50bp, breaks=c(0, 1, 2, 3, 4, 5, 1000), labels=c(0,1,2,3,4,"5+"), right=FALSE)
-	ggplot(rocby(callgr, snp50bpbin, truth_id=truth_id)) +
-		aes(y=precision, x=tp / 2, colour=Id, linetype=CallSet) +
-		geom_line() +
-		caller_colour_scheme +
-		facet_grid(snp50bpbin ~ ., scales="free") +
-		labs(title=paste("Precision-Recall by flanking SNV/indels within 50bp of SV call\n", sample_name, truth_name))
-	saveplot(paste0(fileprefix, "prec_recall_by_snvindel"))
 
-	callgr$eventSizeBin <- cut(abs(callgr$svLen), breaks=c(0, 100, 200, 300, 500, 1000, 1000000000), labels=c("50-99", "100-199", "200-299", "300-499", "500-999", "1000+"), right=FALSE)
-	ggplot(rocby(callgr, simpleEvent, eventSizeBin, truth_id=truth_id) %>%
-			#filter(Id != truth_id) %>%
-			left_join(metadata)) +
+	pr_by_flanking_snvs_ggpplot <-
+	    rocby(callgr, snp50bpbin, truth_id=truth_id) %>%
+	    left_join(metadata) %>%
+	    ggplot() +
 		aes(y=precision, x=tp / 2, colour=StripCallerVersion(CX_CALLER), linetype=CallSet) +
 		geom_line() +
 		caller_colour_scheme +
+		facet_grid(snp50bpbin ~ ., scales="free") +
+	    cowplot::theme_cowplot() +
+	    background_grid("xy", "none") %+replace% 
+	    theme(panel.border = element_rect(color = "grey90", linetype = 1, size = 0.2)) +
+		labs(title=paste("Precision-Recall by flanking SNV/indels within 50bp of SV call\n", sample_name, truth_name))
+	
+	saveplot(paste0(fileprefix, "prec_recall_by_snvindel"))
+
+	callgr$eventSizeBin <- cut(abs(callgr$svLen), breaks=c(0, 100, 200, 300, 500, 1000, 1000000000), labels=c("50-99", "100-199", "200-299", "300-499", "500-999", "1000+"), right=FALSE)
+	
+	pr_by_event_size_type_ggplot <- 
+	    # Is this plot misleading?
+	    # The number of TP should differ by category -- e.g. "free_x" -- ???.
+	    rocby(callgr, simpleEvent, eventSizeBin, truth_id=truth_id) %>%
+	    #filter(Id != truth_id) %>%
+	    left_join(metadata) %>%
+	    ggplot() +
+		aes(y=precision, x=tp / 2, colour=StripCallerVersion(CX_CALLER), linetype=CallSet) +
+		geom_line() +
+		caller_colour_scheme +
+	    cowplot::theme_cowplot() +
+	    background_grid("xy", "none") %+replace% 
+	    theme(panel.border = element_rect(color = "grey90", linetype = 1, size = 0.2)) +
 		facet_grid(simpleEvent ~ eventSizeBin, scales="free") +
 		labs(title=paste("Precision-Recall by event size and type\n", sample_name, truth_name),
 			colour="Caller")
 
-	ggplot(rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
-			filter(Id != truth_id) %>%
-			left_join(metadata)) +
+	pr_by_event_size_type_ggplot_2 <-
+	    rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
+	    filter(Id != truth_id) %>%
+	    left_join(metadata) %>%
+	    ggplot() +
 		aes(y=precision, x=tp / 2, colour=StripCallerVersion(CX_CALLER), linetype=CallSet) +
 		geom_line() +
 		caller_colour_scheme +
@@ -109,14 +124,23 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 			colour="Caller")
 
 	callgr$trf <- overlapsAny(callgr, grtrf[[1]], type="any")
+	
 	callgr$repeatAnn <- ifelse(callgr$repeatClass == "" & callgr$trf, "TRF", callgr$repeatClass)
-	ggplot(rocby(callgr, repeatAnn, truth_id=truth_id) %>% filter(Id != truth_id) %>% left_join(metadata)) +
+	
+	pr_by_tandem_repeat_ggplot <- 
+	    rocby(callgr, repeatAnn, truth_id=truth_id) %>% 
+	    filter(Id != truth_id) %>% 
+	    left_join(metadata) %>%
+	    ggplot() +
 		aes(y=precision, x=tp / 2, colour=StripCallerVersion(CX_CALLER), linetype=CallSet) +
 		geom_line() +
 		caller_colour_scheme +
 		facet_wrap( ~ repeatAnn, scales="free") +
 		scale_y_continuous(limits=c(0,1)) +
-		labs(title=paste("Precision-Recall by presence of tandem repeat at breakpoint\n", sample_name, truth_name), colour="Caller")
+		labs(
+		    title=paste("Precision-Recall by presence of tandem repeat at breakpoint\n", 
+		                sample_name, truth_name), 
+		    colour="Caller")
 }
 
 ## ROC by ... function ###############################################
@@ -181,7 +205,7 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
                     fdr=1-precision))
 }
 
-## Plot utility functions ############################################
+## Plot utilities ####################################################
 
 qual_or_read_count <- function(caller_name) {
     ifelse(
@@ -205,6 +229,12 @@ n_callers_palette <- function(caller_count, hue = 235) {
       "white") %>%
         rev()
 }
+
+caller_colour_scheme <- 
+    scale_color_manual(
+        values = c("#396AB1", "#DA7C30", "#3E9651", "#CC2529", 
+                   "#535154", "#6B4C9A", "#922428", "#948B3D",
+        rep("black", 100)))
 
 ## Figure 3 ##########################################################
 
@@ -249,7 +279,8 @@ shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
                   color="grey50") +
         scale_fill_manual(
             values = c(n_callers_palette(n_callers_plus_truth, 235), n_callers_palette(n_callers_plus_truth, 90)), 
-            name = "# callers\nsharing") +
+            name = "# callers\nsharing",
+            labels = rep("", 2 * n_callers_plus_truth)) +
         xlab("") +
         coord_flip() +
         ggtitle("Sharing and distribution of true positive calls") +
@@ -314,9 +345,11 @@ shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
         scale_fill_manual(
             values = c(
                 # exclude zero -> white
-                n_callers_palette(n_callers_plus_truth, 235)[2:n_callers_plus_truth], 
-                n_callers_palette(n_callers_plus_truth, 90)[2:n_callers_plus_truth]), 
-            name = "# callers\nsharing") +
+                # I'm not sure why there needs to be a +1 here
+                n_callers_palette(n_callers_plus_truth + 1, 235)[1:n_callers_plus_truth + 1], 
+                n_callers_palette(n_callers_plus_truth + 1, 90)[1:n_callers_plus_truth + 1]), 
+            name = "# callers\nsharing",
+            labels = rep("", 2 * n_callers_plus_truth)) +
         xlab("") +
         coord_flip(ylim=c(0, 1.1 * ymax_shared)) +
         ggtitle("Sharing and distribution of false positive calls") +
@@ -345,7 +378,7 @@ prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name) {
         facet_wrap(
             ~ factor(caller_hits_ex_truth, levels = max(caller_hits_ex_truth):1),
             scale = "free",
-            ncol = 2) + 
+            nrow = 2) + 
         caller_colour_scheme + 
         labs(
             title = "Precision-recall by number of callers sharing call",
@@ -370,24 +403,29 @@ fig_3_grob <- function(callgr, metadata, truth_id, truth_name) {
             callgr, metadata, truth_id, truth_name) %>%
         ggplotGrob()
     
-    
     shared_tp_calls_grob <- 
         shared_tp_calls_plot(
             callgr, metadata, truth_id, truth_name) %>%
         ggplotGrob()
     
     shared_fp_calls_grob <-
-        shared_fp_calls_plot(callgr, truth_id, metadata)
+        shared_fp_calls_plot(callgr, truth_id, metadata) %>%
+        ggplotGrob()
     
-    layout_matrix <- cbind(c(1, 2), c(3, 3))
+    # shared_calls_grob <-
+    #     rbind(shared_tp_calls_grob, shared_fp_calls_grob)
+    
+    layout_matrix <- cbind(c(1,3), c(2,3))
     
     fig_3_grob <-
         grid.arrange(
             grobs = list(
                 shared_tp_calls_grob,
                 shared_fp_calls_grob,
-                precision_recall_by_shared_calls_grob),
+                prec_recall_by_shared_grob),
             layout_matrix = layout_matrix)
+    
+    return(fig_3_grob)
 }
 
 ## Figure 2 ##########################################################
@@ -430,8 +468,7 @@ ci_plot <- function(test_id, test_df, qual_column) {
         test_df %>%
         ggplot() +
         aes_string(x = qual_column) +
-        aes(
-            ymin = prec_lower,
+        aes(ymin = prec_lower,
             y = prec,
             ymax = prec_upper) +
         coord_cartesian(ylim = c(0,1)) + 
@@ -443,6 +480,7 @@ ci_plot <- function(test_id, test_df, qual_column) {
         scale_color_manual(values = c("#396AB1", "grey70")) +
         cowplot::theme_cowplot() +
         cowplot::background_grid(major = "xy", minor = "none") +
+        scale_y_continuous(labels = scales::percent) +
         theme(
             legend.position = "none",
             axis.text.x = element_blank(),
@@ -519,11 +557,11 @@ stacked_precision_plot <- function(
 }
 
 
-fig_2_grob <- function(caller_ids, callgr, metadata) {
+fig_2_grob <- function(ids, callgr, metadata) {
     
     all_grobs <-
         map(
-            caller_ids, 
+            ids, 
             (function(caller_id) {
                 caller_name <- (metadata %>% filter(Id == caller_id))$CX_CALLER
                 stacked_precision_plot(
