@@ -8,66 +8,7 @@ library(colorspace)
 library(grid)
 library(gridExtra)
 
-rocby <- function(callgr, ..., rocSlicePoints=100, truth_id, ignore.duplicates=TRUE) {
-	groupingCols <- quos(...)
-	callgr$truthQUAL <- mcols(callgr)[[paste0("fId",truth_id)]]
-	if (!ignore.duplicates) {
-		rocdf <- callgr %>%
-			as.data.frame() %>%
-			dplyr::select(Id, CallSet, !!!groupingCols, QUAL, truthQUAL) %>%
-			mutate(fp=truthQUAL < 0, tp=truthQUAL > 0)
-	} else {
-		# ignore calls that have a -2 in the truth column (don't touch the truth set though!)
-		callgr <- callgr[callgr$Id == truth_id | callgr$truthQUAL != -2]
-		truthhitsdf <- callgr %>%
-			as.data.frame() %>%
-			filter(Id == truth_id & CallSet == ALL_CALLS) %>%
-			dplyr::select(!!!groupingCols, dplyr::matches("f?Id.+", ignore.case=FALSE)) %>%
-			gather(key="Id_CallSet", value="QUAL", dplyr::matches("f?Id.+", ignore.case=FALSE)) %>%
-			filter() %>%
-			mutate(
-				fp=0,
-				tp=QUAL >= 0,
-				fn=QUAL < 0,
-				CallSet=ifelse(str_detect(Id_CallSet, "^fId"), ALL_CALLS, PASS_CALLS),
-				Id=str_replace(Id_CallSet, "f?Id", "")) %>%
-			dplyr::select(-Id_CallSet)
-		rocdf <- callgr %>%
-			as.data.frame() %>%
-			mutate(fp=1, tp=0, fn=0) %>%
-			filter(Id != truth_id & truthQUAL < 0) %>%
-			dplyr::select(Id, CallSet, !!!groupingCols, QUAL, fp, tp, fn) %>%
-			rbind(truthhitsdf)
-	}
-	return (rocdf %>%
-		#filter(Id != truth_id) %>%
-		group_by(Id, CallSet, !!!groupingCols, QUAL) %>%
-		summarise(fp=sum(fp), tp=sum(tp)) %>%
-		group_by(Id, CallSet, !!!groupingCols) %>%
-		arrange(desc(QUAL)) %>%
-		mutate(
-			fp=cumsum(fp),
-			tp=cumsum(tp)) %>%
-		# each QUAL score is a point on the ROC plott
-		group_by(Id, CallSet, !!!groupingCols, QUAL) %>%
-		summarise(tp=max(tp), fp=max(fp)) %>%
-		# QUAL scores with the same number of tp calls can be merged on the ROC plot
-		group_by(Id, CallSet, !!!groupingCols, tp) %>%
-		summarise(fp=max(fp), QUAL=min(QUAL)) %>%
-		# subsample along tp and tp+fp axis
-		group_by(Id, CallSet, !!!groupingCols) %>%
-		dplyr::slice(unique(c(
-			1,
-			findInterval(seq(0, max(tp), max(tp)/rocSlicePoints), tp),
-			findInterval(seq(0, max(tp + fp), max(tp + fp)/rocSlicePoints), tp + fp),
-			n()
-		))) %>%
-		ungroup() %>%
-		#TODO: fn and sens need eventCount using group_by(Id, CallSet, !!!groupingCols)
-		mutate(
-			precision=tp / (tp + fp),
-			fdr=1-precision))
-}
+## Main figure-generating function ###################################
 
 generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, grtransformName, allow_missing_callers=FALSE) {
 	fileprefix <- str_replace(paste(sample_name, truth_name, sep="_"), "[ /]", "_")
@@ -178,6 +119,68 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 		labs(title=paste("Precision-Recall by presence of tandem repeat at breakpoint\n", sample_name, truth_name), colour="Caller")
 }
 
+## ROC by ... function ###############################################
+
+rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=TRUE) {
+    groupingCols <- quos(...)
+    if (!ignore.duplicates) {
+        rocdf <- callgr %>%
+            as.data.frame() %>%
+            dplyr::select(Id, CallSet, !!!groupingCols, QUAL, truthQUAL) %>%
+            mutate(fp=truthQUAL < 0, tp=truthQUAL > 0)
+    } else {
+        # ignore calls that have a -2 in the truth column (don't touch the truth set though!)
+        callgr <- callgr[callgr$Id == truth_id | callgr$truthQUAL != -2]
+        truthhitsdf <- callgr %>%
+            as.data.frame() %>%
+            filter(Id == truth_id & CallSet == ALL_CALLS) %>%
+            dplyr::select(!!!groupingCols, dplyr::matches("f?Id.+", ignore.case=FALSE)) %>%
+            gather(key="Id_CallSet", value="QUAL", dplyr::matches("f?Id.+", ignore.case=FALSE)) %>%
+            mutate(
+                fp=0,
+                tp=QUAL >= 0,
+                fn=QUAL < 0,
+                CallSet=ifelse(str_detect(Id_CallSet, "^fId"), ALL_CALLS, PASS_CALLS),
+                Id=str_replace(Id_CallSet, "f?Id", "")) %>%
+            dplyr::select(-Id_CallSet) %>%
+            filter(!fn)
+        rocdf <- callgr %>%
+            as.data.frame() %>%
+            mutate(fp=1, tp=0, fn=0) %>%
+            filter(Id != truth_id & truthQUAL < 0) %>%
+            dplyr::select(Id, CallSet, !!!groupingCols, QUAL, fp, tp, fn) %>%
+            rbind(truthhitsdf)
+    }
+    return (rocdf %>%
+                filter(Id != truth_id) %>%
+                group_by(Id, CallSet, !!!groupingCols, QUAL) %>%
+                summarise(fp=sum(fp), tp=sum(tp)) %>%
+                group_by(Id, CallSet, !!!groupingCols) %>%
+                arrange(desc(QUAL)) %>%
+                mutate(
+                    fp=cumsum(fp),
+                    tp=cumsum(tp)) %>%
+                # each QUAL score is a point on the ROC plott
+                group_by(Id, CallSet, !!!groupingCols, QUAL) %>%
+                summarise(tp=max(tp), fp=max(fp)) %>%
+                # QUAL scores with the same number of tp calls can be merged on the ROC plot
+                group_by(Id, CallSet, !!!groupingCols, tp) %>%
+                summarise(fp=max(fp), QUAL=min(QUAL)) %>%
+                # subsample along tp and tp+fp axis
+                group_by(Id, CallSet, !!!groupingCols) %>%
+                dplyr::slice(unique(c(
+                    1,
+                    findInterval(seq(0, max(tp), max(tp)/rocSlicePoints), tp),
+                    findInterval(seq(0, max(tp + fp), max(tp + fp)/rocSlicePoints), tp + fp),
+                    n()
+                ))) %>%
+                ungroup() %>%
+                #TODO: fn and sens need eventCount using group_by(Id, CallSet, !!!groupingCols)
+                mutate(
+                    precision=tp / (tp + fp),
+                    fdr=1-precision))
+}
+
 ## Plot utility functions ############################################
 
 qual_or_read_count <- function(caller_name) {
@@ -188,7 +191,7 @@ qual_or_read_count <- function(caller_name) {
     # ... or log quality score! Or log read count ?!?!?!
 }
 
-metadata_annotate <- function(df, metadata, ...) {
+metadata_annotate <- function(df, metadata) {
     df %>%
         left_join(metadata) %>%
         mutate(caller_name = StripCallerVersion(CX_CALLER))
@@ -215,21 +218,19 @@ shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
         # Remove non-filtered subject columns
         dplyr::select(Id, CallSet, caller_hits_ex_truth) %>%
         mutate(is_truth = Id==truth_id) %>%
+        mutate(truth_factor=factor(1 - is_truth)) %>%
         metadata_annotate(metadata)
     
+    summary_df <- truth_hits_df %>%
+        group_by(Id, CallSet, truth_factor) %>%
+        summarise(total=n())
+        
     n_callers_plus_truth <-
         length(unique(truth_hits_df$caller_name))
     
     plot_out <-
         truth_hits_df %>%
-        mutate(truth_factor=factor(1 - is_truth)) %>%
-        ggplot(aes(
-            # TODO: does this break caller ordering?
-            # Check the use of group aesthetic here (CallSet, Id ...)
-            x = CallSet,
-            fill = interaction(factor(caller_hits_ex_truth), CallSet)
-            # group = interaction(Id, CallSet)
-            )) +
+        ggplot(aes(x = CallSet)) +
         facet_grid(
             truth_factor + Id ~ ., 
             labeller = labeller(
@@ -240,7 +241,12 @@ shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
             switch = "y") +
         scale_y_continuous(expand = c(0,0)) +
         # scale_x_discrete(labels = )
-        geom_bar(size = 0.5, color = "black", width = 1) +
+        geom_bar(aes(fill = interaction(factor(caller_hits_ex_truth), CallSet)),
+            size = 0.5, color = "black", width = 1) +
+        geom_text(aes(label=total), data=summary_df,
+                  hjust=1,
+                  y=max(summary_df$total),
+                  color="grey50") +
         scale_fill_manual(
             values = c(n_callers_palette(n_callers_plus_truth, 235), n_callers_palette(n_callers_plus_truth, 90)), 
             name = "# callers\nsharing") +
@@ -272,7 +278,7 @@ shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
                                       ALL_CALLS,
                                       PASS_CALLS)) %>%
         filter(Id == subject_Id, CallSet == subject_CallSet, QUAL != -2) %>%
-        metadata_annotate(metadata, truth_id, truth_name)
+        metadata_annotate(metadata)
     
     n_callers_plus_truth <-
         length(unique(false_positive_plot_df$caller_name))
@@ -286,25 +292,30 @@ shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
     
     plot_out <-
         false_positive_plot_df %>%
-        ggplot(aes(
-            # TODO: does this break caller ordering?
-            # Check the use of group aesthetic here (CallSet, Id ...)
-            x = CallSet,
-            fill = interaction(factor(caller_hits_ex_truth), CallSet)
-        )) +
+        ggplot(aes(x = CallSet)) +
         facet_grid(
             Id ~ ., 
             labeller = labeller(
-                Id=function(s) {ifelse(s==truth_id, truth_name,
-                                       as.character((data.frame(Id=s) %>%
-                                                         metadata_annotate(metadata))$caller_name))}),
+                Id=function(s) {
+                    ifelse(s==truth_id, truth_name,
+                        as.character((data.frame(Id=s) %>%
+                            metadata_annotate(metadata))$caller_name))}),
             switch = "y") +
         scale_y_continuous(expand = c(0,0)) +
         # scale_x_discrete(labels = )
-        geom_bar(size = 0.5, color = "black", width = 1) +
-        #geom_text(false_positive_plot_df)
+        geom_bar(aes(fill = interaction(factor(caller_hits_ex_truth), CallSet)),
+                 size = 0.5, color = "black", width = 1) +
+        geom_text(aes(label=total), data=false_positive_plot_df %>%
+                      group_by(Id, CallSet) %>%
+                      summarise(total=n()),
+                  y=ymax_shared * 1.1,
+                  hjust=1,
+                  color="grey50") +
         scale_fill_manual(
-            values = c(n_callers_palette(n_callers_plus_truth, 235), n_callers_palette(n_callers_plus_truth, 90)), 
+            values = c(
+                # exclude zero -> white
+                n_callers_palette(n_callers_plus_truth, 235)[2:n_callers_plus_truth], 
+                n_callers_palette(n_callers_plus_truth, 90)[2:n_callers_plus_truth]), 
             name = "# callers\nsharing") +
         xlab("") +
         coord_flip(ylim=c(0, 1.1 * ymax_shared)) +
@@ -319,32 +330,33 @@ shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
     return(plot_out)
 }
 
-prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name, caller_colour_scheme) {
-    
-    caller_name_lookup <- caller_name_lookup_func(metadata, truth_name)
+prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name) {
     
     plot_out <-
-        rocby(callgr, caller_hits_ex_truth, truthid = truth_id) %>% 
+        rocby(callgr, caller_hits_ex_truth, truth_id = truth_id) %>% 
         filter(Id != truth_id) %>%
+        metadata_annotate(metadata) %>%
         ggplot() +
         aes(y = precision,
             x = tp,
-            colour = caller_name_lookup(Id), 
+            colour = caller_name,
             linetype = CallSet) +
         geom_line() +
         facet_wrap(
             ~ factor(caller_hits_ex_truth, levels = max(caller_hits_ex_truth):1),
             scale = "free",
             ncol = 2) + 
-        caller_colour_scheme() + 
+        caller_colour_scheme + 
         labs(
             title = "Precision-recall by number of callers sharing call",
             color = "caller",
             linetype = "call set",
             x = "# true positives",
             y = "precision") +
-        coord_cartesian(ylim=c(0,1)) +
-        theme_cowplot()
+        coord_cartesian(ylim = c(0,1)) +
+        scale_y_continuous(labels = scales::percent) +
+        theme_cowplot() +
+        background_grid("y", "none")
         # Possibly add percentage labels? y axis gridlines?
         # Add endpoint showing properties of call set.
     
