@@ -81,7 +81,7 @@ simcache <- function(datadir, maxgap, ignore.strand, sizemargin, ignore.duplicat
 			filter(StripCallerVersion(CX_CALLER, FALSE) %in% fulldatacallers) %>%
 			inner_join(plotdata$dfs$mostSensitiveAligner) %>%
 			mutate(
-				CallSet=ifelse(CallSet=="High & Low confidence", "All Calls", CallSet),
+				CallSet=ifelse(CallSet==ALL_CALLS, "All Calls", CallSet),
 				caller=StripCallerVersion(CX_CALLER, FALSE),
 				eventtype=factor(eventtype, c("Deletion","Insertion","Inversion","Tandem Duplication","Breakpoint")))
 		ggplot(plotdf) +
@@ -103,7 +103,7 @@ simcache <- function(datadir, maxgap, ignore.strand, sizemargin, ignore.duplicat
 			filter(!(CX_REFERENCE_VCF_VARIANTS %in% "hetBP_SINE")) %>%
 			inner_join(plotdata$dfs$mostSensitiveAligner) %>%
 			mutate(
-				CallSet=ifelse(CallSet=="High & Low confidence", "All Calls", CallSet),
+				CallSet=ifelse(CallSet==ALL_CALLS, "All Calls", CallSet),
 				caller=StripCallerVersion(CX_CALLER, FALSE),
 				eventtype=factor(eventtype, c("Deletion","Insertion","Inversion","Tandem Duplication","Breakpoint")))
 		ggplot(plotdf) +
@@ -220,9 +220,9 @@ lrcache <- function(datadir, truthbedpedir, mintruthbedpescore, maxgap, ignore.s
 			#	filter(StripCallerVersion(CX_CALLER, FALSE) %in% fulldatacallers) %>%
 			#	inner_join(plotdata$dfs$mostSensitiveAligner) %>%
 			#	mutate(
-			#		CallSet=ifelse(CallSet=="High & Low confidence", "All Calls", CallSet),
+			#		CallSet=ifelse(CallSet==ALL_CALLS, "All Calls", CallSet),
 			#		caller=StripCallerVersion(CX_CALLER, FALSE)) %>%
-			#	rbind(data.frame(Id=paste0(fulldatacallers, "_placeholder"), CallSet="High confidence only", tp=0, events=1, fp=0, fn=0, QUAL=-1, precision=0, fdr=0, sens=0,
+			#	rbind(data.frame(Id=paste0(fulldatacallers, "_placeholder"), CallSet=PASS_CALLS, tp=0, events=1, fp=0, fn=0, QUAL=-1, precision=0, fdr=0, sens=0,
 			#									 CX_ALIGNER=NA,CX_ALIGNER_MODE="",CX_MULTIMAPPING_LOCATIONS=NA,CX_CALLER=fulldatacallers,CX_READ_LENGTH=NA,CX_READ_DEPTH=NA,CX_READ_FRAGMENT_LENGTH=NA,CX_REFERENCE_VCF=NA,
 			#									 caller=fulldatacallers))
 			#ggplot(plotdf %>% arrange(desc(QUAL))) +

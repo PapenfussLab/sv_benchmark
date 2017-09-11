@@ -126,7 +126,7 @@ callgr <- .CachedTransformVcf(
 
 plotdf <- gdf$bpErrorDistribution
 ggplot(plotdf %>%
-				filter(CallSet=="High & Low confidence")) +
+				filter(CallSet==ALL_CALLS)) +
 			aes(x=bperror, y=rate, fill=nominalPosition) +
 			geom_bar(stat="identity") +
 			facet_wrap( ~ CX_CALLER)
@@ -274,7 +274,7 @@ callsByCallerWithCount <- dfbyid %>%
 		summarise(count=sum(tp)))
 
 ggplot(callsByCallerWithCount %>%
-		filter(tp, CallSet=="High & Low confidence") %>%
+		filter(tp, CallSet==ALL_CALLS) %>%
 		left_join(LoadCachedMetadata("./data.na12878"))) +
 	aes(x=Id, fill=as.factor(count)) +
 	#aes(group=paste(Id, CallSet), x=paste(CX_CALLER, Id, CallSet), fill=as.factor(count)) +
