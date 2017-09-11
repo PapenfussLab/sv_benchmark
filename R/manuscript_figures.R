@@ -55,3 +55,21 @@ truth_id <- "00000000000000000000000000000001"
 truth_name <- "Huddleston et al"
 grtransformName <- "None"
 generate_figures(datadir, sample_name, ids, truth_id, truth_name, grtransformName)
+
+#chm13
+datadir <- "../data.chm13"
+sample_name <- "chm13"
+ids <- c(
+	"16c58fbcc5633564b10ebe8f78d87883",
+	"40c68f29b6d7cb2358f31a7073250406",
+	"43a13d07730deb934e9fc01e3b3cd26f",
+	"8dcad8fe04f4ebc0ad3254ab4420cdc8",
+	"acd889cc16741fb0fba62faa4f7005f3",
+	"b1112f1c3cbd28c464f58fc5c5c02f9b",
+	"9d134f160ac68c0445002fbb78db4a5e")
+truth_id <- "00000000000000000000000000000013"
+truth_name <- "Huddleston et al"
+grtransformName <- "None"
+generate_figures(datadir, sample_name, ids, truth_id, truth_name, grtransformName)
+
+
