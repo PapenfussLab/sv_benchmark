@@ -56,6 +56,7 @@ if (!exists("grrm")) {
 }
 if (!exists("grtrf")) {
 	grtrf <- list()
+	grtrf[["hg19"]] <- import(paste0(dataLocation, "/input.common/HG19 - 2,3,5,50 v2 Full Genome_repeats.bed"))
 	grtrf[["hg38"]] <- import(paste0(dataLocation, "/input.common/Homo sapiens HG38 (2,5,7,50, centr. excluded) Full Genome_repeats.bed"))
 }
 # helper functions
