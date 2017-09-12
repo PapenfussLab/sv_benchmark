@@ -74,12 +74,12 @@ vcfs <- sapply(names(vcfs), function(id) {
 #####################################
 # Mills
 calls_default <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=FALSE, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin, truthgr=vcfs[["00000000000000000000000000000002"]])
-calls_default$calls$CallSet <- "High confidence only"
-calls_default$truth$CallSet <- "High confidence only"
+calls_default$calls$CallSet <- PASS_CALLS
+calls_default$truth$CallSet <- PASS_CALLS
 
 calls_all <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=TRUE, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin, truthgr=vcfs[["00000000000000000000000000000002"]])
-calls_all$calls$CallSet <- "High & Low confidence"
-calls_all$truth$CallSet <- "High & Low confidence"
+calls_all$calls$CallSet <- ALL_CALLS
+calls_all$truth$CallSet <- ALL_CALLS
 mcalls <- rbind(calls_default$calls, calls_all$calls)
 
 # Duplicates are considered FPs
@@ -118,10 +118,10 @@ lrcalls <- bind_rows(lapply(names(vcfs)[names(vcfs) %in% (metadata %>% filter(!i
 	return(result)
 }))
 lrcalls <- lrcalls %>%
-	mutate(tp=srhits>=3 | sphits>=7, fp=!tp, CallSet="High & Low confidence")
+	mutate(tp=srhits>=3 | sphits>=7, fp=!tp, CallSet=ALL_CALLS)
 lrcalls <- rbind(lrcalls, lrcalls %>%
 	filter(FILTER %in% c(".", "PASS")) %>%
-	mutate(CallSet="High confidence only"))
+	mutate(CallSet=PASS_CALLS))
 
 #####################################
 # Plots
@@ -154,7 +154,7 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
 			ungroup() %>%
 			mutate(precision=tp / (tp + fp), fdr=1-precision) %>%
 			left_join(metadata) %>%
-			mutate(caller=StripCallerVersion(CX_CALLER), CallSet=relevel(factor(CallSet), "High confidence only"))
+			mutate(caller=StripCallerVersion(CX_CALLER), CallSet=relevel(factor(CallSet), PASS_CALLS))
 	write.csv(roc, paste0("na12878_roc_", label, "_error_", maxgap, "bp_", sizemargin, "x", ".csv"))
 	ggplot(roc) +
 		aes(group=paste(Id, CallSet), y=tp/2, x=fp/2, linetype=CallSet, color=caller) +
@@ -186,7 +186,7 @@ lrcalls <- rbind(lrcalls, lrcalls %>%
 								 distinct(caller, CallSet, .keep_all = TRUE) %>%
 								 mutate(tp=0)) %>%
 								mutate(caller=StripCallerVersion(CX_CALLER)) %>%
-								filter(CallSet=="High confidence only")) +
+								filter(CallSet==PASS_CALLS)) +
 		aes(group=paste(Id, CallSet), x=tp/2, y=fdr, color=caller) +
 		geom_line() +
 		coord_cartesian(xlim=c(0, 3000), ylim=c(0, 0.25)) +

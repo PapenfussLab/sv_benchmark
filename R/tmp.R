@@ -1,4 +1,11 @@
 #!/usr/bin/env Rscript
+source("global.R")
+source("shinyCache2.R")
+library(ggplot2)
+library(scales)
+datadir <- "../data.chm"
+setCacheRootPath(datadir)
+
 library("optparse")
 parser <- OptionParser(option_list=list(
 	make_option(c("-p", "--plot"), action="store_true", default=FALSE, help="Generate plots")
@@ -10,8 +17,77 @@ write(commandArgs(trailingOnly=TRUE), stderr())
 write(names(opt), stderr())
 write(opt$plot, stderr())
 
-library(ggplot2)
-library(scales)
+
+
+fdf <- .LoadGraphDataFrame(TRUE, TRUE, 51, NULL, "DEL", 100,
+		datadir=datadir,
+		metadata=LoadCachedMetadata(datadir),
+		maxgap=200,
+	sizemargin=0.25,
+	ignore.strand=TRUE,
+	requiredHits=1,
+	truthgr=NULL,
+	truthgrName=NULL,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test")
+
+
+dellymat <- .LoadCallMatrixForIds(
+	datadir=datadir,
+	metadata=LoadCachedMetadata(datadir),
+	ids=c("9d134f160ac68c0445002fbb78db4a5e"), # why does DELLY require so much memory?
+	ignore.interchromosomal=TRUE, mineventsize=51, maxeventsize=NULL,
+	maxgap=200,
+	sizemargin=0.25,
+	ignore.strand=TRUE,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test"
+)
+mantamat <- .LoadCallMatrixForIds(
+	datadir=datadir,
+	metadata=LoadCachedMetadata(datadir),
+	ids=c("00000000000000000000000000000001", "16c58fbcc5633564b10ebe8f78d87883"),
+	ignore.interchromosomal=TRUE, mineventsize=51, maxeventsize=NULL,
+	maxgap=200,
+	sizemargin=0.25,
+	ignore.strand=TRUE,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test"
+)
+callmat <- .LoadCallMatrixForIds(
+	datadir=datadir,
+	metadata=LoadCachedMetadata(datadir),
+	#ids=c("acd889cc16741fb0fba62faa4f7005f3", "8dcad8fe04f4ebc0ad3254ab4420cdc8"),
+	ids=c(
+		"00000000000000000000000000000001",
+		"16c58fbcc5633564b10ebe8f78d87883",
+		"40c68f29b6d7cb2358f31a7073250406",
+		"43a13d07730deb934e9fc01e3b3cd26f",
+		"8dcad8fe04f4ebc0ad3254ab4420cdc8",
+		"acd889cc16741fb0fba62faa4f7005f3",
+		"b1112f1c3cbd28c464f58fc5c5c02f9b",
+		"9d134f160ac68c0445002fbb78db4a5e"),
+	ignore.interchromosomal=TRUE, mineventsize=51, maxeventsize=NULL,
+	maxgap=200,
+	sizemargin=0.25,
+	ignore.strand=TRUE,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test"
+)
+
+gdf <- .LoadGraphDataFrameForId(TRUE, TRUE, 51, NULL, "DEL", 100,
+		datadir=datadir,
+		metadata=LoadCachedMetadata(datadir),
+		id="b1112f1c3cbd28c464f58fc5c5c02f9b",
+		maxgap=200,
+	sizemargin=0.25,
+	ignore.strand=TRUE,
+	requiredHits=1,
+	truthgr=NULL,
+	truthgrName=NULL,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test")
+
 
 calldf <- .CachedLoadCallsForId(
 	datadir="./data.na12878",
@@ -21,7 +97,7 @@ calldf <- .CachedLoadCallsForId(
 	sizemargin=0.25,
 	ignore.strand=TRUE,
 	requiredHits=1,
-	truthgr=truthgr,
+	truthgr=NULL,
 	truthgrName=NULL,
 	grtransform=simoptions$grtransform[["DAC"]],
 	grtransformName="DAC",
@@ -30,6 +106,30 @@ calldf <- calldf %>%
 	filter(abs(svLen) > 50)%>%
 	mutate(Classification = ifelse(tp, "True Positive", ifelse(fp, "False Positive", "False Negative")))
 
+callgr <- .CachedTransformVcf(
+	datadir=datadir,
+	metadata=LoadCachedMetadata(datadir),
+	id="acd889cc16741fb0fba62faa4f7005f3",
+	ignore.interchromosomal=TRUE, mineventsize=51, maxeventsize=NULL,
+	grtransform=.primaryHumanOnly,
+	grtransformName="test",
+	nominalPosition=FALSE)
+
+callgr <- .CachedTransformVcf(
+	datadir=datadir,
+	metadata=LoadCachedMetadata(datadir),
+	id="acd889cc16741fb0fba62faa4f7005f3",
+	grtransform=.primaryHumanOnly,
+	grtransformName="test",
+	nominalPosition=FALSE)
+
+
+plotdf <- gdf$bpErrorDistribution
+ggplot(plotdf %>%
+				filter(CallSet==ALL_CALLS)) +
+			aes(x=bperror, y=rate, fill=nominalPosition) +
+			geom_bar(stat="identity") +
+			facet_wrap( ~ CX_CALLER)
 
 # event size density
 ggplot(calldf) +
@@ -50,6 +150,13 @@ ggplot(calldf %>% filter(!fp)) +
 	geom_histogram() +
 		scale_x_log10() +
 	labs(title="Actual Event Size Distribution", fill="Correctly Called")
+
+ggplot(calldf) +
+	aes(x=svLen, fill=Classification) +
+	geom_histogram() +
+		scale_x_log10() +
+	labs(title="Event Size Distribution", fill="Classification")
+
 
 ggplot(calldf %>% filter(!fp)) +
 	aes(x=svLen, fill=tp) +
@@ -127,38 +234,49 @@ ggplot(calldf %>%
 
 
 # TODO:
- * SNP/INDEL context of SV calls
- * actual coverage vs mean coverage
- * mappabiliyumappability of surrounding bases
- * event size distribution vs real event size distribution
+# * SNP/INDEL context of SV calls
+# * actual coverage vs mean coverage
+# * mappabiliyumappability of surrounding bases
+# * event size distribution vs real event size distribution
 
 
+##############
+# SNP/INDEL context of SV call
+
+# What size context should we use?
+
+snpplot <- rbind(
+	gdf$rocbysnp10 %>% mutate(snpWidth=10, snpCount=snp10bin, snp10bin=NULL),
+	gdf$rocbysnp50 %>% mutate(snpWidth=50, snpCount=snp50bin, snp50bin=NULL),
+	gdf$rocbysnp100 %>% mutate(snpWidth=100, snpCount=snp100bin, snp100bin=NULL)
+	) %>% arrange(desc(QUAL))
+
+# Rescale x axis to recall for bin instead of tp count
+ggplot(snpplot %>%
+	group_by(Id, CallSet, snpCount, snpWidth) %>%
+	mutate(recall=tp/max(tp))) +
+		aes(group=paste(Id, CallSet, snpCount), y = precision, x = recall, linetype=CallSet, colour=factor(snpCount)) +
+		geom_line(size=1) +
+		facet_wrap(~ snpWidth, scales="free") +
+		scale_colour_brewer(palette = "Paired") +
+		scale_y_continuous(limits=c(0,1))
 
 
+########################
+# Caller Venn diagrams
+dfbyid <- fdf$callsByCaller %>%
+	filter(nominalPosition==FALSE) %>%
+	select(-Classification)
 
+callsByCallerWithCount <- dfbyid %>%
+	left_join(dfbyid %>%
+		group_by(breakendId, CallSet, nominalPosition) %>%
+		summarise(count=sum(tp)))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ggplot(callsByCallerWithCount %>%
+		filter(tp, CallSet==ALL_CALLS) %>%
+		left_join(LoadCachedMetadata("./data.na12878"))) +
+	aes(x=Id, fill=as.factor(count)) +
+	#aes(group=paste(Id, CallSet), x=paste(CX_CALLER, Id, CallSet), fill=as.factor(count)) +
+	geom_bar()
 

@@ -78,16 +78,16 @@ PrettyFormatLrPlotdf <- function(input, dfs, plotdf) {
 	plotdf <- plotdf %>%
 		filter(StripCallerVersion(CX_CALLER, FALSE) %in% input$lrcaller)
 		# aligner filters
-		alignerIdCallSet <- plotdf %>%
-				select(Id, CallSet, CX_ALIGNER) %>%
-				filter(CX_ALIGNER %in% input$lraligner | (is.na(CX_ALIGNER) & "" %in% input$lraligner)) %>%
-				select(Id, CallSet) %>%
-				rbind(dfs$mostSensitiveAligner[rep("best" %in% input$lraligner, nrow(dfs$mostSensitiveAligner)),]) %>%
-				distinct()
-		plotdf <- plotdf %>% inner_join(alignerIdCallSet)
-		plotdf <- plotdf %>% mutate(
-			caller=StripCallerVersion(CX_CALLER, FALSE),
-			aligner=CX_ALIGNER %na% rep("N/A", nrow(plotdf)))
+	alignerIdCallSet <- plotdf %>%
+			select(Id, CallSet, CX_ALIGNER) %>%
+			filter(CX_ALIGNER %in% input$lraligner | (is.na(CX_ALIGNER) & "" %in% input$lraligner)) %>%
+			select(Id, CallSet) %>%
+			bind_rows(dfs$mostSensitiveAligner[rep("best" %in% input$lraligner, nrow(dfs$mostSensitiveAligner)),]) %>%
+			distinct()
+	plotdf <- plotdf %>% inner_join(alignerIdCallSet)
+	plotdf <- plotdf %>% mutate(
+		caller=StripCallerVersion(CX_CALLER, FALSE),
+		aligner=CX_ALIGNER %na% rep("N/A", nrow(plotdf)))
 	return(plotdf)
 }
 PrettyFormatSimPlotdf <- function(input, dfs, plotdf) {
@@ -113,18 +113,23 @@ PrettyFormatSimPlotdf <- function(input, dfs, plotdf) {
 	return(plotdf)
 }
 
-doPlot <- function(input, plotdfname, plotfunction, debugLabel=NULL) {
+doPlot <- function(input, plotdfname, plotfunction, debugLabel=NULL, createProgressBar=!is.null(getDefaultReactiveDomain()), data=RefreshData(input)) {
 	if (!is.null(debugLabel)) {
 		write(debugLabel, stderr())
 	}
-	progress <- shiny::Progress$new()
-	on.exit(progress$close())
-	progress$set(message = "Loading data", value = 0)
-	current <- RefreshData(input)
-	progress$set(message = "Formatting data", value = 0.5)
-	plotdf <- PrettyFormatPlotdf(input, current$dfs, current$dfs[[plotdfname]])
+	if (createProgressBar) {
+		progress <- shiny::Progress$new()
+		on.exit(progress$close())
+		progress$set(message = "Loading data", value = 0)
+	}
+	if (createProgressBar) {
+		progress$set(message = "Formatting data", value = 0.5)
+	}
+	plotdf <- PrettyFormatPlotdf(input, data$dfs, data$dfs[[plotdfname]])
 	# display breakpoint counts instead of breakend counts
-	progress$set(message = "Generating plot", value = 0.8)
+	if (createProgressBar) {
+		progress$set(message = "Generating plot", value = 0.8)
+	}
 	p <- plotfunction(plotdf)
 	return(p)
 }
@@ -176,9 +181,11 @@ function(input, output, session) {
 		}
 		panels <- c(panels, list(
 			tabPanel("Precision Recall", plotOutput("lrPrecRecallPlot", height = mainPlotHeight)),
-			tabPanel("ROC", plotOutput("lrRocPlot", height = mainPlotHeight)),
 			tabPanel("Precision Recall by repeat", plotOutput("lrPrecRecallRepeatPlot", height = mainPlotHeight)),
-			tabPanel("ROC by repeat", plotOutput("lrRocRepeatPlot", height = mainPlotHeight))
+			#tabPanel("Precision Recall by homology size", plotOutput("lrPrecRecallIhomlenPlot", height = mainPlotHeight)),
+			tabPanel("ROC", plotOutput("lrRocPlot", height = mainPlotHeight)),
+			tabPanel("ROC by repeat", plotOutput("lrRocRepeatPlot", height = mainPlotHeight)),
+			tabPanel("Positional error", plotOutput("bpErrorDistributionPlot", height = mainPlotHeight))
 		))
 		return(do.call(tabsetPanel, panels))
 	})
@@ -212,23 +219,25 @@ function(input, output, session) {
 			return(p)
 		}, debugLabel="simRocPlot"))
 	})
-	output$simbpErrorDistributionPlot <- renderPlot({
-		if (input$datasettype != "sim") {
-			write("skipping simbpErrorDistributionPlot", stderr())
-			return (NULL)
-		}
-	  write("simbpErrorDistributionPlot", stderr())
-		currentdata <- RefreshData(input)
-		plotdf <- PrettyFormatPlotdf(input, currentdata$dfs, currentdata$dfs$bpErrorDistribution)
-		# TODO: incorporate error margin only for truth calls
-		p <- ggplot(plotdf %>%
-				filter(CallSet=="All Calls") %>%
-				inner_join(mostSensitiveAligner)) +
-			aes(x=bperror, y=rate) +
-			geom_bar(stat="identity") +
-			facet_grid(caller ~ eventtype)
-		write("simbpErrorDistributionPlot complete", stderr())
-		return(p)
+	output$bpErrorDistributionPlot <- renderPlot({
+		return(doPlot(input, "bpErrorDistribution", function(plotdf) {
+			if (nrow(plotdf) == 0) {
+				write("bpErrorDistributionPlot: no data!", stderr())
+				return(NULL)
+			}
+			plotdf <- plotdf %>%
+				mutate(fill=if_else(nominalPosition, "Nominal position", "Incorporating caller\nconfidence interval and\nreported microhomology")) %>%
+				filter(CallSet==ALL_CALLS)
+			p <- ggplot() +
+				aes(x=bperror, y=rate, fill=fill) +
+				#geom_bar(stat="identity") +
+				geom_bar(stat="identity", data=plotdf %>% filter(nominalPosition==FALSE), alpha=0.5) +
+				geom_bar(stat="identity", data=plotdf %>% filter(nominalPosition==TRUE), alpha=0.5) +
+				scale_fill_brewer(type="qual", palette="Dark2", name="Error margin") +
+				facet_wrap( ~ caller) +
+				labs(title="Error in called position", x="Error (base pairs)", y="Portion of true positive calls")
+			return(p)
+		}, debugLabel="bpErrorDistributionPlot"))
 	})
 	#####
 	# long read plots
@@ -241,6 +250,9 @@ function(input, output, session) {
 	output$lrPrecRecallRepeatPlot <- renderPlot({
 		return(doPlot(input, "rocbyrepeat", plotPrecRecallRepeat, debugLabel="lrPrecRecallRepeatPlot"))
 	})
+	#output$lrPrecRecallIhomlenPlot <- renderPlot({
+	#	return(doPlot(input, "rocbyihomlen", plotPrecRecallIhomlen, debugLabel="lrPrecRecallIhomlenPlot"))
+	#})
 	output$lrRocRepeatPlot <- renderPlot({
 		return(doPlot(input, "rocbyrepeat", function(plotdf) {
 			# display breakpoint counts instead of breakend counts

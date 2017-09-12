@@ -2,7 +2,7 @@ source("config.R")
 source("sv_benchmark.R")
 source("libplot.R")
 source("shinyCache2.R")
-library(stringr)
+library(tidyverse)
 library(shiny)
 library(shinyBS)
 
@@ -11,9 +11,13 @@ mainPlotHeight <- 800
 enableBookmarking(store = "url")
 options("R.cache::compress" = TRUE)
 
+
+ALL_CALLS <- "High & Low confidence"
+PASS_CALLS <- "High confidence only"
+
 # load all metadata
-md <- lapply(list.files(dataLocation, pattern = "data.*", full.names = TRUE), function(dir) LoadCachedMetadata(dir))
-names(md) <- str_replace(list.files(dataLocation, pattern = "data.*"), "data.", "")
+md <- lapply(list.files(dataLocation, pattern = "^data\\..*$", full.names = TRUE), function(dir) LoadCachedMetadata(dir))
+names(md) <- str_replace(list.files(dataLocation, pattern = "^data\\..*$"), "data.", "")
 # hack fix for:
 # Error: incompatible type (data index: 4, column: 'CX_MULTIMAPPING_LOCATIONS', was collecting: integer (dplyr::Collecter_Impl<13>), incompatible with data of type: character
 md <- lapply(md, function(x) { x$CX_MULTIMAPPING_LOCATIONS <- as.integer(x$CX_MULTIMAPPING_LOCATIONS) ; x})
@@ -35,16 +39,26 @@ if (!exists("grrm")) {
 	cacheroot <- getCacheRootPath()
 	setCacheRootPath(dataLocation)
 	write("Loading repeatmasker annotations", stderr())
-	key = list(repeatmaskermergedfile=paste0(dataLocation, "/input.common/repeatmasker-hg19.fa.out.gz"))
+	location <- paste0(dataLocation, "/input.common")
+	files <- list.files(path=location, pattern=".fa.out.gz$")
+	key = list(location=location, files=files)
 	grrm <- loadCache(key=key, dirs="input.common/.Rcache")
 	if (is.null(grrm)) {
-	  write(paste("Loading ", key$repeatmaskermergedfile), stderr())
-		grrm <- import.repeatmasker.fa.out(key$repeatmaskermergedfile)
+		write("Loading repeatmasker annotations from disk", stderr())
+		grrm <- list()
+		for (file in files) {
+			rmgenome <- str_replace(file, ".fa.out.gz", "")
+			grrm[[rmgenome]] <- import.repeatmasker.fa.out(paste0(location, "/", file))
+		}
 		saveCache(grrm, key=key, dirs="input.common/.Rcache")
 	}
 	setCacheRootPath(cacheroot)
 }
-
+if (!exists("grtrf")) {
+	grtrf <- list()
+	grtrf[["hg19"]] <- import(paste0(dataLocation, "/input.common/HG19 - 2,3,5,50 v2 Full Genome_repeats.bed"))
+	grtrf[["hg38"]] <- import(paste0(dataLocation, "/input.common/Homo sapiens HG38 (2,5,7,50, centr. excluded) Full Genome_repeats.bed"))
+}
 # helper functions
 PrettyAligner <- function(dataaligners) {
     dataaligners <- unique(dataaligners)
@@ -52,15 +66,25 @@ PrettyAligner <- function(dataaligners) {
     ka <- knownaligners[knownaligners %in% dataaligners]
     return(c("Most sensitive" = "best", ka, "N/A" = ""))
 }
-withnames <- function(v, n) { names(v) <- n; return(v) }
+withnames <- function(v, n) {
+	if (is.null(v)) {
+		browser()
+	}
+	names(v) <- n; return(v)
+}
 .primaryHumanOnly <- function(gr, metadata) {
 	if (length(gr) > 0) {
 		seqlevelsStyle(gr) <- "UCSC"
 		# filter to primary chromosomes
 		gr <- gr[seqnames(gr) %in% paste0("chr", c(1:22, "X", "Y")) & seqnames(partner(gr)) %in% paste0("chr", c(1:22, "X", "Y")),]
 	}
-	repeatHits <- findOverlaps(gr, grrm, select="first")
-	gr$repeatClass <- ifelse(is.na(repeatHits), "", grrm[repeatHits %na% 1]$repeatClass)
+	genome <- (expand.grid(reference=names(grrm), file=metadata$CX_REFERENCE, stringsAsFactors=FALSE) %>%
+		mutate(match=str_detect(file, reference)) %>%
+		group_by(reference) %>%
+		summarise(hits=sum(match)) %>%
+		arrange(desc(hits)))$reference[1]
+	repeatHits <- findOverlaps(gr, grrm[[genome]], select="first")
+	gr$repeatClass <- ifelse(is.na(repeatHits), "", grrm[[genome]][repeatHits %na% 1]$repeatClass)
 	return(gr)
 }
 .primaryHumanOnly_blacklist <- function(gr, metadata, blacklist) {
@@ -105,7 +129,6 @@ dataoptions$ignore.interchromosomal <- TRUE
 dataoptions$mineventsize <-51
 dataoptions$maxeventsize <- NULL
 dataoptions$requiredHits <- 1
-dataoptions$datadir <- names(md)
 dataoptions$grtransform <- list(PrimaryHumanOnly=.primaryHumanOnly)
 simoptions <- dataoptions
 simoptions$datadir <- c("Read Depth" = "rd", "Read Length" = "rl", "Fragment Size" = "fs")
@@ -114,11 +137,11 @@ simoptions$mineventsize <- c(0, 51)
 # simoptions$grtransform <- # filter small events calls on breakpoint data sets to remove spurious indels caused by sequence homology around breakpoints?
 lroptions <- dataoptions
 lroptions$requiredHits <- c(1, 2, 3, 4, 5)
-lroptions$datadir <- c("na12878") #lroptions$datadir[!(lroptions$datadir %in% simoptions$datadir)]
+lroptions$datadir <- c("NA12878" = "na12878", "chm1/chm13" = "chm")
 # lapply doesn't quite work since it doesn't play nicely with R.cache
 #lroptions$grtransform <- lapply(names(lrblacklistgr), function(blacklist) function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, blacklist))
 lroptions$grtransform <- list(
-  #None=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "None"),
+  None=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "None"),
   DAC=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "DAC"),
   Duke=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "Duke"))
 lroptions$truthpath <- c("longread") #, "longread/moleculo")

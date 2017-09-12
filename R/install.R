@@ -1,4 +1,5 @@
 install.packages(c(
+	"tidyverse",
 	"stringr",
 	"devtools",
 	"testthat",
@@ -12,7 +13,8 @@ install.packages(c(
 	"shiny",
 	"shinyBS",
 	"R.cache",
-	"ggplot2"))
+	"ggplot2",
+	"data.table"))
 source("https://bioconductor.org/biocLite.R")
 biocLite(c(
 	"VariantAnnotation",

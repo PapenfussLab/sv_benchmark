@@ -1,2 +1,2 @@
-dataLocation <- "./"
+dataLocation <- "../"
 

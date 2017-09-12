@@ -35,11 +35,11 @@ vcfs <- sapply(names(vcfs), function(id) {
 
 calls_default <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=FALSE, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=TRUE)
 mcalls_default <- rbind(calls_default$calls %>% filter(!tp), calls_default$truth %>% mutate(duptp=FALSE))
-mcalls_default$CallSet <- "High confidence only"
+mcalls_default$CallSet <- PASS_CALLS
 
 calls_all <- ScoreVariantsFromTruth(vcfs, metadata, includeFiltered=TRUE, maxgap=maxgap, sizemargin=sizemargin, ignore.strand=TRUE)
 mcalls_all <- rbind(calls_all$calls %>% filter(!tp), calls_all$truth %>% mutate(duptp=FALSE))
-mcalls_all$CallSet <- "High & Low confidence"
+mcalls_all$CallSet <- ALL_CALLS
 mcalls <- rbind(mcalls_all, mcalls_default)
 
 # Duplicate TP calls
@@ -158,7 +158,7 @@ for (rd in unique(metadata$CX_READ_DEPTH)) {
 	ggplot(es %>% filter(CX_READ_DEPTH==rd)) +
 		aes(group=paste(Id, CallSet), x=abs(svLen), y=sens) +
 		geom_area(aes(fill=CallSet), position="identity") +
-		geom_area(data=es[es$CallSet=="High confidence only",], aes(fill=CallSet), position="identity") +
+		geom_area(data=es[es$CallSet==PASS_CALLS,], aes(fill=CallSet), position="identity") +
 		scale_fill_manual(values=c("#2166ac", "#67a9cf")) +
 		scale_x_svlen_short +
 		facet_grid(caller ~ eventtype, switch="y") +
@@ -180,7 +180,7 @@ for (rd in unique(metadata$CX_READ_DEPTH)) {
 		#scale_color_brewer(palette="Paired") +
 		geom_line(size=0.2) +
 		geom_point(size=0.5) +
-		geom_point(size=0.5, data=plotdata %>% filter(CallSet=="High confidence only")) +
+		geom_point(size=0.5, data=plotdata %>% filter(CallSet==PASS_CALLS)) +
 		scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001),
 											 labels=c("", "10", "100", "1k", "10k"),
 											 minor_breaks=c(),
@@ -216,7 +216,7 @@ write.csv(es %>%
 errSummary <- mcalls %>%
   filter(abs(svLen) > 50 | is.na(svLen)) %>%
   filter(tp) %>%
-  filter(CallSet=="High & Low confidence") %>%
+  filter(CallSet==ALL_CALLS) %>%
   filter(paste(Id, CallSet) %in% paste(sensAligner$Id, sensAligner$CallSet)) %>%
   left_join(metadata) %>%
   mutate(caller=StripCallerVersion(CX_CALLER), eventtype=PrettyVariants(CX_REFERENCE_VCF_VARIANTS)) %>%

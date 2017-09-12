@@ -2,10 +2,7 @@ library(GenomicRanges)
 library(devtools)
 library(StructuralVariantAnnotation) #install_github("d-cameron/StructuralVariantAnnotation")
 library(testthat)
-library(stringr)
-library(ggplot2)
-library(dplyr)
-library(tidyr)
+library(tidyverse)
 library(R.cache)
 
 rootdir <- ifelse(as.character(Sys.info())[1] == "Windows", "W:/projects/sv_benchmark/", "~/projects/sv_benchmark/")
@@ -68,19 +65,25 @@ withqual <- function(vcf, caller) {
 	if (is.null(rowRanges(vcf)$QUAL)) {
 		rowRanges(vcf)$QUAL <- NA_real_
 	}
-	if (!is.na(caller) && !is.null(caller) && all(is.na(rowRanges(vcf)$QUAL))) {
-		caller <- str_extract(caller, "^[^/]+") # strip version
-		# use total read support as a qual proxy
-		if (caller %in% c("delly")) {
-			rowRanges(vcf)$QUAL <- ifelse(is.na(info(vcf)$PE), 0, info(vcf)$PE) + ifelse(is.na(info(vcf)$SR), 0, info(vcf)$SR)
-		} else if (caller %in% c("crest")) {
-			rowRanges(vcf)$QUAL <- ifelse(is.na(info(vcf)$right_softclipped_read_count), 0, info(vcf)$right_softclipped_read_count) + ifelse(is.na(info(vcf)$left_softclipped_read_count), 0, info(vcf)$left_softclipped_read_count)
-		} else if (caller %in% c("pindel")) {
-			rowRanges(vcf)$QUAL <- geno(vcf)$AD[,1,2]
-		} else if (caller %in% c("lumpy")) {
-			rowRanges(vcf)$QUAL <- unlist(info(vcf)$SU)
-		} else if (caller %in% c("cortex")) {
-			rowRanges(vcf)$QUAL <- geno(vcf)$COV[,1,1]
+	if (any(is.na(rowRanges(vcf)$QUAL))) {
+		if (!is.na(caller) && !is.null(caller)) {
+			caller <- str_extract(caller, "^[^/]+") # strip version
+			# use total read support as a qual proxy
+			if (caller %in% c("delly")) {
+				altqual <- ifelse(is.na(info(vcf)$PE), 0, info(vcf)$PE) + ifelse(is.na(info(vcf)$SR), 0, info(vcf)$SR)
+			} else if (caller %in% c("crest")) {
+				altqual <- ifelse(is.na(info(vcf)$right_softclipped_read_count), 0, info(vcf)$right_softclipped_read_count) + ifelse(is.na(info(vcf)$left_softclipped_read_count), 0, info(vcf)$left_softclipped_read_count)
+			} else if (caller %in% c("pindel")) {
+				altqual <- geno(vcf)$AD[,1,2]
+			} else if (caller %in% c("lumpy")) {
+				altqual <- unlist(info(vcf)$SU)
+			} else if (caller %in% c("cortex")) {
+				altqual <- geno(vcf)$COV[,1,1]
+			}
+			rowRanges(vcf)$QUAL <- ifelse(is.na(rowRanges(vcf)$QUAL), altqual, rowRanges(vcf)$QUAL)
+		} else {
+			# use a placeholder QUAL for truth sets
+			rowRanges(vcf)$QUAL <- 1
 		}
 	}
 	if (any(is.na(rowRanges(vcf)$QUAL))) {
@@ -266,7 +269,8 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 		stop(paste("Missing truth ", truthid, " for ", id))
 	}
 	if (!all(callgr$partner %in% names(callgr))) {
-		browser()
+		warning(paste(sum(!(callgr$partner %in% names(callgr))), "breakends missing partners. Ignoring."))
+		callgr <- callgr[callgr$partner %in% names(callgr)]
 	}
 	if (is.null(callgr$ihomlen)) {
 		callgr$ihomlen <- NA_integer_
@@ -277,7 +281,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
 
 	hits$QUAL <- callgr$QUAL[hits$queryHits]
-	hits <- hits[order(-hits$QUAL),]
+	hits <- hits[order(-hits$QUAL),] # sort by qual so the highest QUAL writes last when doing hit assignments on subjectHits or queryHits
 	hits$dup <- duplicated(hits$subjectHits)
 	hitcount <- hits %>%
 		group_by(queryHits) %>%
@@ -304,6 +308,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	calldf$sizeerror[hits$queryHits] <- hits$sizeerror
 	calldf$simpleEvent <- simpleEventType(callgr)
 	calldf$repeatClass <- callgr$repeatClass
+	calldf$breakendId <- names(callgr)
 
 	truthdf <- NULL
 	if (requiredHits == 1) {
@@ -323,6 +328,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 		truthdf$repeatClass <- truthgr$repeatClass
 		# using caller-defined homology length
 		truthdf$HOMLEN[hits$subjectHits] <- callgr[hits$queryHits]$HOMLEN
+		truthdf$breakendId <- names(truthgr)
 	}
 	return(list(calls=calldf, truth=truthdf))
 }
@@ -383,14 +389,12 @@ import.sv.bedpe <- function(file, placeholderName="bedpe") {
 # find . -name '*.fa.out' -exec tail -n +4 {} \;  > merged.fa.out
 # list.files(paste0(referenceLocation, "/UCSC/repeatmasker/"), pattern="*.fa.out", recursive=TRUE, full.names=TRUE),
 import.repeatmasker.fa.out <- function(repeatmasker.fa.out) {
-	rmdt <- bind_rows(lapply(repeatmasker.fa.out, function (file) {
-		read.table(file=file, sep="", quote="", skip=3)
-	}))
+	rmdt <- read_table2(repeatmasker.fa.out, col_names=FALSE, skip=3)
 	grrm <- GRanges(
-	  seqnames=rmdt$V5,
-	  ranges=IRanges(start=rmdt$V6 + 1, end=rmdt$V7),
-	  repeatType=rmdt$V10,
-	  repeatClass=rmdt$V11)
+	  seqnames=rmdt$X5,
+	  ranges=IRanges(start=rmdt$X6 + 1, end=rmdt$X7),
+	  repeatType=rmdt$X10,
+	  repeatClass=rmdt$X11)
 	grrm$repeatClass <- str_replace(str_replace(grrm$repeatClass, "[?]", ""), "/.*", "")
 	return(grrm)
 }

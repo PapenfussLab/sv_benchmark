@@ -1,0 +1,319 @@
+---
+title: "Exploratory plots"
+author: "Leon Di Stefano"
+date: "11/08/2017"
+output: html_document
+---
+
+## Load data
+
+Works as-is when pasted into the terminal with 
+```
+setwd("~/Projects/sv_benchmark")
+```
+
+Also knits OK.
+
+```{r}
+source("global.R")
+source("shinyCache2.R")
+source("libplot.R")
+
+require("tidyverse")
+require("cowplot")
+
+caller_ids <- c(
+	"00000000000000000000000000000001",
+	"16c58fbcc5633564b10ebe8f78d87883",
+	"40c68f29b6d7cb2358f31a7073250406",
+	"43a13d07730deb934e9fc01e3b3cd26f",
+	"8dcad8fe04f4ebc0ad3254ab4420cdc8",
+	"9d134f160ac68c0445002fbb78db4a5e",
+	"acd889cc16741fb0fba62faa4f7005f3",
+	"b1112f1c3cbd28c464f58fc5c5c02f9b")
+
+data_dir <- "../data.chm"
+    
+    
+callmat <- .LoadCallMatrixForIds(
+	datadir = data_dir,
+	metadata = LoadCachedMetadata(data_dir),
+	ids = caller_ids,
+	ignore.interchromosomal = TRUE, 
+	mineventsize = 51, 
+	maxeventsize = NULL,
+	maxgap = 200,
+	sizemargin = 0.25,
+	ignore.strand = TRUE,
+	grtransform = .primaryHumanOnly,
+	grtransformName = "test")
+```
+
+```{r}
+getCacheRootPath()
+```
+
+### As data frame
+
+```{r}
+callmat_df <-
+    callmat %>%
+    as.data.frame() %>%
+    rownames_to_column("vcf_row_name") %>%
+    as.tbl()
+
+callmat_df
+```
+
+### Some exploration
+
+```{r}
+sum(callmat_df$QUAL == -1)
+```
+
+Showing the different scales of the (query) QUAL scores, and the different
+counts of variants called by caller:
+
+```{r}
+qplot(log10(QUAL), data = callmat_df) + 
+    facet_wrap(
+        ~Id,
+        scales = "free_y")
+```
+
+
+## As long data frame
+
+```{r}
+id_column_index <-
+    (which("Id" == names(callmat_df)) + 1)
+
+callmat_df_long <-
+    callmat_df %>% 
+    gather(
+        id_column_index:length(names(callmat_df)), 
+        key = subject_vcf_id, 
+        value = subject_vcf_qual) %>%
+    filter(
+        subject_vcf_qual != -1) %>%
+    rename(
+        query_vcf_qual = QUAL,
+        query_vcf_id = Id)
+
+callmat_df_long
+```
+
+### Truth stacked barplot
+
+#### Truth-as-query df
+
+```{r}
+truth_query_df <-
+    callmat_df_long %>%
+    filter(
+        query_vcf_id == "00000000000000000000000000000001")
+
+truth_query_df
+```
+
+```{r}
+truth_hit_count_df <-
+    truth_query_df %>% 
+    group_by(vcf_row_name) %>% 
+    summarise(
+        hit_count = n())
+
+truth_hit_count_df
+```
+
+
+```{r}
+truth_hit_count_df$hit_count %>% table
+```
+
+Maybe it would be worth including a negative for over-called values
+
+```{r}
+require(stringr)
+abbreviate_id <- function(vcf_id) {
+    str_sub(vcf_id, -7, -1)
+}
+
+truth_query_barplot <-
+    truth_query_df %>%
+    filter(
+        subject_vcf_id != "Id00000000000000000000000000000001") %>%
+    left_join(truth_hit_count_df) %>%
+    ggplot(aes(
+        x = abbreviate_id(subject_vcf_id))) +
+    scale_y_continuous(expand = c(0,0)) +
+    geom_bar(aes(fill = factor(hit_count)), color = "black") +
+    scale_fill_brewer()
+    
+truth_query_barplot
+```
+
+### Matrix of rank correlations
+
+This is not doing what I want/hoped:
+
+```{r}
+corr_df <- 
+    callmat_df_long %>% 
+    group_by(query_vcf_id, subject_vcf_id) %>% 
+    summarise(
+        spearman_corr = cor(
+            query_vcf_qual, 
+            subject_vcf_qual,
+            method = "spearman"))
+
+corr_df
+```
+
+```{r}
+corr_df %>%
+    ggplot(aes(abbreviate_id(query_vcf_id), abbreviate_id(subject_vcf_id))) +
+    geom_tile(aes(fill = spearman_corr)) +
+    scale_x_discrete(expand = c(0,0)) +
+    scale_y_discrete(expand = c(0,0))
+```
+
+Try faceting by event type:
+
+```{r}
+callmat_df_long %>% 
+    mutate(
+        is_insertion = insLen > 10) %>%
+    group_by(query_vcf_id, subject_vcf_id, is_insertion) %>% 
+    summarise(
+        spearman_corr = cor(
+            query_vcf_qual, 
+            subject_vcf_qual,
+            method = "spearman")) %>%
+    ggplot(aes(abbreviate_id(query_vcf_id), abbreviate_id(subject_vcf_id))) +
+    geom_tile(aes(fill = spearman_corr)) +
+    scale_x_discrete(expand = c(0,0)) +
+    scale_y_discrete(expand = c(0,0)) +
+    facet_wrap(~is_insertion)
+```
+
+### Trying to cluster callers
+
+```{r}
+binary_call_matrix <-
+    callmat_df %>% 
+    select(
+        id_column_index:length(names(callmat_df))) %>% 
+    as.matrix %>% 
+    (function(x) {x == -1})
+
+call_matrix_pca <-
+    prcomp(binary_call_matrix,
+           center = TRUE,
+           scale. = TRUE)
+
+```
+
+Plotting:
+
+```{r}
+require(ggrepel)
+
+call_matrix_pca %>%
+    (function(x) {x$rotation}) %>%
+    as.data.frame() %>%
+    rownames_to_column() %>%
+    as.tbl() %>%
+    mutate(
+        vcf_id = abbreviate_id(rowname)
+    ) %>%
+    qplot(PC1, PC2, data = .) +
+    geom_text_repel(aes(label = vcf_id))
+```
+
+Trying with `logisticPCA`:
+
+```{r}
+require(logisticPCA)
+
+call_matrix_logistic_pca <- 
+    logisticPCA(binary_call_matrix)
+
+plot(call_matrix_logistic_pca$U)
+```
+
+
+## Logistic regressions to adjust QUALs
+
+```{r}
+logistic_df <-
+    data_frame(
+        Id = callmat$Id,
+        qual = callmat$QUAL,
+        tp = callmat$Id00000000000000000000000000000001 != -1)
+    
+test_logistic_df <-
+    logistic_df %>% filter(Id == "43a13d07730deb934e9fc01e3b3cd26f")
+
+test_logistic_df
+```
+
+Testing logistic regression-based prediction:
+
+```{r}
+test_logistic_fit <-
+    glm(tp ~ qual, 
+        data = test_logistic_df, 
+        family = binomial())
+```
+
+```{r}
+plot(test_logistic_df$qual,
+     jitter(predict(test_logistic_fit, type = "response")))
+```
+
+LOWESS-based diagnostic:
+
+Doesn't seem to work.
+
+```{r}
+loess_fit <- loess(
+    formula = tp ~ qual,
+    data = test_logistic_df,
+    span = .8)
+
+plot(loess_fit$x, loess_fit$y)
+
+```
+
+Try `locfit` package:
+
+```{r}
+require(locfit)
+
+locfit_fit <-
+    locfit(
+        tp ~ qual, 
+        sample_n(test_logistic_df, 100), 
+        family = "binomial")
+```
+
+```{r}
+test_logistic_df %>%
+    group_by(qual) %>%
+    summarise(count = n(), p_hat = mean(tp)) %>%
+    qplot(qual, p_hat, data = ., geom = "col") +
+    scale_y_continuous(expand = c(0, 0))
+```
+
+```{r}
+test_logistic_df %>%
+    group_by(qual) %>%
+    summarise(count = n(), p_hat = mean(tp)) %>%
+    qplot(log10(count), p_hat, data = .)
+```
+
+```{r}
+require(broom)
+```
+

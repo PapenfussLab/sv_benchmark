@@ -5,3 +5,13 @@
 /R/png
 /R/eps
 /.Rhistory
+.DS_Store
+*.Rcache*
+R/exploratory_plots.html
+R/exploratory_plots_dc.nb.html
+*.Rdata
+*.Rhistory
+data.chm/
+input.chm/
+input.common/
+docs/*
