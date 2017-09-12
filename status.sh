@@ -43,9 +43,9 @@ for MD in $DATA_DIR/*.metadata ; do
 		elif [[ ! -f $CX.vcf ]] ; then
 			echo "$CX_CALLER	$ID	$CX_ALIGNER	${CX_READ_DEPTH}x	${CX_READ_LENGTH}bp	($(tput setaf 1)(Missing VCF)$(tput sgr0))"
 			continue
-		elif [ ! -f $CX.annimphom.bedpe ] ; then
-			echo "$CX_CALLER	$ID	$CX_ALIGNER	${CX_READ_DEPTH}x	${CX_READ_LENGTH}bp	($(tput setaf 1)(Missing ihom annotation)$(tput sgr0))"
-			continue
+		#elif [ ! -f $CX.annimphom.bedpe ] ; then
+		#	echo "$CX_CALLER	$ID	$CX_ALIGNER	${CX_READ_DEPTH}x	${CX_READ_LENGTH}bp	($(tput setaf 1)(Missing ihom annotation)$(tput sgr0))"
+		#	continue
 		fi
 		# VCF exists happly :)
 	elif [ "$CX_ALIGNER" != "" ] ; then

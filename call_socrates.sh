@@ -24,6 +24,8 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 	XC_SCRIPT="rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
 	ln -s $CX_BAM $CX/input.bam
 	ln -s $CX_BAM.bai $CX/input.bam.bai
+	module remove bowtie2
+	module add bowtie2/2.3.2
 	java -Xmx30g -jar $SOCRATES_JAR -t \$(nproc) $CX_REFERENCE $CX/input.bam && \
 	$BASE_DIR/socrates2vcf.py $CX/results_Socrates_paired_*.txt $CX/results_Socrates_unpaired_*.txt > $CX.vcf
 	"
