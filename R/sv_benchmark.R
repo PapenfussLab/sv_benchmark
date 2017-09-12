@@ -79,6 +79,8 @@ withqual <- function(vcf, caller) {
 				altqual <- unlist(info(vcf)$SU)
 			} else if (caller %in% c("cortex")) {
 				altqual <- geno(vcf)$COV[,1,1]
+			} else if (caller %in% c("manta")) {
+			    altqual <- 0
 			}
 			rowRanges(vcf)$QUAL <- ifelse(is.na(rowRanges(vcf)$QUAL), altqual, rowRanges(vcf)$QUAL)
 		} else {
