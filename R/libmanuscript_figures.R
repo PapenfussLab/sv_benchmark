@@ -420,26 +420,12 @@ prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name) {
 		metadata_annotate(metadata) %>%
 		ggplot() %>%
 		roc_common() +
-		aes(y = precision,
-			x = tp,
-			colour = caller_name,
-			linetype = CallSet) +
-		geom_line() +
 		facet_wrap(
 			~ factor(caller_hits_ex_truth, levels = max(caller_hits_ex_truth):1),
 			scale = "free",
 			nrow = 2) +
 		labs(
-			title = "Precision-recall by number of callers sharing call",
-			color = "caller",
-			linetype = "call set",
-			x = "# true positives",
-			y = "precision") +
-		caller_colour_scheme +
-		coord_cartesian(ylim = c(0,1)) +
-		scale_y_continuous(labels = scales::percent) +
-		theme_cowplot() +
-		background_grid("y", "none")
+			title = "Precision-recall by number of callers sharing call")
 
 	return(plot_out)
 }
@@ -508,7 +494,7 @@ get_binned_qual_data <- function(callgr, bin_by, truth_id, bin_count = 100, ci_l
 }
 
 
-ci_plot <- function(test_id, test_df, qual_column) {
+ci_plot <- function(test_id, test_df, qual_column, metadata) {
 
 	caller_name <- (metadata %>% filter(Id == test_id))$CX_CALLER
 
@@ -573,7 +559,7 @@ flipped_hist_plot <- function(test_df, qual_column) {
 }
 
 stacked_precision_plot <- function(
-	test_id, callgr, qual_column = "logqmean") {
+	test_id, callgr, metadata, qual_column = "logqmean") {
 
 	bin_by <- str_replace(qual_column, "mean", "bin")
 
@@ -586,7 +572,7 @@ stacked_precision_plot <- function(
 		ggplotGrob()
 
 	ci_grob <-
-		ci_plot(test_id, test_df, qual_column) %>%
+		ci_plot(test_id, test_df, qual_column, metadata) %>%
 		ggplotGrob()
 
 	combined_grob <-
@@ -613,7 +599,7 @@ fig_5_grob <- function(ids, callgr, metadata) {
 			(function(caller_id) {
 				caller_name <- (metadata %>% filter(Id == caller_id))$CX_CALLER
 				stacked_precision_plot(
-					caller_id, callgr,
+					caller_id, callgr, metadata,
 					ifelse(
 						StripCallerVersion(caller_name) %in%
 							c("manta", "hydra"),
