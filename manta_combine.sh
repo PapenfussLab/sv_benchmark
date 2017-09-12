@@ -16,5 +16,5 @@ echo '##FILTER=<ID=candidateSV,Description="Variant output to candidateSV call s
 echo '##FILTER=<ID=candidateSmallIndels,Description="Variant output to candidateSmallIndels call set">' && \
 grep -hE '^((##FILTER)|(##INFO)|(##FORMAT)|(##ALT))' $DIR/diploidSV.vcf $DIR/candidateSV.vcf $DIR/candidateSmallIndels.vcf | sort | uniq && \
 grep -vE '^##' $DIR/diploidSV.vcf && \
-grep -vE '^#' $DIR/candidateSV.vcf | awk 'BEGIN { FS="\t"; OFS="\t" } { $6="candidateSV" ; $10="" ; print }' && \
-grep -vE '^#' $DIR/candidateSmallIndels.vcf  | awk 'BEGIN { FS="\t"; OFS="\t" } { $6="candidateSmallIndels" ; $10="" ; print }'
+grep -vE '^#' $DIR/candidateSV.vcf | awk 'BEGIN { FS="\t"; OFS="\t" } { $7="candidateSV" ; $10="" ; print }' && \
+grep -vE '^#' $DIR/candidateSmallIndels.vcf  | awk 'BEGIN { FS="\t"; OFS="\t" } { $7="candidateSmallIndels" ; $10="" ; print }'

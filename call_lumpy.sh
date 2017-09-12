@@ -32,7 +32,11 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 	XC_OUTPUT=$CX.vcf
 	XC_SCRIPT="rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
 	module remove samtools
-	module add samtools/0.1.19 samblaster perl
+	module add samtools/0.1.19
+	module add samblaster
+	module add perl
+	module remove python
+	#module add python/2.7.12
 	samtools view -b -F 1294 $BAM > $CX/discordants.unsorted.bam
 	samtools view -h $BAM \
 		| ~/src/$CALLER/scripts/extractSplitReads_BwaMem -i stdin \
