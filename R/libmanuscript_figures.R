@@ -73,7 +73,7 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 
 
 	# Figure 4:
-	# TODO
+	plot4 <- 
 
 	# Supp figures
 	plot_dup <- duplicates_ggplot(callgr, truth_id, truth_name, metadata)
@@ -206,7 +206,6 @@ roc_common <- function(gg) {
 			linetype = "call set",
 			x = "# true positives",
 			y = "precision")
-		# Possibly add percentage labels? y axis gridlines?
 		# Add endpoint showing properties of call set.
 	)
 }
@@ -226,15 +225,15 @@ overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 
 ## ROC by stuff ######################################################
 
-roc_by_plots <- function(callgr, metadata, truth_id, genome=str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]) {
+roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]) {
 	callgr$snp50bpbin <- cut(callgr$snp50bp, breaks=c(0, 1, 2, 3, 4, 5, 1000), labels=c(0,1,2,3,4,"5+"), right=FALSE)
 	flanking_snvs_rocplot <-
 		rocby(callgr, snp50bpbin, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
 		ggplot() %>%
 		roc_common() +
-		facet_grid(snp50bpbin ~ ., scales="free") +
-		labs(title="Precision-Recall by flanking SNV/indels")
+		facet_grid(. ~ snp50bpbin, scales="free") +
+		labs(title="Precision-recall by flanking SNV/indels")
 
 	callgr$eventSizeBin <- cut(abs(callgr$svLen), breaks=c(0, 100, 200, 300, 500, 1000, 1000000000), labels=c("50-99", "100-199", "200-299", "300-499", "500-999", "1000+"), right=FALSE)
 	eventsize_rocplot <-
@@ -244,35 +243,54 @@ roc_by_plots <- function(callgr, metadata, truth_id, genome=str_extract(metadata
 		metadata_annotate(metadata) %>%
 		ggplot() %>%
 		roc_common() +
-		facet_grid(simpleEvent ~ eventSizeBin, scales="free") +
-		labs(title="Precision-Recall by event size")
+		facet_grid(
+		    # raw data stratified by simpleEvent 
+		    . ~ eventSizeBin, scales="free") +
+		labs(title="Precision-recall by event size")
 
+	# Unmerged categories; no tandem repeat annotations
 	repeatmasker_rocplot <-
 		rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
 		ggplot() %>%
 		roc_common() +
 		facet_wrap(simpleEvent ~ repeatClass, scales="free") +
-		labs(title="Precision-Recall by RepeatMasker annotation")
+		labs(title="Precision-recall by RepeatMasker annotation")
 
 
 	callgr$trf <- overlapsAny(callgr, grtrf[[genome]], type="any")
 	callgr$repeatAnn <- ifelse(callgr$repeatClass %in% c("", "DNA", "LINE", "LTR", "SINE", "Other", "Low_complexity", "Simple_repeat"), callgr$repeatClass, "Other")
 	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "" & callgr$trf, "TRF", callgr$repeatAnn)
 	callgr$repeatAnn <- ifelse(callgr$repeatAnn %in% c("TRF", "Simple_repeat"), "Simple/Tandem", callgr$repeatAnn)
-
-
+	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "", "No repeat", callgr$repeatAnn)
+	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
+	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
 	repeat_rocplot <-
 		rocby(callgr, repeatAnn, truth_id=truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
 		ggplot() %>%
 		roc_common() +
-		facet_wrap( ~ repeatAnn, scales="free") +
-		labs(title="Precision-Recall by presence of tandem repeat at breakpoint")
+		facet_wrap( ~ repeatAnn, scales="free", nrow = 2) +
+		labs(title="Precision-recall by presence of repeats at breakpoint")
 
-	# TODO: merge plots
-}
+	# Merge plots
+	
+	eventsize_grob <- ggplotGrob(eventsize_rocplot + theme(legend.position = "none"))
+	flanking_snvs_grob <- ggplotGrob(flanking_snvs_rocplot + theme(legend.position = "none"))
+	repeat_grob <- ggplotGrob(repeat_rocplot)
+	fig4_grob <- grid.arrange(
+	    grobs = list(eventsize_grob, flanking_snvs_grob, repeat_grob),
+	    layout_matrix = rbind(
+	        c(1, 1),
+	        c(2, 2),
+	        c(3, 4)),
+	    widths = c(1.50, 0.10),
+	    heights = c(1, 1, 1.75))
+	
+	return(fig4_grob)
+	
+	}
 
 
 ## Figure 3 ##########################################################

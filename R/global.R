@@ -12,8 +12,8 @@ enableBookmarking(store = "url")
 options("R.cache::compress" = TRUE)
 
 
-ALL_CALLS <- "High & Low confidence"
-PASS_CALLS <- "High confidence only"
+ALL_CALLS <- "All calls"
+PASS_CALLS <- "PASS only"
 
 # load all metadata
 md <- lapply(list.files(dataLocation, pattern = "^data\\..*$", full.names = TRUE), function(dir) LoadCachedMetadata(dir))
