@@ -73,7 +73,8 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 
 
 	# Figure 4:
-	plot4 <- 
+	plot4 <- roc_by_plots_grob(callgr, metadata, truth_id)
+	saveplot(paste0(fileprefix, "_figure4_roc_by"), plot=plot4, height=12, width=14)
 
 	# Supp figures
 	plot_dup <- duplicates_ggplot(callgr, truth_id, truth_name, metadata)
