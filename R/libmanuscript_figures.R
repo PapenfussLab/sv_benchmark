@@ -51,7 +51,7 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 		mcols(callgr)[,str_detect(names(mcols(callgr)), "^fId[a-f0-9]+") & !(names(mcols(callgr)) %in% c(paste0("fId", truth_id)))])) != -1)
 	callgr$simpleEvent <- simpleEventType(callgr)
 
-	missing_callers <- StripCallerVersion((metadata %>% filter(Id %in% unique(callgr$Id) & Id != truth_id & !(CX_CALLER %in% fulldatacallers)))$CX_CALLER)
+	missing_callers <- fulldatacallers[!(fulldatacallers %in% StripCallerVersion((metadata %>% filter(Id %in% callgr$Id))$CX_CALLER))]
 	if (!allow_missing_callers && length(missing_callers) > 0) {
 		stop(paste("Missing VCF records for ", missing_callers))
 	}
@@ -81,15 +81,6 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 	saveplot(paste0(fileprefix, "_Supp_duplicate_call_rate"), plot=plot_dup, height=6, width=7)
 
 	# TODO: call error margin
-	nomcallgr <- .LoadCallMatrixForIds(
-		datadir=datadir,
-		metadata=metadata,
-		ids=all_ids,
-		ignore.interchromosomal=ignore.interchromosomal, mineventsize=mineventsize, maxeventsize=maxeventsize,
-		maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand,
-		grtransform=lroptions$grtransform[[grtransformName]],
-		grtransformName=grtransformName,
-		nominalPosition=TRUE)
 }
 
 ## ROC by ... utilities ##############################################
@@ -245,7 +236,7 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 		ggplot() %>%
 		roc_common() +
 		facet_grid(
-		    # raw data stratified by simpleEvent 
+		    # raw data stratified by simpleEvent
 		    . ~ eventSizeBin, scales="free") +
 		labs(title="Precision-recall by event size")
 
@@ -276,7 +267,7 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 		labs(title="Precision-recall by presence of repeats at breakpoint")
 
 	# Merge plots
-	
+
 	eventsize_grob <- ggplotGrob(eventsize_rocplot + theme(legend.position = "none"))
 	flanking_snvs_grob <- ggplotGrob(flanking_snvs_rocplot + theme(legend.position = "none"))
 	repeat_grob <- ggplotGrob(repeat_rocplot)
@@ -288,9 +279,9 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 	        c(3, 4)),
 	    widths = c(1.50, 0.10),
 	    heights = c(1, 1, 1.75))
-	
+
 	return(fig4_grob)
-	
+
 	}
 
 
