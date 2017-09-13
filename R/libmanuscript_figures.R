@@ -35,6 +35,7 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 		grtransform=lroptions$grtransform[[grtransformName]],
 		grtransformName=grtransformName,
 		nominalPosition=nominalPosition)
+	write(sprintf("callgr generated."), stderr())
 
 	if (!is.null(longreadbedpedir)) {
 		callgr$longreadhits <- 0
@@ -43,6 +44,7 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 		lrhit_summary <- lrhits %>% group_by(queryHits) %>%
 			summarise(hitCount=n())
 		callgr$longreadhits[lrhit_summary$queryHits] <- lrhit_summary$hitCount
+		write(sprintf("long read annotation complete."), stderr())
 	}
 
 	callgr$truthQUAL <- mcols(callgr)[,paste0("fId",truth_id)]
@@ -55,30 +57,31 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 	if (!allow_missing_callers && length(missing_callers) > 0) {
 		stop(paste("Missing VCF records for ", missing_callers))
 	}
-
-	# Figure 1
+	write(sprintf("Figure 1"), stderr())
 	plot_overall_roc <- overall_roc_plot(callgr, metadata, truth_id, truth_name)
 	saveplot(paste0(fileprefix, "_figure1_roc"), plot=plot_overall_roc, height=6, width=7)
 
 	# Figure 2: simulation
 	# done by precache.R
 
-	# Figure 3
-	plot3 <- fig_3_grob(callgr, metadata, truth_id, truth_name)
-	saveplot(paste0(fileprefix, "_figure3_common_calls"), plot=plot3, height=12, width=14)
-
-	# Figure 5
+	write(sprintf("Figure 5"), stderr())
 	plot5 <- fig_5_grob(ids, callgr, metadata)
 	saveplot(paste0(fileprefix, "_figure5_qual_bins"), plot=plot5, height=12, width=14)
 
 
-	# Figure 4:
+	write(sprintf("Figure 4"), stderr())
 	plot4 <- roc_by_plots_grob(callgr, metadata, truth_id)
 	saveplot(paste0(fileprefix, "_figure4_roc_by"), plot=plot4, height=12, width=14)
 
 	# Supp figures
+	write(sprintf("Duplicate call rate"), stderr())
 	plot_dup <- duplicates_ggplot(callgr, truth_id, truth_name, metadata)
 	saveplot(paste0(fileprefix, "_Supp_duplicate_call_rate"), plot=plot_dup, height=6, width=7)
+
+	write(sprintf("Figure 3"), stderr())
+	plot3 <- fig_3_grob(callgr, metadata, truth_id, truth_name)
+	saveplot(paste0(fileprefix, "_figure3_common_calls"), plot=plot3, height=12, width=14)
+
 
 	# TODO: call error margin
 }
