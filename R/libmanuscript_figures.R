@@ -14,6 +14,7 @@ library(binom)
 ## Main figure-generating function ###################################
 
 generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, grtransformName, longreadbedpedir=NULL, allow_missing_callers=FALSE) {
+	setCacheRootPath(datadir)
 	fileprefix <- str_replace(paste(sample_name, truth_name, sep="_"), "[ /]", "_")
 	all_ids <- c(truth_id, ids)
 	metadata <- LoadCachedMetadata(datadir)
@@ -48,6 +49,7 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 	}
 
 	callgr$truthQUAL <- mcols(callgr)[,paste0("fId",truth_id)]
+	callgr$selfQUAL <- self_qual(callgr)
 
 	callgr$caller_hits_ex_truth <- rowSums(as.matrix(as.data.frame(
 		mcols(callgr)[,str_detect(names(mcols(callgr)), "^fId[a-f0-9]+") & !(names(mcols(callgr)) %in% c(paste0("fId", truth_id)))])) != -1)
@@ -84,6 +86,9 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 
 
 	# TODO: call error margin
+
+	# TODO: this should be empty
+	table(callgr$selfQUAL < callgr$QUAL & callgr$QUAL >= 0)
 }
 
 ## ROC by ... utilities ##############################################
@@ -148,6 +153,15 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 					fdr=1-precision))
 }
 
+self_qual <- function(callgr) {
+	qualcols <- names(mcols(callgr))
+	qualcols <- qualcols[str_detect(qualcols, "^.?Id.+")]
+	quals <- as.matrix(mcols(callgr)[,qualcols])
+	qual_col_name_matrix <- matrix(rep(qualcols, length(callgr)), ncol=length(qualcols), byrow=TRUE)
+	is_self_col <- ifelse(qual_col_name_matrix == IdCallSet_to_colname(callgr$Id, callgr$CallSet), 1, 0)
+	return(rowSums(quals * is_self_col))
+}
+
 ## Plot utilities ####################################################
 
 qual_or_read_count <- function(caller_name) {
@@ -160,7 +174,7 @@ qual_or_read_count <- function(caller_name) {
 
 metadata_annotate <- function(df, metadata) {
 	df %>%
-		left_join(metadata) %>%
+		left_join(metadata, by="Id") %>%
 		mutate(caller_name = StripCallerVersion(CX_CALLER))
 }
 
@@ -652,6 +666,57 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 	return(dup_plot)
 }
 
+## Ensemble calling plot ###################################################
+#' @params p number of callers to calculate ensemble for (nCp)
+ensemble_plot<- function(callgr, metadata, truth_id, ids, p) {
+	ensemble_df <- calc_ensemble_performance(callgr, metadata, truth_id, ids, p)
+	ggplot(ensemble_df) +
+		aes(x=tp, y=precision, colour=CallSet) + #, shape=as.factor(minhits))
+		geom_point() +
+		facet_grid(ncallers ~ minhits) +
+		labs(title="Ensemble caller performance for calls requiring x of y callers")
+}
+calc_ensemble_performance <- function(callgr, metadata, truth_id, ids, p) {
+	allgr <- callgr[callgr$CallSet==ALL_CALLS]
+	passgr <- callgr[callgr$CallSet==PASS_CALLS]
+	bind_rows(lapply(1:p, function(choosep) {
+		id_subset <- combn(ids, choosep)
+		bind_rows(lapply(1:ncol(id_subset), function(i) {
+			ensemble_ids <- id_subset[,i]
+			bind_rows(
+				.ensemble_performance(allgr, truth_id, ensemble_ids, ALL_CALLS),
+				.ensemble_performance(passgr, truth_id, ensemble_ids, PASS_CALLS)
+			) %>% mutate(
+				callers=paste(StripCallerVersion((data.frame(Id=ensemble_ids) %>% metadata_annotate(metadata))$CX_CALLER), collapse=","))
+		}))
+	})) %>%
+		mutate(
+			precision=tp / (tp + fp),
+			fdr=1-precision)
+}
+.ensemble_performance <- function(callgr, truth_id, ensemble_ids, ensemble_callset) {
+	write(sprintf("Calculating ensemble call ", paste(ensemble_ids, collapse=",")), stderr())
+	# for each call, count the number ensemble callers that called it
+	hits <- rowSums(as.matrix(mcols(callgr)[,IdCallSet_to_colname(ensemble_ids, ensemble_callset)]) != -1)
+	bind_rows(lapply(1:length(ensemble_ids), function(requiredHits) {
+		return(data.frame(
+			ncallers=length(ensemble_ids),
+			minhits=requiredHits,
+			tp=sum(callgr$Id==truth_id & callgr$CallSet == ensemble_callset & hits >= requiredHits),
+			# to count FPs we count all the fp calls across all callers that are in the intersection
+			# we exclude duplicate calls from a single caller
+			# and to prevent overcounting (a call made by 3 callers will be in the call set three times)
+			# we divide out by the number of callers making the call (3 callers making the same fp * 1/3 = 1 fp)
+			fp=sum(1/hits[
+				hits >= requiredHits & # in ensemble intersection
+				callgr$truthQUAL == -1 & # fp
+				callgr$Id %in% ensemble_ids & # made by our callers
+				callgr$CallSet == ensemble_callset &
+				callgr$selfQUAL != -2 # exclude self duplicates
+					]),
+			CallSet=ensemble_callset))
+	}))
+}
 
 
 

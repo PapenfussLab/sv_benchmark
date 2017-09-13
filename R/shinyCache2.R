@@ -517,6 +517,15 @@ import.sv.bedpe.dir <- function(dir) {
 	}
 	return(allgr)
 }
+colname_to_CallSet <- function(colname) {
+	ifelse(str_detect(colname, "^fId"), ALL_CALLS, PASS_CALLS)
+}
+colname_to_Id <- function(colname) {
+	str_replace(colname, "f?Id", "")
+}
+IdCallSet_to_colname <- function(id, callset) {
+	paste0(ifelse(callset == ALL_CALLS, "fId", "Id"), id)
+}
 .CacheMatchingQuals <- function(querygr, subjectgr, datadir, queryid, subjectid, maxgap, sizemargin, ignore.strand, grtransformName) {
 	cachekey <- list(datadir, queryid, subjectid, maxgap, sizemargin, ignore.strand, grtransformName,
 		# effectively the same as adding ignore.filtered but reuses the cache entry
