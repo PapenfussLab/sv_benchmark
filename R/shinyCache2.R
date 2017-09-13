@@ -30,7 +30,7 @@ LoadCachedMetadata <- function(datadir) {
 				# use the bwa/bcftools calls
 				metadata$CX_SNP_TRUTH <- "2f4d15f5f6e428fb91e12dac971571b9.vcf"
 			}
-		} else if (str_detect(datadir, "chm$")) {
+		} else if (str_detect(datadir, "chm")) {
 			metadata$CX_REFERENCE_VCF <- ifelse(str_detect(metadata$CX_FQ1, "chm1.1.fq$"),
 				"00000000000000000000000000000001.vcf",
 				ifelse(str_detect(metadata$CX_FQ1, "chm13.1.fq$"),
