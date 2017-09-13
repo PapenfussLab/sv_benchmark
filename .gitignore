@@ -4,6 +4,7 @@
 /tools
 /R/png
 /R/eps
+/R/pdf
 /.Rhistory
 .DS_Store
 *.Rcache*
