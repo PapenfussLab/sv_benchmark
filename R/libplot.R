@@ -39,6 +39,7 @@ scale_x_log_fp_short <- scale_x_continuous(breaks=c(1, 11, 101, 1001, 10001, 100
 saveplot <- function(file=file, ...) {
 	ggsave(paste0("png/", file, ".png"), ...)
 	ggsave(paste0("eps/", file, ".eps"), ...)
+	ggsave(paste0("pdf/", file, ".pdf"), ...)
 }
 
 
