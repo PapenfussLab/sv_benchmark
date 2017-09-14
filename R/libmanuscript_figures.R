@@ -13,9 +13,22 @@ library(binom)
 
 ## Main figure-generating function ###################################
 
-generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, grtransformName, longreadbedpedir=NULL, allow_missing_callers=FALSE) {
+generate_figures_by_eventtype <- function(
+	datadir, sample_name, ids, truth_id, truth_name, grtransformName,
+	longreadbedpedir=NULL, allow_missing_callers=FALSE) {
+
+	for (eventtype in eventtypes) {
+		write(sprintf("Generating figures for event type %s", eventtype), stderr())
+		generate_figures(datadir, sample_name, ids, truth_id, truth_name, grtransformName,
+										 longreadbedpedir, allow_missing_callers, eventtype)
+	}
+}
+
+generate_figures <- function(
+	datadir, sample_name, ids, truth_id, truth_name, grtransformName,
+	longreadbedpedir=NULL, allow_missing_callers=FALSE, eventtype) {
 	setCacheRootPath(datadir)
-	fileprefix <- str_replace(paste(sample_name, truth_name, sep="_"), "[ /]", "_")
+	fileprefix <- str_replace(paste(sample_name, truth_name, paste0(eventtype, collapse = "_"), sep="_"), "[ /]", "_")
 	all_ids <- c(truth_id, ids)
 	metadata <- LoadCachedMetadata(datadir)
 	metadata <- metadata %>% filter(Id %in% all_ids)
@@ -35,7 +48,8 @@ generate_figures <- function(datadir, sample_name, ids, truth_id, truth_name, gr
 		maxgap=maxgap, sizemargin=sizemargin, ignore.strand=ignore.strand,
 		grtransform=lroptions$grtransform[[grtransformName]],
 		grtransformName=grtransformName,
-		nominalPosition=nominalPosition)
+		nominalPosition=nominalPosition,
+		eventtype=eventtype)
 	write(sprintf("callgr generated."), stderr())
 
 	if (!is.null(longreadbedpedir)) {
@@ -154,8 +168,8 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 }
 
 self_qual <- function(callgr) {
-	qualcols <- names(mcols(callgr))
-	qualcols <- qualcols[str_detect(qualcols, "^.?Id.+")]
+	qualcols <- names(mcols(callgr)) %>%
+		function(x) {x[str_detect(x, "^.?Id.+")]}
 	quals <- as.matrix(mcols(callgr)[,qualcols])
 	qual_col_name_matrix <- matrix(rep(qualcols, length(callgr)), ncol=length(qualcols), byrow=TRUE)
 	is_self_col <- ifelse(qual_col_name_matrix == IdCallSet_to_colname(callgr$Id, callgr$CallSet), 1, 0)

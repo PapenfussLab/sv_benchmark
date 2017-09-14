@@ -450,11 +450,15 @@ import.sv.bedpe.dir <- function(dir) {
 	}
 	return(mcalls %>% dplyr::select(-ignore.strand, -maxgap))
 }
-.LoadCallMatrixForIds <- function(datadir, metadata, ids,
+.LoadCallMatrixForIds <- function(datadir, metadata, ids, eventtypes,
 		ignore.interchromosomal, mineventsize, maxeventsize,
 		maxgap, sizemargin, ignore.strand,
 		# .CachedTransformVcf
 		grtransform, grtransformName, nominalPosition) {
+	if (!is.null(eventtypes)) {
+		# order does not matter; strip names that were confusing the cache
+		eventtypes <- as.character(sort(eventtypes))
+	}
 	# include truth in table
 	truthids <- GetId((metadata %>% filter(Id %in% ids))$CX_REFERENCE_VCF)
 	ids <- unique(c(ids, truthids))
@@ -467,6 +471,12 @@ import.sv.bedpe.dir <- function(dir) {
 		gr$partner <- paste0("Id", id, gr$partner)
 		# Force filters to match on both sides
 		gr$FILTER <- ifelse(gr$FILTER %in% c(".", "PASS"), partner(gr)$FILTER, gr$FILTER)
+
+		# Filter on event type
+		gr$simpleEvent <- simpleEventType(gr)
+		if (!is.null(eventtypes)) {
+			gr <- gr[gr$simpleEvent %in% eventtypes]
+		}
 		return(gr)
 	})
 	names(grlist) <- ids
@@ -504,11 +514,12 @@ import.sv.bedpe.dir <- function(dir) {
 					if (ignore.filtered.s) {
 						sgr <- sgr[sgr$FILTER %in% c(".", "PASS")]
 					}
+					key <- list(datadir = datadir, queryid = qid, subjectid = sid, grtransformName = grtransformName, eventtypes = eventtypes)
 					if (qid <= sid) {
-						cmq <- .CacheMatchingQuals(qgr, sgr, datadir, qid, sid, maxgap, sizemargin, ignore.strand, grtransformName)
+						cmq <- .CacheMatchingQuals(qgr, sgr, maxgap, sizemargin, ignore.strand, key)
 						mcols(allgr[allgr$Id==qid & allgr$ignore.filtered==ignore.filtered.q])[[colname]] <- cmq$bestSubjectQUALforQuery
 					} else {
-						cmq <- .CacheMatchingQuals(sgr, qgr, datadir, sid, qid, maxgap, sizemargin, ignore.strand, grtransformName)
+						cmq <- .CacheMatchingQuals(sgr, qgr, maxgap, sizemargin, ignore.strand, key)
 						mcols(allgr[allgr$Id==qid & allgr$ignore.filtered==ignore.filtered.q])[[colname]] <- cmq$bestQueryQUALforSubject
 					}
 				}
@@ -526,14 +537,14 @@ colname_to_Id <- function(colname) {
 IdCallSet_to_colname <- function(id, callset) {
 	paste0(ifelse(callset == ALL_CALLS, "fId", "Id"), id)
 }
-.CacheMatchingQuals <- function(querygr, subjectgr, datadir, queryid, subjectid, maxgap, sizemargin, ignore.strand, grtransformName) {
-	cachekey <- list(datadir, queryid, subjectid, maxgap, sizemargin, ignore.strand, grtransformName,
+.CacheMatchingQuals <- function(querygr, subjectgr, maxgap, sizemargin, ignore.strand, key) {
+	cachekey <- list(maxgap, sizemargin, ignore.strand, key=key,
 		# effectively the same as adding ignore.filtered but reuses the cache entry
 		queryLength=length(querygr), subjectLength=length(subjectgr))
 	cachedir <- ".Rcache/pairwiseQUAL"
 	result <- loadCache(key=cachekey, dirs=cachedir)
 	if (is.null(result)) {
-		write(sprintf(".findMatchingQuals %s %s (%s)", queryid, subjectid, getChecksum(cachekey)), stderr())
+		write(sprintf(".findMatchingQuals %s %s (%s)", key$queryid, key$subjectid, getChecksum(cachekey)), stderr())
 		result <- .findMatchingQuals(querygr, subjectgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
 		if (!is.null(result)) {
 			saveCache(result, key=cachekey, dirs=cachedir)

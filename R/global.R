@@ -110,9 +110,9 @@ fulldatacallers <- c(
 	"pindel",
 	"socrates"
 )
-#eventtypes = c("Deletion"="DEL", "Insertion"="INS", "Inversion"="INV", "Tandem Duplication"="DUP") # "BP"
+eventtypes = c("Deletion"="DEL", "Insertion"="INS", "Inversion"="INV", "Tandem Duplication"="DUP", "BP"="Other")
 # No insertion until we have insLen in the long read data
-eventtypes = c("Deletion"="DEL", "Inversion"="INV", "Tandem Duplication"="DUP")
+#eventtypes = c("Deletion"="DEL", "Inversion"="INV", "Tandem Duplication"="DUP")
 knownaligners <- c("bowtie2", "bwa mem"="bwamem", "novoalign")
 simfacets <- c(
 				"Read Length"="CX_READ_LENGTH",

@@ -42,6 +42,7 @@ for (i in seq_along(na12878_truth)) {
 	generate_figures(datadir, sample_name, ids, truth_id, truth_name, grtransformName, longreadbedpedir=longreadbedpedir)
 }
 
+## chm datasets
 
 longreadbedpedir <- NULL #TODO use Eichler PacBio reads directly
 

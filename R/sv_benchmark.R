@@ -335,11 +335,15 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	return(list(calls=calldf, truth=truthdf))
 }
 simpleEventType <- function(gr) {
-  return(ifelse(seqnames(gr) != seqnames(partner(gr)), "BP",
+
+  gr$et <- ifelse(seqnames(gr) != seqnames(partner(gr)), "BP",
           ifelse(gr$insLen >= abs(gr$svLen) * 0.7, "INS",
            ifelse(strand(gr) == strand(partner(gr)), "INV",
             ifelse(xor(start(gr) < start(partner(gr)), strand(gr) == "-"), "DEL",
-             "DUP")))))
+             "DUP"))))
+
+  etp <- partner(gr)$et
+  return(ifelse(gr$et < etp, gr$et, etp))
 }
 
 ScoreVariantsFromTruth <- function(vcfs, metadata, includeFiltered=FALSE, maxgap, ignore.strand, sizemargin=0.25, requiredHits=1, truthgr=NULL, keytruth=NULL, keycalls=NULL) {
