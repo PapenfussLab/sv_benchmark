@@ -89,7 +89,7 @@ generate_figures <- function(
 	plot4 <- roc_by_plots_grob(callgr, metadata, truth_id)
 	saveplot(paste0(fileprefix, "_figure4_roc_by"), plot=plot4, height=12, width=14)
 
-	# Supp figures
+	# Dup figure
 	write(sprintf("Duplicate call rate"), stderr())
 	plot_dup <- duplicates_ggplot(callgr, truth_id, truth_name, metadata)
 	saveplot(paste0(fileprefix, "_Supp_duplicate_call_rate"), plot=plot_dup, height=6, width=7)
@@ -98,6 +98,9 @@ generate_figures <- function(
 	plot3 <- fig_3_grob(callgr, metadata, truth_id, truth_name)
 	saveplot(paste0(fileprefix, "_figure3_common_calls"), plot=plot3, height=12, width=14)
 
+	write(sprintf("Ensemble"), stderr())
+	plot_ensemble <- ensemble_plot(callgr, metadata, truth_id, ids)
+	saveplot(paste0(fileprefix, "_ensemble"), plot=plot_ensemble, height=12, width=14)
 
 	# TODO: call error margin
 
@@ -380,15 +383,8 @@ shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
 	false_positive_plot_df <-
 		callgr[callgr$Id != truth_id] %>%
 		as.data.frame() %>% as.tbl() %>%
-		filter(truthQUAL < 0) %>%
-		# remove duplicate fp calls
-		dplyr::select(Id, CallSet, caller_hits_ex_truth, dplyr::matches("f?Id.", ignore.case = FALSE)) %>%
-		gather(key = subject_Id_CallSet, value = QUAL, dplyr::matches("f?Id.", ignore.case = FALSE)) %>%
-		mutate(subject_Id=str_replace(subject_Id_CallSet, "f?Id", ""),
-			   subject_CallSet=ifelse(str_detect(subject_Id_CallSet, "^f"),
-									  ALL_CALLS,
-									  PASS_CALLS)) %>%
-		filter(Id == subject_Id, CallSet == subject_CallSet, QUAL != -2) %>%
+		filter(truthQUAL < 0, selfQUAL != -2) %>% # remove tp & duplicate fp calls
+		dplyr::select(Id, CallSet, caller_hits_ex_truth) %>%
 		metadata_annotate(metadata)
 
 	n_callers_plus_truth <-
@@ -651,13 +647,11 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 
 	dup_plot_df <- callgr[callgr$Id != truth_id] %>%
 		as.data.frame() %>% as.tbl() %>%
-		dplyr::select(Id, CallSet, truthQUAL, dplyr::matches("fId")) %>%
-		gather(key = subject_Id_CallSet, value = QUAL, dplyr::matches("fId")) %>%
-		filter(paste0("fId",Id) == subject_Id_CallSet) %>%
+		dplyr::select(Id, CallSet, truthQUAL, selfQUAL) %>%
 		mutate(
 			isTp = truthQUAL != -1,
 			isFp = !isTp,
-			isDup = QUAL == -2) %>%
+			isDup = selfQUAL == -2) %>%
 		group_by(Id, CallSet) %>%
 		summarise(prop_isDup = sum(isDup) / n()) %>%
 		ungroup() %>%
@@ -682,7 +676,7 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 
 ## Ensemble calling plot ###################################################
 #' @params p number of callers to calculate ensemble for (nCp)
-ensemble_plot<- function(callgr, metadata, truth_id, ids, p) {
+ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids)) {
 	ensemble_df <- calc_ensemble_performance(callgr, metadata, truth_id, ids, p)
 	ggplot(ensemble_df) +
 		aes(x=tp, y=precision, colour=CallSet) + #, shape=as.factor(minhits))
