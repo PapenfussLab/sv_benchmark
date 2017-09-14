@@ -35,9 +35,17 @@ generate_figures <- function(
 	# force truth
 	metadata$CX_REFERENCE_VCF <- list.files(datadir, pattern=paste0("^", truth_id, ".*.vcf$"))
 
-	missing_callers <- fulldatacallers[!(fulldatacallers %in% StripCallerVersion(metadata$CX_CALLER))]
-	if (!allow_missing_callers && length(missing_callers) > 0) {
-		stop(paste("Missing metadata for ", missing_callers))
+
+	if (!allow_missing_callers) {
+		missing_callers <- fulldatacallers[!(fulldatacallers %in% StripCallerVersion(metadata$CX_CALLER))]
+		if (length(missing_callers) > 0) {
+			stop(paste("Missing metadata for ", missing_callers))
+		}
+		vcffiles <- list.files(datadir, pattern="*.vcf")
+		missing_vcf <- sapply(ids, function(id) !any(str_detect(vcffiles, id)))
+		if (any(missing_vcf)) {
+			stop(paste("Missing vcf for ", (data.frame(Id=ids[missing_vcf]) %>% metadata_annotate(metadata))$caller))
+		}
 	}
 
 	callgr <- .LoadCallMatrixForIds(
@@ -69,10 +77,6 @@ generate_figures <- function(
 		mcols(callgr)[,str_detect(names(mcols(callgr)), "^fId[a-f0-9]+") & !(names(mcols(callgr)) %in% c(paste0("fId", truth_id)))])) != -1)
 	callgr$simpleEvent <- simpleEventType(callgr)
 
-	missing_callers <- fulldatacallers[!(fulldatacallers %in% StripCallerVersion((metadata %>% filter(Id %in% callgr$Id))$CX_CALLER))]
-	if (!allow_missing_callers && length(missing_callers) > 0) {
-		stop(paste("Missing VCF records for ", missing_callers))
-	}
 	write(sprintf("Figure 1"), stderr())
 	plot_overall_roc <- overall_roc_plot(callgr, metadata, truth_id, truth_name)
 	saveplot(paste0(fileprefix, "_figure1_roc"), plot=plot_overall_roc, height=6, width=7)
@@ -172,7 +176,7 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 
 self_qual <- function(callgr) {
 	qualcols <- names(mcols(callgr)) %>%
-		function(x) {x[str_detect(x, "^.?Id.+")]}
+		(function(x) {x[str_detect(x, "^.?Id.+")]})
 	quals <- as.matrix(mcols(callgr)[,qualcols])
 	qual_col_name_matrix <- matrix(rep(qualcols, length(callgr)), ncol=length(qualcols), byrow=TRUE)
 	is_self_col <- ifelse(qual_col_name_matrix == IdCallSet_to_colname(callgr$Id, callgr$CallSet), 1, 0)
