@@ -70,10 +70,7 @@ LoadPlotData <- function(
 		existingCache,
 		loadFromCacheOnly=TRUE,
 		loadAll=FALSE) {
-	if (!is.null(eventtypes)) {
-		# order does not matter; strip names that were confusing the cache
-		eventtypes <- as.character(sort(eventtypes))
-	}
+	eventtypes <- .cacheableEventTypes(eventtypes)
 	# ensure numeric values are of the correct type
 	if (!is.null(maxgap)) {
 		maxgap <- as.numeric(maxgap)
@@ -450,15 +447,48 @@ import.sv.bedpe.dir <- function(dir) {
 	}
 	return(mcalls %>% dplyr::select(-ignore.strand, -maxgap))
 }
+
+.cacheableEventTypes <- function(eventtypes) {
+	if (!is.null(eventtypes)) {
+		# order does not matter; strip names that were confusing the cache
+		eventtypes <- as.character(sort(eventtypes))
+	}
+
+	return(eventtypes)
+}
+
+.CachedLoadCallMatrixForIds <- function(datadir, metadata, ids, eventtypes,
+																				ignore.interchromosomal, mineventsize, maxeventsize,
+																				maxgap, sizemargin, ignore.strand,
+																				# .CachedTransformVcf
+																				grtransform, grtransformName, nominalPosition) {
+	eventtypes <- .cacheableEventTypes(eventtypes)
+	cachekey <- list(datadir, metadata, ids, eventtypes,
+							 ignore.interchromosomal, mineventsize, maxeventsize,
+							 maxgap, sizemargin, ignore.strand,
+							 # .CachedTransformVcf
+							 grtransformName, nominalPosition)
+	cachedir <- ".Rcache/callmatrix"
+	result <- loadCache(key=cachekey, dirs=cachedir)
+	if (is.null(result)) {
+		write(sprintf(".CachedLoadCallMatrixForIds %s %s (%s)", datadir, paste(eventtypes, collapse = ","), getChecksum(cachekey)), stderr())
+		result <- .LoadCallMatrixForIds(datadir, metadata, ids, eventtypes,
+																		ignore.interchromosomal, mineventsize, maxeventsize,
+																		maxgap, sizemargin, ignore.strand,
+																		grtransform, grtransformName, nominalPosition)
+		if (!is.null(result)) {
+			saveCache(result, key=cachekey, dirs=cachedir)
+		}
+	}
+	return(result)
+}
+
 .LoadCallMatrixForIds <- function(datadir, metadata, ids, eventtypes,
 		ignore.interchromosomal, mineventsize, maxeventsize,
 		maxgap, sizemargin, ignore.strand,
 		# .CachedTransformVcf
 		grtransform, grtransformName, nominalPosition) {
-	if (!is.null(eventtypes)) {
-		# order does not matter; strip names that were confusing the cache
-		eventtypes <- as.character(sort(eventtypes))
-	}
+	eventtypes <- .cacheableEventTypes(eventtypes)
 	# include truth in table
 	truthids <- GetId((metadata %>% filter(Id %in% ids))$CX_REFERENCE_VCF)
 	ids <- unique(c(ids, truthids))

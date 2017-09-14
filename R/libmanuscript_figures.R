@@ -28,7 +28,7 @@ generate_figures <- function(
 	datadir, sample_name, ids, truth_id, truth_name, grtransformName,
 	longreadbedpedir=NULL, allow_missing_callers=FALSE, eventtype) {
 	setCacheRootPath(datadir)
-	fileprefix <- str_replace(paste(sample_name, truth_name, paste0(eventtype, collapse = "_"), sep="_"), "[ /]", "_")
+	fileprefix <- str_replace(paste(sample_name, truth_name, ifelse(use_roc_fdr, "fdr", ""), paste0(eventtype, collapse = "_"), sep="_"), "[ /]", "_")
 	all_ids <- c(truth_id, ids)
 	metadata <- LoadCachedMetadata(datadir)
 	metadata <- metadata %>% filter(Id %in% all_ids)
@@ -40,7 +40,7 @@ generate_figures <- function(
 		stop(paste("Missing metadata for ", missing_callers))
 	}
 
-	callgr <- .LoadCallMatrixForIds(
+	callgr <- .CachedLoadCallMatrixForIds(
 		datadir=datadir,
 		metadata=metadata,
 		ids=all_ids,
@@ -89,7 +89,6 @@ generate_figures <- function(
 	plot4 <- roc_by_plots_grob(callgr, metadata, truth_id)
 	saveplot(paste0(fileprefix, "_figure4_roc_by"), plot=plot4, height=12, width=14)
 
-	# Dup figure
 	write(sprintf("Duplicate call rate"), stderr())
 	plot_dup <- duplicates_ggplot(callgr, truth_id, truth_name, metadata)
 	saveplot(paste0(fileprefix, "_Supp_duplicate_call_rate"), plot=plot_dup, height=6, width=7)
@@ -172,7 +171,7 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 
 self_qual <- function(callgr) {
 	qualcols <- names(mcols(callgr)) %>%
-		function(x) {x[str_detect(x, "^.?Id.+")]}
+		(function(x) {x[str_detect(x, "^.?Id.+")]})
 	quals <- as.matrix(mcols(callgr)[,qualcols])
 	qual_col_name_matrix <- matrix(rep(qualcols, length(callgr)), ncol=length(qualcols), byrow=TRUE)
 	is_self_col <- ifelse(qual_col_name_matrix == IdCallSet_to_colname(callgr$Id, callgr$CallSet), 1, 0)
@@ -181,12 +180,14 @@ self_qual <- function(callgr) {
 
 ## Plot utilities ####################################################
 
-qual_or_read_count <- function(caller_name) {
-	ifelse(
-		caller_name %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
-		"read count",
-		"quality score")
-	# ... or log quality score! Or log read count ?!?!?!
+display_log_qual <- function(caller) {
+	!(StripCallerVersion(caller_name) %in% c("manta", "hydra"))
+}
+
+qual_or_read_count <- function(caller) {
+	paste0(ifelse(display_log_qual(caller), "log ", ""),
+				 ifelse(StripCallerVersion(caller_name) %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
+				 			 "read count", "quality score"))
 }
 
 metadata_annotate <- function(df, metadata) {
@@ -215,9 +216,12 @@ caller_colour_scheme <-
 #	background_grid("xy", "none", colour.major = "grey70") %+replace%
 #	theme(panel.border = element_rect(color = "grey70", linetype = 1, size = 0.2))
 
+use_roc_fdr <- TRUE
+roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
+
 roc_common <- function(gg) {
-	return(gg +
-		aes(y = precision,
+	gg <- gg +
+		aes(y = ifelse(use_roc_fdr, 1 - precision, precision),
 			x = tp,
 			colour = caller_name,
 			linetype = CallSet) +
@@ -230,10 +234,19 @@ roc_common <- function(gg) {
 		labs(
 			color = "caller",
 			linetype = "call set",
-			x = "# true positives",
-			y = "precision")
+			x = "# true positives"
+			)
 		# Add endpoint showing properties of call set.
-	)
+	if (use_roc_fdr) {
+		gg <- gg +
+			aes(y = fdr) +
+			labs(y = "false discovery rate")
+	} else {
+		gg <- gg +
+			aes(y = precision) +
+			labs(y = "precision")
+	}
+	return(gg)
 }
 
 ## Overall ROC ########################################################
@@ -245,7 +258,7 @@ overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 		metadata_annotate(metadata) %>%
 		ggplot() %>%
 		roc_common() +
-		labs(title = "Overall Precision-recall")
+		labs(title = roc_title())
 	return(plot_out)
 }
 
@@ -259,7 +272,7 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 		ggplot() %>%
 		roc_common() +
 		facet_grid(. ~ snp50bpbin, scales="free") +
-		labs(title="Precision-recall by flanking SNV/indels")
+		labs(title=paste(roc_title(), "by flanking SNV/indels"))
 
 	callgr$eventSizeBin <- cut(abs(callgr$svLen), breaks=c(0, 100, 200, 300, 500, 1000, 1000000000), labels=c("50-99", "100-199", "200-299", "300-499", "500-999", "1000+"), right=FALSE)
 	eventsize_rocplot <-
@@ -272,7 +285,7 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 		facet_grid(
 		    # raw data stratified by simpleEvent
 		    . ~ eventSizeBin, scales="free") +
-		labs(title="Precision-recall by event size")
+		labs(title=paste(roc_title(), "by event size"))
 
 	# Unmerged categories; no tandem repeat annotations
 	repeatmasker_rocplot <-
@@ -281,7 +294,7 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 		ggplot() %>%
 		roc_common() +
 		facet_wrap(simpleEvent ~ repeatClass, scales="free") +
-		labs(title="Precision-recall by RepeatMasker annotation")
+		labs(title=paste(roc_title(), "by RepeatMasker annotation"))
 
 
 	callgr$trf <- overlapsAny(callgr, grtrf[[genome]], type="any")
@@ -298,7 +311,7 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 		ggplot() %>%
 		roc_common() +
 		facet_wrap( ~ repeatAnn, scales="free", nrow = 2) +
-		labs(title="Precision-recall by presence of repeats at breakpoint")
+		labs(title=paste(roc_title(), "by presence of repeats at breakpoint"))
 
 	# Merge plots
 
@@ -452,7 +465,7 @@ prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name) {
 			scale = "free",
 			nrow = 2) +
 		labs(
-			title = "Precision-recall by number of callers sharing call")
+			title = paste(roc_title(), "by number of callers sharing call"))
 
 	return(plot_out)
 }
@@ -554,7 +567,7 @@ ci_plot <- function(test_id, test_df, qual_column, metadata) {
 	return(ci_ggplot)
 }
 
-flipped_hist_plot <- function(test_df, qual_column) {
+flipped_hist_plot <- function(test_df, qual_column, caller_name) {
 
 	hist_ggplot <-
 		test_df %>%
@@ -580,13 +593,13 @@ flipped_hist_plot <- function(test_df, qual_column) {
 			axis.ticks = element_blank(),
 			plot.margin = unit(c(0, 1, 1, 1), "lines")) +
 		ylab("# calls") +
-		xlab(str_replace(qual_column, "qmean", " quality score"))
+		xlab(qual_or_read_count(caller_name))
 
 	return(hist_ggplot)
 }
 
 stacked_precision_plot <- function(
-	test_id, callgr, metadata, qual_column = "logqmean") {
+	test_id, callgr, metadata, qual_column = "logqmean", caller_name) {
 
 	bin_by <- str_replace(qual_column, "mean", "bin")
 
@@ -595,7 +608,7 @@ stacked_precision_plot <- function(
 		filter(Id == test_id)
 
 	hist_grob <-
-		flipped_hist_plot(test_df, qual_column) %>%
+		flipped_hist_plot(test_df, qual_column, caller_name) %>%
 		ggplotGrob()
 
 	ci_grob <-
@@ -627,11 +640,9 @@ fig_5_grob <- function(ids, callgr, metadata) {
 				caller_name <- (metadata %>% filter(Id == caller_id))$CX_CALLER
 				stacked_precision_plot(
 					caller_id, callgr, metadata,
-					ifelse(
-						StripCallerVersion(caller_name) %in%
-							c("manta", "hydra"),
-						"qmean",
-						"logqmean"))}))
+					ifelse(display_log_qual(caller_name), "logqmean", "qmean"),
+					caller_name
+					)}))
 
 	combined_grob <-
 		do.call(
@@ -676,14 +687,19 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 
 ## Ensemble calling plot ###################################################
 #' @params p number of callers to calculate ensemble for (nCp)
-ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids)) {
+ensemble_plot <- function(callgr, metadata, truth_id, ids, p=length(ids)) {
 	ensemble_df <- calc_ensemble_performance(callgr, metadata, truth_id, ids, p)
 	ggplot(ensemble_df) +
 		aes(x=tp, y=precision, colour=CallSet) + #, shape=as.factor(minhits))
 		geom_point() +
+		coord_cartesian(ylim = c(0,1)) +
+		scale_y_continuous(labels = scales::percent) +
+		theme_cowplot() +
+		background_grid("xy", "none") +
 		facet_grid(ncallers ~ minhits) +
 		labs(title="Ensemble caller performance for calls requiring x of y callers")
 }
+
 calc_ensemble_performance <- function(callgr, metadata, truth_id, ids, p) {
 	allgr <- callgr[callgr$CallSet==ALL_CALLS]
 	passgr <- callgr[callgr$CallSet==PASS_CALLS]
@@ -702,8 +718,9 @@ calc_ensemble_performance <- function(callgr, metadata, truth_id, ids, p) {
 			precision=tp / (tp + fp),
 			fdr=1-precision)
 }
+
 .ensemble_performance <- function(callgr, truth_id, ensemble_ids, ensemble_callset) {
-	write(sprintf("Calculating ensemble call ", paste(ensemble_ids, collapse=",")), stderr())
+	write(sprintf("Calculating ensemble call %s", paste(ensemble_ids, collapse=",")), stderr())
 	# for each call, count the number ensemble callers that called it
 	hits <- rowSums(as.matrix(mcols(callgr)[,IdCallSet_to_colname(ensemble_ids, ensemble_callset)]) != -1)
 	bind_rows(lapply(1:length(ensemble_ids), function(requiredHits) {
