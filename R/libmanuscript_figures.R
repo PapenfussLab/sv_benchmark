@@ -60,6 +60,7 @@ generate_figures <- function(
 		eventtype=eventtype)
 	write(sprintf("callgr generated."), stderr())
 
+	callgr$longreadhits <- -1
 	if (!is.null(longreadbedpedir)) {
 		callgr$longreadhits <- 0
 		longreadgr <- .CachedLoadTruthBedpe(longreadbedpedir, longread_minMapq)
@@ -114,35 +115,48 @@ generate_figures <- function(
 
 ## ROC by ... utilities ##############################################
 
-rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=TRUE) {
+rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=TRUE, minlongreadhits=1000000000) {
 	groupingCols <- quos(...)
 	if (!ignore.duplicates) {
 		rocdf <- callgr %>%
 			as.data.frame() %>%
-			dplyr::select(Id, CallSet, !!!groupingCols, QUAL, truthQUAL) %>%
-			mutate(fp=truthQUAL < 0, tp=truthQUAL > 0)
+			dplyr::select(Id, CallSet, !!!groupingCols, QUAL, truthQUAL, longreadhits) %>%
+			mutate(tp=truthQUAL > 0 | longreadhits >= minlongreadhits,
+						 fp=!tp) %>%
+			select(-longreadhits)
 	} else {
-		# ignore calls that have a -2 in the truth column (don't touch the truth set though!)
-		callgr <- callgr[callgr$Id == truth_id | callgr$truthQUAL != -2]
+		isdup <- callgr$Id != truth_id & # never dedup truth calls
+			(callgr$truthQUAL == -2 | # dedup tp hits
+			callgr$truthQUAL == -1 & callgr$selfQUAL == -2) # dedup fp misses
+
+		# use the truth attributes for hits
 		truthhitsdf <- callgr %>%
 			as.data.frame() %>%
 			filter(Id == truth_id & CallSet == ALL_CALLS) %>%
 			dplyr::select(!!!groupingCols, dplyr::matches("f?Id.+", ignore.case=FALSE)) %>%
 			gather(key="Id_CallSet", value="QUAL", dplyr::matches("f?Id.+", ignore.case=FALSE)) %>%
 			mutate(
-				fp=0,
+				fp=FALSE,
 				tp=QUAL >= 0,
 				fn=QUAL < 0,
-				CallSet=ifelse(str_detect(Id_CallSet, "^fId"), ALL_CALLS, PASS_CALLS),
-				Id=str_replace(Id_CallSet, "f?Id", "")) %>%
+				CallSet=colname_to_CallSet(Id_CallSet),
+				Id=colname_to_Id(Id_CallSet)) %>%
 			dplyr::select(-Id_CallSet) %>%
 			filter(!fn)
-		rocdf <- callgr %>%
+
+		islrtp_only <- callgr$truthQUAL == -1 & callgr$longreadhits >= minlongreadhits
+		longread_truthhitsdf <- callgr[islrtp_only] %>%
 			as.data.frame() %>%
-			mutate(fp=1, tp=0, fn=0) %>%
-			filter(Id != truth_id & truthQUAL < 0) %>%
+			filter(!(Id == truth_id)) %>%
+			mutate(fp=FALSE, tp=TRUE, fn=FALSE) %>%
+			dplyr::select(Id, CallSet, !!!groupingCols, QUAL, fp, tp, fn)
+
+		rocdf <- callgr[!islrtp_only] %>%
+			as.data.frame() %>%
+			mutate(fp=TRUE, tp=FALSE, fn=FALSE) %>%
+			filter(Id != truth_id, truthQUAL < 0) %>%
 			dplyr::select(Id, CallSet, !!!groupingCols, QUAL, fp, tp, fn) %>%
-			rbind(truthhitsdf)
+			bind_rows(truthhitsdf, longread_truthhitsdf)
 	}
 	return (rocdf %>%
 				filter(Id != truth_id) %>%
@@ -680,24 +694,115 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 
 ## Ensemble calling plot ###################################################
 #' @params p number of callers to calculate ensemble for (nCp)
-ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids)) {
-	ensemble_df <- calc_ensemble_performance(callgr, metadata, truth_id, ids, p)
-	ggplot(ensemble_df) +
+ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids), minlongreadhits) {
+	ensemble_df <- calc_ensemble_performance(callgr, metadata, ids, p, minlongreadhits)
+	eventcount <- sum(callgr$Id == truth_id & callgr$CallSet == ALL_CALLS)
+	ensemble_df <- ensemble_df %>%
+		mutate(
+			sens = tp / eventcount,
+			f1score = 2 * precision * sens / (precision + sens))
+
+	facted_plot <- ggplot(ensemble_df) +
 		aes(x=tp, y=precision, colour=CallSet) + #, shape=as.factor(minhits))
 		geom_point() +
 		facet_grid(ncallers ~ minhits) +
 		labs(title="Ensemble caller performance for calls requiring x of y callers")
+
+	ggplot() +
+		aes(x=tp, y=precision) +
+		geom_point(data=ensemble_df,
+			aes(colour=factor(ncallers), shape=factor(minhits))) +
+		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
+				metadata_annotate(metadata),
+			aes(group=interaction(Id, CallSet)),
+			colour="grey50", size=2) +
+		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
+		labs(title="Ensemble caller performance for calls requiring x of y callers") +
+		geom_point(data=ensemble_df %>% filter(
+			ncallers == 3,
+			minhits %in% c(2,3),
+			str_detect(callers, "delly"),
+			str_detect(callers, "manta"),
+			str_detect(callers, "lumpy"),
+			str_detect(callers, "delly")),
+			size=3,
+			colour="black") +
+		geom_text(data=ensemble_df %>% filter(
+			ncallers == 3,
+			minhits %in% c(2,3),
+			str_detect(callers, "delly"),
+			str_detect(callers, "manta"),
+			str_detect(callers, "lumpy"),
+			str_detect(callers, "delly")),
+			size=3,
+			colour="black",
+			aes(label=callers))
+
+	ggplot() +
+		aes(x=tp, y=precision) +
+		geom_point(data=ensemble_df %>% filter(!str_detect(callers, "gridss") & !str_detect(callers, "manta")),
+							 aes(colour=factor(ncallers), shape=factor(minhits))) +
+		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
+								metadata_annotate(metadata),
+							aes(group=interaction(Id, CallSet)),
+							colour="grey50", size=0.5) +
+		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
+		labs(title="Ensemble caller performance for calls requiring x of y callers\nEnsembles using GRIDSS or manta excluded.")
+
+	ggplot() +
+		aes(x=tp, y=precision) +
+		#geom_point(data=ensemble_df %>% filter(str_detect(callers, "gridss") | str_detect(callers, "manta")),
+		#					 aes(shape=factor(minhits)), colour="black") +
+		geom_point(data=ensemble_df %>% filter(!str_detect(callers, "gridss") & !str_detect(callers, "manta")),
+							 aes(colour=factor(ncallers), shape=factor(minhits))) +
+		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
+								metadata_annotate(metadata),
+							aes(group=interaction(Id, CallSet)),
+							colour="grey50", size=0.5) +
+		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
+		labs(title="Ensemble caller performance for calls requiring x of y callers\nEnsembles using GRIDSS or manta excluded.") +
+		geom_point(data=ensemble_df %>% filter(
+			ncallers == 3,
+			minhits %in% c(2,3),
+			str_detect(callers, "delly"),
+			str_detect(callers, "manta"),
+			str_detect(callers, "lumpy"),
+			str_detect(callers, "delly")),
+			size=3,
+			colour="black") +
+		geom_text(data=ensemble_df %>% filter(
+			ncallers == 3,
+			minhits %in% c(2,3),
+			str_detect(callers, "delly"),
+			str_detect(callers, "manta"),
+			str_detect(callers, "lumpy"),
+			str_detect(callers, "delly")),
+			size=3,
+			colour="black",
+			aes(label=callers))
+
+	ggplot(bind_rows(lapply(as.character(StripCallerVersion(metadata$CX_CALLER[metadata$Id %in% ids])), function(c) {
+			caller_df <- ensemble_df %>%
+				filter(str_detect(callers, c)) %>%
+				mutate(caller_name=c)
+		})) %>%
+			filter(ncallers <= 2)) +
+		caller_colour_scheme +
+		aes(x=tp, y=precision, colour=caller_name, shape=interaction(ncallers, minhits)) +
+		geom_point() +
+		labs(title="Ensemble caller performance for calls requiring x of y callers")
 }
-calc_ensemble_performance <- function(callgr, metadata, truth_id, ids, p) {
+calc_ensemble_performance <- function(callgr, metadata, ids, p, minlongreadhits) {
 	allgr <- callgr[callgr$CallSet==ALL_CALLS]
 	passgr <- callgr[callgr$CallSet==PASS_CALLS]
 	bind_rows(lapply(1:p, function(choosep) {
 		id_subset <- combn(ids, choosep)
+		write(sprintf("Calculating ensemble calls nC%d", choosep), stderr())
 		bind_rows(lapply(1:ncol(id_subset), function(i) {
 			ensemble_ids <- id_subset[,i]
 			bind_rows(
-				.ensemble_performance(allgr, truth_id, ensemble_ids, ALL_CALLS),
-				.ensemble_performance(passgr, truth_id, ensemble_ids, PASS_CALLS)
+				.ensemble_performance(allgr, ensemble_ids, ALL_CALLS, minlongreadhits),
+				.ensemble_performance(passgr, ensemble_ids, PASS_CALLS, minlongreadhits)
 			) %>% mutate(
 				callers=paste(StripCallerVersion((data.frame(Id=ensemble_ids) %>% metadata_annotate(metadata))$CX_CALLER), collapse=","))
 		}))
@@ -706,26 +811,24 @@ calc_ensemble_performance <- function(callgr, metadata, truth_id, ids, p) {
 			precision=tp / (tp + fp),
 			fdr=1-precision)
 }
-.ensemble_performance <- function(callgr, truth_id, ensemble_ids, ensemble_callset) {
-	write(sprintf("Calculating ensemble call ", paste(ensemble_ids, collapse=",")), stderr())
+.ensemble_performance <- function(callgr, ensemble_ids, ensemble_callset, minlongreadhits) {
 	# for each call, count the number ensemble callers that called it
 	hits <- rowSums(as.matrix(mcols(callgr)[,IdCallSet_to_colname(ensemble_ids, ensemble_callset)]) != -1)
 	bind_rows(lapply(1:length(ensemble_ids), function(requiredHits) {
+		relevant_call <-
+			hits >= requiredHits &
+			callgr$Id %in% ensemble_ids &
+			callgr$CallSet == ensemble_callset &
+			(callgr$truthQUAL >= 0 | callgr$selfQUAL != -2) # exclude self duplicates that aren't TPs
+		tp <- callgr$truthQUAL != -1 | callgr$longreadhits >= minlongreadhits
 		return(data.frame(
 			ncallers=length(ensemble_ids),
 			minhits=requiredHits,
-			tp=sum(callgr$Id==truth_id & callgr$CallSet == ensemble_callset & hits >= requiredHits),
-			# to count FPs we count all the fp calls across all callers that are in the intersection
-			# we exclude duplicate calls from a single caller
-			# and to prevent overcounting (a call made by 3 callers will be in the call set three times)
-			# we divide out by the number of callers making the call (3 callers making the same fp * 1/3 = 1 fp)
-			fp=sum(1/hits[
-				hits >= requiredHits & # in ensemble intersection
-				callgr$truthQUAL == -1 & # fp
-				callgr$Id %in% ensemble_ids & # made by our callers
-				callgr$CallSet == ensemble_callset &
-				callgr$selfQUAL != -2 # exclude self duplicates
-					]),
+			# To count calls we count all the calls across all callers that are in the intersection
+			# To prevent overcounting (a call made by 3 callers will be in the call set three times)
+			# we divide out by the number of relevant callers making the call (3 callers making the same fp * 1/3 = 1 fp)
+			tp=sum(1/hits[relevant_call & tp]),
+			fp=sum(1/hits[relevant_call & !tp]),
 			CallSet=ensemble_callset))
 	}))
 }
