@@ -30,20 +30,19 @@ LoadCachedMetadata <- function(datadir) {
 				# use the bwa/bcftools calls
 				metadata$CX_SNP_TRUTH <- "2f4d15f5f6e428fb91e12dac971571b9.vcf"
 			}
-		} else if (str_detect(datadir, "chm")) {
-			metadata$CX_REFERENCE_VCF <- ifelse(str_detect(metadata$CX_FQ1, "chm1.1.fq$"),
-				"00000000000000000000000000000001.vcf",
-				ifelse(str_detect(metadata$CX_FQ1, "chm13.1.fq$"),
-					"00000000000000000000000000000013.vcf",
-					"00000000000000000000000000000014.vcf"))
-			if (is.null(metadata$CX_SNP_TRUTH)) {
-				metadata$CX_SNP_TRUTH <- ifelse(str_detect(metadata$CX_FQ1, "chm1.1.fq$"),
-				"94bb6deef9f1bf1f9027a47e8488ae4f.vcf",
-				ifelse(str_detect(metadata$CX_FQ1, "chm13.1.fq$"),
-					"c639766990fcfbca2eb45f7806362fe6.vcf",
-					"90f54397059a02d31adc4925ad57c439.vcf"))
-			}
+		} else if (str_detect(datadir, "chm13$")) {
+			metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000013.vcf"
+			metadata$CX_SNP_TRUTH <- "c639766990fcfbca2eb45f7806362fe6.vcf"
+
+		} else if (str_detect(datadir, "chm1$")) {
+			metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000001.vcf"
+			metadata$CX_SNP_TRUTH <- "94bb6deef9f1bf1f9027a47e8488ae4f.vcf"
+
+		} else if (str_detect(datadir, "chmboth$")) {
+			metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000014.vcf"
+			metadata$CX_SNP_TRUTH <- "90f54397059a02d31adc4925ad57c439.vcf"
 		}
+
 		saveCache(metadata, key=keymetadata, dirs=".Rcache/metadata")
 	}
 	memcache.metadata$key <<- keymetadata
