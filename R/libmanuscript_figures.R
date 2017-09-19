@@ -25,8 +25,8 @@ generate_figures_by_eventtype <- function(
 }
 
 generate_figures <- function(
-	datadir, sample_name, ids, truth_id, truth_name, grtransformName,
-	longreadbedpedir=NULL, allow_missing_callers=FALSE, eventtype) {
+		datadir, sample_name, ids, truth_id, truth_name, grtransformName,
+		longreadbedpedir=NULL, allow_missing_callers=FALSE, eventtype) {
 	setCacheRootPath(datadir)
 	fileprefix <- str_replace(paste(sample_name, truth_name, ifelse(use_roc_fdr, "fdr", ""), paste0(eventtype, collapse = "_"), sep="_"), "[ /]", "_")
 	all_ids <- c(truth_id, ids)
@@ -180,6 +180,7 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 					findInterval(seq(0, max(tp + fp), max(tp + fp)/rocSlicePoints), tp + fp),
 					n()
 				))) %>%
+				mutate(is_endpoint = tp == max(tp)) %>%
 				ungroup() %>%
 				#TODO: fn and sens need eventCount using group_by(Id, CallSet, !!!groupingCols)
 				mutate(
@@ -237,13 +238,14 @@ caller_colour_scheme <-
 use_roc_fdr <- TRUE
 roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
 
-roc_common <- function(gg) {
-	gg <- gg +
+roc_common <- function(df) {
+	gg <- ggplot(df) +
 		aes(y = ifelse(use_roc_fdr, 1 - precision, precision),
 			x = tp,
 			colour = caller_name,
 			linetype = CallSet) +
 		geom_line() +
+		geom_point(data = df %>% filter(is_endpoint), size = 2) +
 		caller_colour_scheme +
 		coord_cartesian(ylim = c(0,1)) +
 		scale_y_continuous(labels = scales::percent) +
@@ -274,7 +276,6 @@ overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 		rocby(callgr, truth_id = truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		labs(title = roc_title())
 	return(plot_out)
@@ -287,7 +288,6 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 	flanking_snvs_rocplot <-
 		rocby(callgr, snp50bpbin, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		facet_grid(. ~ snp50bpbin, scales="free") +
 		labs(title=paste(roc_title(), "by flanking SNV/indels"))
@@ -298,7 +298,6 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 		# The number of TP should differ by category -- e.g. "free_x" -- ???.
 		rocby(callgr, simpleEvent, eventSizeBin, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		facet_grid(
 		    # raw data stratified by simpleEvent
@@ -309,7 +308,6 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 	repeatmasker_rocplot <-
 		rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		facet_wrap(simpleEvent ~ repeatClass, scales="free") +
 		labs(title=paste(roc_title(), "by RepeatMasker annotation"))
@@ -326,7 +324,6 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 		rocby(callgr, repeatAnn, truth_id=truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		facet_wrap( ~ repeatAnn, scales="free", nrow = 2) +
 		labs(title=paste(roc_title(), "by presence of repeats at breakpoint"))
@@ -476,7 +473,6 @@ prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name) {
 		rocby(callgr, caller_hits_ex_truth, truth_id = truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		facet_wrap(
 			~ factor(caller_hits_ex_truth, levels = max(caller_hits_ex_truth):1),
