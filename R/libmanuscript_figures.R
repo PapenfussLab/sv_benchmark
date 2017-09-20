@@ -200,12 +200,12 @@ self_qual <- function(callgr) {
 ## Plot utilities ####################################################
 
 display_log_qual <- function(caller) {
-	!(StripCallerVersion(caller_name) %in% c("manta", "hydra"))
+	!(StripCallerVersion(caller) %in% c("manta", "hydra"))
 }
 
 qual_or_read_count <- function(caller) {
 	paste0(ifelse(display_log_qual(caller), "log ", ""),
-				 ifelse(StripCallerVersion(caller_name) %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
+				 ifelse(StripCallerVersion(caller) %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
 				 			 "read count", "quality score"))
 }
 
@@ -518,7 +518,7 @@ fig_3_grob <- function(callgr, metadata, truth_id, truth_name) {
 
 ## Figure 5 ##########################################################
 
-get_binned_qual_data <- function(callgr, bin_by, truth_id, bin_count = 100, ci_level = 0.95) {
+get_binned_qual_data <- function(callgr, bin_by, bin_count = 100, ci_level = 0.95) {
 
 	df <- data.frame(
 		Id = callgr$Id,
@@ -608,6 +608,15 @@ flipped_hist_plot <- function(test_df, qual_column, caller_name) {
 			plot.margin = unit(c(0, 1, 1, 1), "lines")) +
 		ylab("# calls") +
 		xlab(qual_or_read_count(caller_name))
+
+	if (str_detect(qual_column, "^log")) {
+		max_log_qual_level <- max(test_df[[qual_column]])
+		all_labels <- sort(c(10**(0:(max_log_qual_level + 1)), 10**(1:(max_log_qual_level + 1)) / 2))
+		labels <- all_labels[all_labels < 10**max_log_qual_level]
+		breaks <- log10(labels)
+
+		hist_ggplot <- hist_ggplot + scale_x_continuous(breaks = breaks, labels = labels)
+	}
 
 	return(hist_ggplot)
 }
