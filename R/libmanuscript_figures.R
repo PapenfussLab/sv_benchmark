@@ -140,8 +140,7 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 				fn=QUAL < 0,
 				CallSet=colname_to_CallSet(Id_CallSet),
 				Id=colname_to_Id(Id_CallSet)) %>%
-			dplyr::select(-Id_CallSet) %>%
-			filter(!fn)
+			dplyr::select(-Id_CallSet)
 
 		islrtp_only <- callgr$truthQUAL == -1 & callgr$longreadhits >= minlongreadhits
 		longread_truthhitsdf <- callgr[islrtp_only] %>%
@@ -204,9 +203,10 @@ display_log_qual <- function(caller) {
 }
 
 qual_or_read_count <- function(caller) {
-	paste0(ifelse(display_log_qual(caller), "log ", ""),
-				 ifelse(StripCallerVersion(caller) %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
-				 			 "read count", "quality score"))
+	paste0(ifelse(StripCallerVersion(caller) %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
+				 			 "read count", "quality score"),
+				 ifelse(display_log_qual(caller), " + 1", "")
+	)
 }
 
 metadata_annotate <- function(df, metadata) {
@@ -611,7 +611,8 @@ flipped_hist_plot <- function(test_df, qual_column, caller_name) {
 
 	if (str_detect(qual_column, "^log")) {
 		max_log_qual_level <- max(test_df[[qual_column]])
-		all_labels <- sort(c(10**(0:(max_log_qual_level + 1)), 10**(1:(max_log_qual_level + 1)) / 2))
+		all_labels <- sort(c(10**(0:(max_log_qual_level + 1)), # 1, 10, ...
+												 10**(0:(max_log_qual_level + 1)) * 3)) # 3, 30, ...
 		labels <- all_labels[all_labels < 10**max_log_qual_level]
 		breaks <- log10(labels)
 
