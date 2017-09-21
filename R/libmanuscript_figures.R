@@ -283,16 +283,20 @@ overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 
 ## ROC by stuff ######################################################
 
-roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
-
+annotate_w_flanking <- function(callgr) {
 	callgr$snp50bpbin <-
 		cut(callgr$snp50bp,
 				breaks = c(0, 1, 2, 3, 4, 5, 1000),
-				labels = c(0,1,2,3,4,"5+"),
+				labels = c(0, 1, 2, 3, 4, "5+"),
 				right = FALSE)
+}
+
+roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
+
+	callgr_annotated <- annotate_w_flanking(callgr)
 
 	flanking_snvs_rocplot <-
-		rocby(callgr, snp50bpbin, truth_id = truth_id) %>%
+		rocby(callgr_annotated, snp50bpbin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common() +
 		facet_grid(. ~ snp50bpbin, scales="free") +
@@ -323,6 +327,7 @@ roc_by_eventsize <- function(callgr, metadata, truth_id) {
 	return(eventsize_rocplot)
 }
 
+# Doesn't appear in figure
 roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 
 	# Unmerged categories; no tandem repeat annotations
@@ -336,8 +341,8 @@ roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 	return(repeatmasker_rocplot)
 }
 
-roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
-
+annotate_w_merged_repeat_classes <- function(callgr, genome) {
+	# a global
 	callgr$trf <- overlapsAny(callgr, grtrf[[genome]], type="any")
 	callgr$repeatAnn <- ifelse(callgr$repeatClass %in% c("", "DNA", "LINE", "LTR", "SINE", "Other", "Low_complexity", "Simple_repeat"), callgr$repeatClass, "Other")
 	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "" & callgr$trf, "TRF", callgr$repeatAnn)
@@ -346,8 +351,17 @@ roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
 	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
 	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
 
+	callgr_annotated <- callgr
+
+	return(callgr_annotated)
+}
+
+roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
+
+	callgr_annotated <- annotate_w_merged_repeat_classes(callgr, genome)
+
 	repeat_rocplot <-
-		rocby(callgr, repeatAnn, truth_id=truth_id) %>%
+		rocby(callgr_annotated, repeatAnn, truth_id=truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common() +
@@ -357,7 +371,27 @@ roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
 	return(repeat_rocplot)
 }
 
-fig_4_grob <- function(callgr, metadata, truth_id, genome=str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]) {
+# ROC by (flanking x repeat)
+# Doesn't appear in final plot
+roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) {
+
+	callgr_annotated <-
+		annotate_w_merged_repeat_classes(callgr, genome) %>%
+		annotate_w_flanking()
+
+	roc_by_flanking_snvs_by_repeats_plot <-
+		rocby(callgr_annotated, snp50bpbin, repeatAnn, truth_id = truth_id) %>%
+		# Need to filter truth_id here, as in roc_by_repeat_class_merged?
+		metadata_annotate(metadata) %>%
+		roc_common() +
+		facet_grid(repeatAnn ~ snp50bpbin, scales="free") +
+		labs(title=paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"))
+
+	repeat(roc_by_flanking_snvs_by_repeats_plot)
+}
+
+fig_4_grob <- function(callgr, metadata, truth_id,
+											 genome = str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]) {
 	# Merge plots
 
 	eventsize_grob <-
