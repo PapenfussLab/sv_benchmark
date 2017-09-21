@@ -235,7 +235,7 @@ caller_colour_scheme <-
 #	background_grid("xy", "none", colour.major = "grey70") %+replace%
 #	theme(panel.border = element_rect(color = "grey70", linetype = 1, size = 0.2))
 
-use_roc_fdr <- TRUE
+use_roc_fdr <- FALSE
 roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
 
 roc_common <- function(df) {
@@ -289,6 +289,8 @@ annotate_w_flanking <- function(callgr) {
 				breaks = c(0, 1, 2, 3, 4, 5, 1000),
 				labels = c(0, 1, 2, 3, 4, "5+"),
 				right = FALSE)
+
+	return(callgr)
 }
 
 roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
@@ -383,11 +385,15 @@ roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) 
 		rocby(callgr_annotated, snp50bpbin, repeatAnn, truth_id = truth_id) %>%
 		# Need to filter truth_id here, as in roc_by_repeat_class_merged?
 		metadata_annotate(metadata) %>%
+		group_by(snp50bpbin, repeatAnn) %>%
+		mutate(scaled_tp=tp/max(tp)) %>%
+		ungroup() %>%
 		roc_common() +
+			aes(x=scaled_tp) +
 		facet_grid(repeatAnn ~ snp50bpbin, scales="free") +
 		labs(title=paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"))
 
-	repeat(roc_by_flanking_snvs_by_repeats_plot)
+	return(roc_by_flanking_snvs_by_repeats_plot)
 }
 
 fig_4_grob <- function(callgr, metadata, truth_id,
@@ -395,14 +401,13 @@ fig_4_grob <- function(callgr, metadata, truth_id,
 	# Merge plots
 
 	eventsize_grob <-
-		roc_by_eventsize(callgr, metadata, truth_id) +
-		theme(legend.position = "none") %>%
-		ggplotGrob()
+		ggplotGrob(roc_by_eventsize(callgr, metadata, truth_id) +
+			theme(legend.position = "none"))
 
 	flanking_snvs_grob <-
-		roc_by_flanking_snvs(callgr, metadata, truth_id) +
-		theme(legend.position = "none") %>%
-		ggplotGrob()
+		ggplotGrob(roc_by_flanking_snvs(callgr, metadata, truth_id) +
+		theme(legend.position = "none")
+		)
 
 	repeat_grob <-
 		roc_by_repeat_class_merged(callgr, metadata, truth_id, genome) %>%
