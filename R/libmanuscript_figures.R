@@ -283,26 +283,47 @@ overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 
 ## ROC by stuff ######################################################
 
-roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]) {
-	callgr$snp50bpbin <- cut(callgr$snp50bp, breaks=c(0, 1, 2, 3, 4, 5, 1000), labels=c(0,1,2,3,4,"5+"), right=FALSE)
+roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
+
+	callgr$snp50bpbin <-
+		cut(callgr$snp50bp,
+				breaks = c(0, 1, 2, 3, 4, 5, 1000),
+				labels = c(0,1,2,3,4,"5+"),
+				right = FALSE)
+
 	flanking_snvs_rocplot <-
-		rocby(callgr, snp50bpbin, truth_id=truth_id) %>%
+		rocby(callgr, snp50bpbin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common() +
 		facet_grid(. ~ snp50bpbin, scales="free") +
 		labs(title=paste(roc_title(), "by flanking SNV/indels"))
 
-	callgr$eventSizeBin <- cut(abs(callgr$svLen), breaks=c(0, 100, 200, 300, 500, 1000, 1000000000), labels=c("50-99", "100-199", "200-299", "300-499", "500-999", "1000+"), right=FALSE)
+	return(flanking_snvs_rocplot)
+}
+
+roc_by_eventsize <- function(callgr, metadata, truth_id) {
+
+	callgr$eventSizeBin <-
+		cut(abs(callgr$svLen),
+				breaks = c(0, 100, 200, 300, 500, 1000, 1000000000),
+				labels = c("50-99", "100-199", "200-299", "300-499", "500-999", "1000+"),
+				right = FALSE)
+
 	eventsize_rocplot <-
 		# Is this plot misleading?
 		# The number of TP should differ by category -- e.g. "free_x" -- ???.
-		rocby(callgr, simpleEvent, eventSizeBin, truth_id=truth_id) %>%
+		rocby(callgr, simpleEvent, eventSizeBin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common() +
 		facet_grid(
-		    # raw data stratified by simpleEvent
-		    . ~ eventSizeBin, scales="free") +
+			# raw data stratified by simpleEvent
+			. ~ eventSizeBin, scales="free") +
 		labs(title=paste(roc_title(), "by event size"))
+
+	return(eventsize_rocplot)
+}
+
+roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 
 	# Unmerged categories; no tandem repeat annotations
 	repeatmasker_rocplot <-
@@ -312,6 +333,10 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 		facet_wrap(simpleEvent ~ repeatClass, scales="free") +
 		labs(title=paste(roc_title(), "by RepeatMasker annotation"))
 
+	return(repeatmasker_rocplot)
+}
+
+roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
 
 	callgr$trf <- overlapsAny(callgr, grtrf[[genome]], type="any")
 	callgr$repeatAnn <- ifelse(callgr$repeatClass %in% c("", "DNA", "LINE", "LTR", "SINE", "Other", "Low_complexity", "Simple_repeat"), callgr$repeatClass, "Other")
@@ -320,6 +345,7 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "", "No repeat", callgr$repeatAnn)
 	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
 	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
+
 	repeat_rocplot <-
 		rocby(callgr, repeatAnn, truth_id=truth_id) %>%
 		filter(Id != truth_id) %>%
@@ -328,24 +354,37 @@ roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(met
 		facet_wrap( ~ repeatAnn, scales="free", nrow = 2) +
 		labs(title=paste(roc_title(), "by presence of repeats at breakpoint"))
 
+	return(repeat_rocplot)
+}
+
+fig_4_grob <- function(callgr, metadata, truth_id, genome=str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]) {
 	# Merge plots
 
-	eventsize_grob <- ggplotGrob(eventsize_rocplot + theme(legend.position = "none"))
-	flanking_snvs_grob <- ggplotGrob(flanking_snvs_rocplot + theme(legend.position = "none"))
-	repeat_grob <- ggplotGrob(repeat_rocplot)
+	eventsize_grob <-
+		roc_by_eventsize(callgr, metadata, truth_id) +
+		theme(legend.position = "none") %>%
+		ggplotGrob()
+
+	flanking_snvs_grob <-
+		roc_by_flanking_snvs(callgr, metadata, truth_id) +
+		theme(legend.position = "none") %>%
+		ggplotGrob()
+
+	repeat_grob <-
+		roc_by_repeat_class_merged(callgr, metadata, truth_id, genome) %>%
+		ggplotGrob()
+
 	fig4_grob <- grid.arrange(
-	    grobs = list(eventsize_grob, flanking_snvs_grob, repeat_grob),
-	    layout_matrix = rbind(
-	        c(1, 1),
-	        c(2, 2),
-	        c(3, 4)),
-	    widths = c(1.50, 0.10),
-	    heights = c(1, 1, 1.75))
+		grobs = list(eventsize_grob, flanking_snvs_grob, repeat_grob),
+		layout_matrix = rbind(
+			c(1, 1),
+			c(2, 2),
+			c(3, 4)),
+		widths = c(1.50, 0.10),
+		heights = c(1, 1, 1.75))
 
 	return(fig4_grob)
-
-	}
-
+}
 
 ## Figure 3 ##########################################################
 
