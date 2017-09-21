@@ -94,6 +94,11 @@ generate_figures <- function(
 	plot4 <- roc_by_plots_grob(callgr, metadata, truth_id)
 	saveplot(paste0(fileprefix, "_figure4_roc_by"), plot=plot4, height=12, width=14)
 
+	# Supp figure:
+	roc_by_snp_by_repeats_plot <-
+		roc_by_flanking_snvs_by_repeats(callgr, metadata, truth_id, genome)
+	saveplot(paste0(fileprefix, "_roc_by_flanking_by_repeat"), plot=roc_by_snp_by_repeats_plot, height=16, width=16)
+
 	write(sprintf("Duplicate call rate"), stderr())
 	plot_dup <- duplicates_ggplot(callgr, truth_id, truth_name, metadata)
 	saveplot(paste0(fileprefix, "_Supp_duplicate_call_rate"), plot=plot_dup, height=6, width=7)
