@@ -129,7 +129,7 @@ generate_figures <- function(
 
 	write(sprintf("Duplicate call rate"), stderr())
 	plot_dup <- duplicates_ggplot(callgr, truth_id, truth_name, metadata)
-	saveplot(paste0(fileprefix, "_Supp_duplicate_call_rate"), plot=plot_dup, height=6, width=7)
+	saveplot(paste0(fileprefix, "_Supp_duplicate_call_rate"), plot=plot_dup, height=4.5, width=7)
 
 	write(sprintf("Figure 3"), stderr())
 	plot3 <- fig_3_grob(callgr, metadata, truth_id, truth_name)
