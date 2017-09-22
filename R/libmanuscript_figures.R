@@ -71,12 +71,41 @@ generate_figures <- function(
 		write(sprintf("long read annotation complete."), stderr())
 	}
 
+	## CALLGR ANNOTATIONS ##
+
 	callgr$truthQUAL <- mcols(callgr)[,paste0("fId",truth_id)]
 	callgr$selfQUAL <- self_qual(callgr)
 
 	callgr$caller_hits_ex_truth <- rowSums(as.matrix(as.data.frame(
 		mcols(callgr)[,str_detect(names(mcols(callgr)), "^fId[a-f0-9]+") & !(names(mcols(callgr)) %in% c(paste0("fId", truth_id)))])) != -1)
 	callgr$simpleEvent <- simpleEventType(callgr)
+
+	# Flanking SNV counts
+	callgr$snp50bpbin <-
+		cut(callgr$snp50bp,
+				breaks = c(0, 1, 2, 3, 4, 5, 1000),
+				labels = c(0, 1, 2, 3, 4, "5+"),
+				right = FALSE)
+
+	# Binned event sizes
+	callgr$eventSizeBin <-
+		cut(abs(callgr$svLen),
+				breaks = c(0, 100, 200, 300, 500, 1000, 1000000000),
+				labels = c("50-99", "100-199", "200-299", "300-499", "500-999", "1000+"),
+				right = FALSE)
+
+	# Merged repeat classes
+	genome_name <- str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]
+
+	callgr$trf <- overlapsAny(callgr, grtrf[[genome_name]], type="any")
+	callgr$repeatAnn <- ifelse(callgr$repeatClass %in% c("", "DNA", "LINE", "LTR", "SINE", "Other", "Low_complexity", "Simple_repeat"), callgr$repeatClass, "Other")
+	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "" & callgr$trf, "TRF", callgr$repeatAnn)
+	callgr$repeatAnn <- ifelse(callgr$repeatAnn %in% c("TRF", "Simple_repeat"), "Simple/Tandem", callgr$repeatAnn)
+	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "", "No repeat", callgr$repeatAnn)
+	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
+	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
+
+	### PLOTTING ###
 
 	write(sprintf("Figure 1"), stderr())
 	plot_overall_roc <- overall_roc_plot(callgr, metadata, truth_id, truth_name)
@@ -89,9 +118,8 @@ generate_figures <- function(
 	plot5 <- fig_5_grob(ids, callgr, metadata)
 	saveplot(paste0(fileprefix, "_figure5_qual_bins"), plot=plot5, height=12, width=14)
 
-
 	write(sprintf("Figure 4"), stderr())
-	plot4 <- roc_by_plots_grob(callgr, metadata, truth_id)
+	plot4 <- fig_4_grob(callgr, metadata, truth_id)
 	saveplot(paste0(fileprefix, "_figure4_roc_by"), plot=plot4, height=12, width=14)
 
 	# Supp figure:
@@ -114,7 +142,7 @@ generate_figures <- function(
 	# TODO: call error margin
 
 	# TODO: this should be empty
-	table(callgr$selfQUAL < callgr$QUAL & callgr$QUAL >= 0)
+	table((callgr$selfQUAL < callgr$QUAL) & callgr$QUAL >= 0)
 }
 
 ## ROC by ... utilities ##############################################
@@ -231,8 +259,11 @@ n_callers_palette <- function(caller_count, hue = 235) {
 
 caller_colour_scheme <-
 	scale_color_manual(
+					 # Maureen Stone
 		values = c("#396AB1", "#DA7C30", "#3E9651", "#CC2529",
 				   "#535154", "#6B4C9A", "#922428", "#948B3D",
+				   # Manually added:
+				   "#e2a198", "#45b0cd",
 		rep("black", 100)))
 
 #rocby_theme <-
@@ -288,22 +319,10 @@ overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 
 ## ROC by stuff ######################################################
 
-annotate_w_flanking <- function(callgr) {
-	callgr$snp50bpbin <-
-		cut(callgr$snp50bp,
-				breaks = c(0, 1, 2, 3, 4, 5, 1000),
-				labels = c(0, 1, 2, 3, 4, "5+"),
-				right = FALSE)
-
-	return(callgr)
-}
-
 roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
 
-	callgr_annotated <- annotate_w_flanking(callgr)
-
 	flanking_snvs_rocplot <-
-		rocby(callgr_annotated, snp50bpbin, truth_id = truth_id) %>%
+		rocby(callgr, snp50bpbin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common() +
 		facet_grid(. ~ snp50bpbin, scales="free") +
@@ -313,12 +332,6 @@ roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
 }
 
 roc_by_eventsize <- function(callgr, metadata, truth_id) {
-
-	callgr$eventSizeBin <-
-		cut(abs(callgr$svLen),
-				breaks = c(0, 100, 200, 300, 500, 1000, 1000000000),
-				labels = c("50-99", "100-199", "200-299", "300-499", "500-999", "1000+"),
-				right = FALSE)
 
 	eventsize_rocplot <-
 		# Is this plot misleading?
@@ -348,27 +361,10 @@ roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 	return(repeatmasker_rocplot)
 }
 
-annotate_w_merged_repeat_classes <- function(callgr, genome) {
-	# a global
-	callgr$trf <- overlapsAny(callgr, grtrf[[genome]], type="any")
-	callgr$repeatAnn <- ifelse(callgr$repeatClass %in% c("", "DNA", "LINE", "LTR", "SINE", "Other", "Low_complexity", "Simple_repeat"), callgr$repeatClass, "Other")
-	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "" & callgr$trf, "TRF", callgr$repeatAnn)
-	callgr$repeatAnn <- ifelse(callgr$repeatAnn %in% c("TRF", "Simple_repeat"), "Simple/Tandem", callgr$repeatAnn)
-	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "", "No repeat", callgr$repeatAnn)
-	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
-	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
-
-	callgr_annotated <- callgr
-
-	return(callgr_annotated)
-}
-
 roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
 
-	callgr_annotated <- annotate_w_merged_repeat_classes(callgr, genome)
-
 	repeat_rocplot <-
-		rocby(callgr_annotated, repeatAnn, truth_id=truth_id) %>%
+		rocby(callgr, repeatAnn, truth_id=truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common() +
@@ -382,15 +378,11 @@ roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
 # Doesn't appear in final plot
 roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) {
 
-	callgr_annotated <-
-		annotate_w_merged_repeat_classes(callgr, genome) %>%
-		annotate_w_flanking()
-
 	roc_by_flanking_snvs_by_repeats_plot <-
-		rocby(callgr_annotated, snp50bpbin, repeatAnn, truth_id = truth_id) %>%
+		rocby(callgr, snp50bpbin, repeatAnn, truth_id = truth_id) %>%
 		# Need to filter truth_id here, as in roc_by_repeat_class_merged?
 		metadata_annotate(metadata) %>%
-		group_by(snp50bpbin, repeatAnn) %>%
+		group_by(snp50bpbin, repeatAnn) %>% # Maybe this should only be grouped by one of these??
 		mutate(scaled_tp=tp/max(tp)) %>%
 		ungroup() %>%
 		roc_common() +
@@ -794,7 +786,7 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 
 ## Ensemble calling plot ###################################################
 #' @params p number of callers to calculate ensemble for (nCp)
-ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids), minlongreadhits) {
+ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids), minlongreadhits=1000000000) {
 	ensemble_df <- calc_ensemble_performance(callgr, metadata, ids, p, minlongreadhits)
 	eventcount <- sum(callgr$Id == truth_id & callgr$CallSet == ALL_CALLS)
 	ensemble_df <- ensemble_df %>%
