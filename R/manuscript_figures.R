@@ -83,5 +83,5 @@ ids <- c(
 truth_id <- "00000000000000000000000000000001"
 truth_name <- "Huddleston et al"
 grtransformName <- "None"
-generate_figures(datadir, sample_name, ids, truth_id, truth_name, grtransformName, allow_missing_callers=TRUE)
+generate_figures_by_eventtype(datadir, sample_name, ids, truth_id, truth_name, grtransformName, allow_missing_callers=TRUE)
 

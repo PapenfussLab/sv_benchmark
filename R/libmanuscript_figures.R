@@ -25,8 +25,8 @@ generate_figures_by_eventtype <- function(
 }
 
 generate_figures <- function(
-	datadir, sample_name, ids, truth_id, truth_name, grtransformName,
-	longreadbedpedir=NULL, allow_missing_callers=FALSE, eventtype) {
+		datadir, sample_name, ids, truth_id, truth_name, grtransformName,
+		longreadbedpedir=NULL, allow_missing_callers=FALSE, eventtype) {
 	setCacheRootPath(datadir)
 	fileprefix <- str_replace(paste(sample_name, truth_name, ifelse(use_roc_fdr, "fdr", ""), paste0(eventtype, collapse = "_"), sep="_"), "[ /]", "_")
 	all_ids <- c(truth_id, ids)
@@ -71,12 +71,41 @@ generate_figures <- function(
 		write(sprintf("long read annotation complete."), stderr())
 	}
 
+	## CALLGR ANNOTATIONS ##
+
 	callgr$truthQUAL <- mcols(callgr)[,paste0("fId",truth_id)]
 	callgr$selfQUAL <- self_qual(callgr)
 
 	callgr$caller_hits_ex_truth <- rowSums(as.matrix(as.data.frame(
 		mcols(callgr)[,str_detect(names(mcols(callgr)), "^fId[a-f0-9]+") & !(names(mcols(callgr)) %in% c(paste0("fId", truth_id)))])) != -1)
 	callgr$simpleEvent <- simpleEventType(callgr)
+
+	# Flanking SNV counts
+	callgr$snp50bpbin <-
+		cut(callgr$snp50bp,
+				breaks = c(0, 1, 2, 3, 4, 5, 1000),
+				labels = c(0, 1, 2, 3, 4, "5+"),
+				right = FALSE)
+
+	# Binned event sizes
+	callgr$eventSizeBin <-
+		cut(abs(callgr$svLen),
+				breaks = c(0, 100, 200, 300, 500, 1000, 1000000000),
+				labels = c("50-99", "100-199", "200-299", "300-499", "500-999", "1000+"),
+				right = FALSE)
+
+	# Merged repeat classes
+	genome_name <- str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]
+
+	callgr$trf <- overlapsAny(callgr, grtrf[[genome_name]], type="any")
+	callgr$repeatAnn <- ifelse(callgr$repeatClass %in% c("", "DNA", "LINE", "LTR", "SINE", "Other", "Low_complexity", "Simple_repeat"), callgr$repeatClass, "Other")
+	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "" & callgr$trf, "TRF", callgr$repeatAnn)
+	callgr$repeatAnn <- ifelse(callgr$repeatAnn %in% c("TRF", "Simple_repeat"), "Simple/Tandem", callgr$repeatAnn)
+	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "", "No repeat", callgr$repeatAnn)
+	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
+	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
+
+	### PLOTTING ###
 
 	write(sprintf("Figure 1"), stderr())
 	plot_overall_roc <- overall_roc_plot(callgr, metadata, truth_id, truth_name)
@@ -89,14 +118,18 @@ generate_figures <- function(
 	plot5 <- fig_5_grob(ids, callgr, metadata)
 	saveplot(paste0(fileprefix, "_figure5_qual_bins"), plot=plot5, height=12, width=14)
 
-
 	write(sprintf("Figure 4"), stderr())
-	plot4 <- roc_by_plots_grob(callgr, metadata, truth_id)
+	plot4 <- fig_4_grob(callgr, metadata, truth_id)
 	saveplot(paste0(fileprefix, "_figure4_roc_by"), plot=plot4, height=12, width=14)
+
+	# Supp figure:
+	roc_by_snp_by_repeats_plot <-
+		roc_by_flanking_snvs_by_repeats(callgr, metadata, truth_id, genome)
+	saveplot(paste0(fileprefix, "_roc_by_flanking_by_repeat"), plot=roc_by_snp_by_repeats_plot, height=16, width=16)
 
 	write(sprintf("Duplicate call rate"), stderr())
 	plot_dup <- duplicates_ggplot(callgr, truth_id, truth_name, metadata)
-	saveplot(paste0(fileprefix, "_Supp_duplicate_call_rate"), plot=plot_dup, height=6, width=7)
+	saveplot(paste0(fileprefix, "_Supp_duplicate_call_rate"), plot=plot_dup, height=4.5, width=7)
 
 	write(sprintf("Figure 3"), stderr())
 	plot3 <- fig_3_grob(callgr, metadata, truth_id, truth_name)
@@ -109,7 +142,7 @@ generate_figures <- function(
 	# TODO: call error margin
 
 	# TODO: this should be empty
-	table(callgr$selfQUAL < callgr$QUAL & callgr$QUAL >= 0)
+	table((callgr$selfQUAL < callgr$QUAL) & callgr$QUAL >= 0)
 }
 
 ## ROC by ... utilities ##############################################
@@ -140,8 +173,7 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 				fn=QUAL < 0,
 				CallSet=colname_to_CallSet(Id_CallSet),
 				Id=colname_to_Id(Id_CallSet)) %>%
-			dplyr::select(-Id_CallSet) %>%
-			filter(!fn)
+			dplyr::select(-Id_CallSet)
 
 		islrtp_only <- callgr$truthQUAL == -1 & callgr$longreadhits >= minlongreadhits
 		longread_truthhitsdf <- callgr[islrtp_only] %>%
@@ -180,6 +212,7 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 					findInterval(seq(0, max(tp + fp), max(tp + fp)/rocSlicePoints), tp + fp),
 					n()
 				))) %>%
+				mutate(is_endpoint = tp == max(tp)) %>%
 				ungroup() %>%
 				#TODO: fn and sens need eventCount using group_by(Id, CallSet, !!!groupingCols)
 				mutate(
@@ -199,13 +232,14 @@ self_qual <- function(callgr) {
 ## Plot utilities ####################################################
 
 display_log_qual <- function(caller) {
-	!(StripCallerVersion(caller_name) %in% c("manta", "hydra"))
+	!(StripCallerVersion(caller) %in% c("manta", "hydra"))
 }
 
 qual_or_read_count <- function(caller) {
-	paste0(ifelse(display_log_qual(caller), "log ", ""),
-				 ifelse(StripCallerVersion(caller_name) %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
-				 			 "read count", "quality score"))
+	paste0(ifelse(StripCallerVersion(caller) %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
+				 			 "read count", "quality score"),
+				 ifelse(display_log_qual(caller), " + 1", "")
+	)
 }
 
 metadata_annotate <- function(df, metadata) {
@@ -225,8 +259,11 @@ n_callers_palette <- function(caller_count, hue = 235) {
 
 caller_colour_scheme <-
 	scale_color_manual(
+					 # Maureen Stone
 		values = c("#396AB1", "#DA7C30", "#3E9651", "#CC2529",
 				   "#535154", "#6B4C9A", "#922428", "#948B3D",
+				   # Manually added:
+				   "#e2a198", "#45b0cd",
 		rep("black", 100)))
 
 #rocby_theme <-
@@ -234,16 +271,17 @@ caller_colour_scheme <-
 #	background_grid("xy", "none", colour.major = "grey70") %+replace%
 #	theme(panel.border = element_rect(color = "grey70", linetype = 1, size = 0.2))
 
-use_roc_fdr <- TRUE
+use_roc_fdr <- FALSE
 roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
 
-roc_common <- function(gg) {
-	gg <- gg +
+roc_common <- function(df) {
+	gg <- ggplot(df) +
 		aes(y = ifelse(use_roc_fdr, 1 - precision, precision),
 			x = tp,
 			colour = caller_name,
 			linetype = CallSet) +
 		geom_line() +
+		geom_point(data = df %>% filter(is_endpoint), size = 2) +
 		caller_colour_scheme +
 		coord_cartesian(ylim = c(0,1)) +
 		scale_y_continuous(labels = scales::percent) +
@@ -274,7 +312,6 @@ overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 		rocby(callgr, truth_id = truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		labs(title = roc_title())
 	return(plot_out)
@@ -282,73 +319,108 @@ overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 
 ## ROC by stuff ######################################################
 
-roc_by_plots_grob <- function(callgr, metadata, truth_id, genome=str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]) {
-	callgr$snp50bpbin <- cut(callgr$snp50bp, breaks=c(0, 1, 2, 3, 4, 5, 1000), labels=c(0,1,2,3,4,"5+"), right=FALSE)
+roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
+
 	flanking_snvs_rocplot <-
-		rocby(callgr, snp50bpbin, truth_id=truth_id) %>%
+		rocby(callgr, snp50bpbin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		facet_grid(. ~ snp50bpbin, scales="free") +
 		labs(title=paste(roc_title(), "by flanking SNV/indels"))
 
-	callgr$eventSizeBin <- cut(abs(callgr$svLen), breaks=c(0, 100, 200, 300, 500, 1000, 1000000000), labels=c("50-99", "100-199", "200-299", "300-499", "500-999", "1000+"), right=FALSE)
+	return(flanking_snvs_rocplot)
+}
+
+roc_by_eventsize <- function(callgr, metadata, truth_id) {
+
 	eventsize_rocplot <-
 		# Is this plot misleading?
 		# The number of TP should differ by category -- e.g. "free_x" -- ???.
-		rocby(callgr, simpleEvent, eventSizeBin, truth_id=truth_id) %>%
+		rocby(callgr, simpleEvent, eventSizeBin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		facet_grid(
-		    # raw data stratified by simpleEvent
-		    . ~ eventSizeBin, scales="free") +
+			# raw data stratified by simpleEvent
+			. ~ eventSizeBin, scales="free") +
 		labs(title=paste(roc_title(), "by event size"))
+
+	return(eventsize_rocplot)
+}
+
+# Doesn't appear in figure
+roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 
 	# Unmerged categories; no tandem repeat annotations
 	repeatmasker_rocplot <-
 		rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		facet_wrap(simpleEvent ~ repeatClass, scales="free") +
 		labs(title=paste(roc_title(), "by RepeatMasker annotation"))
 
+	return(repeatmasker_rocplot)
+}
 
-	callgr$trf <- overlapsAny(callgr, grtrf[[genome]], type="any")
-	callgr$repeatAnn <- ifelse(callgr$repeatClass %in% c("", "DNA", "LINE", "LTR", "SINE", "Other", "Low_complexity", "Simple_repeat"), callgr$repeatClass, "Other")
-	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "" & callgr$trf, "TRF", callgr$repeatAnn)
-	callgr$repeatAnn <- ifelse(callgr$repeatAnn %in% c("TRF", "Simple_repeat"), "Simple/Tandem", callgr$repeatAnn)
-	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "", "No repeat", callgr$repeatAnn)
-	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
-	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
+roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
+
 	repeat_rocplot <-
 		rocby(callgr, repeatAnn, truth_id=truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		facet_wrap( ~ repeatAnn, scales="free", nrow = 2) +
 		labs(title=paste(roc_title(), "by presence of repeats at breakpoint"))
 
+	return(repeat_rocplot)
+}
+
+# ROC by (flanking x repeat)
+# Doesn't appear in final plot
+roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) {
+
+	roc_by_flanking_snvs_by_repeats_plot <-
+		rocby(callgr, snp50bpbin, repeatAnn, truth_id = truth_id) %>%
+		# Need to filter truth_id here, as in roc_by_repeat_class_merged?
+		metadata_annotate(metadata) %>%
+		group_by(snp50bpbin, repeatAnn) %>% # Maybe this should only be grouped by one of these??
+		mutate(scaled_tp=tp/max(tp)) %>%
+		ungroup() %>%
+		roc_common() +
+			aes(x=scaled_tp) +
+		facet_grid(repeatAnn ~ snp50bpbin, scales="free") +
+		labs(title=paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"))
+
+	return(roc_by_flanking_snvs_by_repeats_plot)
+}
+
+fig_4_grob <- function(callgr, metadata, truth_id,
+											 genome = str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]) {
 	# Merge plots
 
-	eventsize_grob <- ggplotGrob(eventsize_rocplot + theme(legend.position = "none"))
-	flanking_snvs_grob <- ggplotGrob(flanking_snvs_rocplot + theme(legend.position = "none"))
-	repeat_grob <- ggplotGrob(repeat_rocplot)
+	eventsize_grob <-
+		ggplotGrob(roc_by_eventsize(callgr, metadata, truth_id) +
+			theme(legend.position = "none"))
+
+	flanking_snvs_grob <-
+		ggplotGrob(roc_by_flanking_snvs(callgr, metadata, truth_id) +
+		theme(legend.position = "none")
+		)
+
+	repeat_grob <-
+		roc_by_repeat_class_merged(callgr, metadata, truth_id, genome) %>%
+		ggplotGrob()
+
 	fig4_grob <- grid.arrange(
-	    grobs = list(eventsize_grob, flanking_snvs_grob, repeat_grob),
-	    layout_matrix = rbind(
-	        c(1, 1),
-	        c(2, 2),
-	        c(3, 4)),
-	    widths = c(1.50, 0.10),
-	    heights = c(1, 1, 1.75))
+		grobs = list(eventsize_grob, flanking_snvs_grob, repeat_grob),
+		layout_matrix = rbind(
+			c(1, 1),
+			c(2, 2),
+			c(3, 4)),
+		widths = c(1.50, 0.10),
+		heights = c(1, 1, 1.75))
 
 	return(fig4_grob)
-
-	}
-
+}
 
 ## Figure 3 ##########################################################
 
@@ -476,7 +548,6 @@ prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name) {
 		rocby(callgr, caller_hits_ex_truth, truth_id = truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		ggplot() %>%
 		roc_common() +
 		facet_wrap(
 			~ factor(caller_hits_ex_truth, levels = max(caller_hits_ex_truth):1),
@@ -522,7 +593,7 @@ fig_3_grob <- function(callgr, metadata, truth_id, truth_name) {
 
 ## Figure 5 ##########################################################
 
-get_binned_qual_data <- function(callgr, bin_by, truth_id, bin_count = 100, ci_level = 0.95) {
+get_binned_qual_data <- function(callgr, bin_by, bin_count = 100, ci_level = 0.95) {
 
 	df <- data.frame(
 		Id = callgr$Id,
@@ -612,6 +683,16 @@ flipped_hist_plot <- function(test_df, qual_column, caller_name) {
 			plot.margin = unit(c(0, 1, 1, 1), "lines")) +
 		ylab("# calls") +
 		xlab(qual_or_read_count(caller_name))
+
+	if (str_detect(qual_column, "^log")) {
+		max_log_qual_level <- max(test_df[[qual_column]])
+		all_labels <- sort(c(10**(0:(max_log_qual_level + 1)), # 1, 10, ...
+												 10**(0:(max_log_qual_level + 1)) * 3)) # 3, 30, ...
+		labels <- all_labels[all_labels < 10**max_log_qual_level]
+		breaks <- log10(labels)
+
+		hist_ggplot <- hist_ggplot + scale_x_continuous(breaks = breaks, labels = labels)
+	}
 
 	return(hist_ggplot)
 }
@@ -705,7 +786,7 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 
 ## Ensemble calling plot ###################################################
 #' @params p number of callers to calculate ensemble for (nCp)
-ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids), minlongreadhits) {
+ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids), minlongreadhits=1000000000) {
 	ensemble_df <- calc_ensemble_performance(callgr, metadata, ids, p, minlongreadhits)
 	eventcount <- sum(callgr$Id == truth_id & callgr$CallSet == ALL_CALLS)
 	ensemble_df <- ensemble_df %>%
