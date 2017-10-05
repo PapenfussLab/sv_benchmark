@@ -27,6 +27,7 @@ generate_figures_by_eventtype <- function(
 generate_figures <- function(
 		datadir, sample_name, ids, truth_id, truth_name, grtransformName,
 		longreadbedpedir=NULL, allow_missing_callers=FALSE, eventtype) {
+
 	setCacheRootPath(datadir)
 	fileprefix <- str_replace(paste(sample_name, truth_name, ifelse(use_roc_fdr, "fdr", ""), paste0(eventtype, collapse = "_"), sep="_"), "[ /]", "_")
 	all_ids <- c(truth_id, ids)
@@ -424,7 +425,7 @@ fig_4_grob <- function(callgr, metadata, truth_id,
 
 ## Figure 3 ##########################################################
 
-shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
+make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 
 	truth_hits_df <-
 		callgr %>%
@@ -436,6 +437,12 @@ shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
 		mutate(is_truth = Id==truth_id) %>%
 		mutate(truth_factor=factor(1 - is_truth)) %>%
 		metadata_annotate(metadata)
+
+	p_empty <- grid.text("truth_hits_df empty!")
+
+	if (nrow(truth_hits_df) == 0) {
+		return(p_empty)
+	}
 
 	summary_df <- truth_hits_df %>%
 		group_by(Id, CallSet, truth_factor) %>%
@@ -478,10 +485,12 @@ shared_tp_calls_plot <- function(callgr, metadata, truth_id, truth_name) {
 			  axis.ticks.y = element_blank(),
 			  axis.line.y = element_blank())
 
-	return(plot_out)
+	grob_out <- ggplotGrob(plot_out)
+
+	return(grob_out)
 }
 
-shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
+make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 
 	false_positive_plot_df <-
 		callgr[callgr$Id != truth_id] %>%
@@ -489,6 +498,12 @@ shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
 		filter(truthQUAL < 0, selfQUAL != -2) %>% # remove tp & duplicate fp calls
 		dplyr::select(Id, CallSet, caller_hits_ex_truth) %>%
 		metadata_annotate(metadata)
+
+	p_empty <- grid.text("false_positive_plot_df empty!")
+
+	if (nrow(false_positive_plot_df) == 0) {
+		return(p_empty)
+	}
 
 	n_callers_plus_truth <-
 		length(unique(false_positive_plot_df$caller_name))
@@ -539,7 +554,10 @@ shared_fp_calls_plot <- function(callgr, truth_id, metadata) {
 			  axis.text.y = element_blank(),
 			  axis.ticks.y = element_blank(),
 			  axis.line.y = element_blank())
-	return(plot_out)
+
+	grob_out <- ggplotGrob(plot_out)
+
+	return(grob_out)
 }
 
 prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name) {
@@ -567,13 +585,11 @@ fig_3_grob <- function(callgr, metadata, truth_id, truth_name) {
 		ggplotGrob()
 
 	shared_tp_calls_grob <-
-		shared_tp_calls_plot(
-			callgr, metadata, truth_id, truth_name) %>%
-		ggplotGrob()
+		make_shared_tp_calls_grob(
+			callgr, metadata, truth_id, truth_name)
 
 	shared_fp_calls_grob <-
-		shared_fp_calls_plot(callgr, truth_id, metadata) %>%
-		ggplotGrob()
+		make_shared_fp_calls_grob(callgr, truth_id, metadata)
 
 	# shared_calls_grob <-
 	#	 rbind(shared_tp_calls_grob, shared_fp_calls_grob)
