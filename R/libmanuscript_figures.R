@@ -499,10 +499,9 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 		dplyr::select(Id, CallSet, caller_hits_ex_truth) %>%
 		metadata_annotate(metadata)
 
-	p_empty <- grid.text("false_positive_plot_df empty!")
 
 	if (nrow(false_positive_plot_df) == 0) {
-		return(p_empty)
+		return(grid.text("false_positive_plot_df empty!"))
 	}
 
 	n_callers_plus_truth <-
@@ -702,6 +701,7 @@ flipped_hist_plot <- function(test_df, qual_column, caller_name) {
 
 	if (str_detect(qual_column, "^log")) {
 		max_log_qual_level <- max(test_df[[qual_column]])
+
 		all_labels <- sort(c(10**(0:(max_log_qual_level + 1)), # 1, 10, ...
 												 10**(0:(max_log_qual_level + 1)) * 3)) # 3, 30, ...
 		labels <- all_labels[all_labels < 10**max_log_qual_level]
@@ -721,6 +721,10 @@ stacked_precision_plot <- function(
 	test_df <-
 		get_binned_qual_data(callgr, bin_by) %>%
 		filter(Id == test_id)
+
+	if (nrow(test_df) == 0) {
+		return(grid.text("test_df empty!"))
+	}
 
 	hist_grob <-
 		flipped_hist_plot(test_df, qual_column, caller_name) %>%
