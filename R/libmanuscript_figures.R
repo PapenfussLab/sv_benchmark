@@ -61,6 +61,11 @@ generate_figures <- function(
 		eventtype=eventtype)
 	write(sprintf("callgr generated."), stderr())
 
+	if (length(callgr) == 0) {
+		write(paste("No calls for", sample_name, datadir, eventtype), stderr())
+		return(NULL)
+	}
+
 	callgr$longreadhits <- -1
 	if (!is.null(longreadbedpedir)) {
 		callgr$longreadhits <- 0
@@ -123,10 +128,16 @@ generate_figures <- function(
 	plot4 <- fig_4_grob(callgr, metadata, truth_id)
 	saveplot(paste0(fileprefix, "_figure4_roc_by"), plot=plot4, height=12, width=14)
 
+	write(sprintf("Supp ROC by plots"), stderr())
 	# Supp figure:
 	roc_by_snp_by_repeats_plot <-
 		roc_by_flanking_snvs_by_repeats(callgr, metadata, truth_id, genome)
 	saveplot(paste0(fileprefix, "_roc_by_flanking_by_repeat"), plot=roc_by_snp_by_repeats_plot, height=16, width=16)
+
+	# Another supp figure (event size caused by STRs?)
+	roc_by_event_size_by_repeats_plot <-
+		roc_by_event_size_by_repeats(callgr, metadata, truth_id, genome)
+	saveplot(paste0(fileprefix, "_roc_by_event_size_by_repeat"), plot=roc_by_event_size_by_repeats_plot, height=16, width=16)
 
 	write(sprintf("Duplicate call rate"), stderr())
 	plot_dup <- duplicates_ggplot(callgr, truth_id, truth_name, metadata)
@@ -379,19 +390,60 @@ roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
 # Doesn't appear in final plot
 roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) {
 
-	roc_by_flanking_snvs_by_repeats_plot <-
+	grouped_plot_df <-
 		rocby(callgr, snp50bpbin, repeatAnn, truth_id = truth_id) %>%
 		# Need to filter truth_id here, as in roc_by_repeat_class_merged?
 		metadata_annotate(metadata) %>%
 		group_by(snp50bpbin, repeatAnn) %>% # Maybe this should only be grouped by one of these??
-		mutate(scaled_tp=tp/max(tp)) %>%
+		mutate(
+			scaled_tp=tp/max(tp),
+			max_tp = max(tp))
+
+	roc_by_flanking_snvs_by_repeats_plot <-
+		grouped_plot_df %>%
 		ungroup() %>%
 		roc_common() +
 			aes(x=scaled_tp) +
 		facet_grid(repeatAnn ~ snp50bpbin, scales="free") +
-		labs(title=paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"))
+		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"),
+				 x = "relative sensitivity") +
+		geom_text(
+			data = grouped_plot_df %>% distinct(snp50bpbin, repeatAnn, max_tp, .keep_all = TRUE),
+			aes(label = max_tp),
+			x = .5, y = .5, size = 12, color = "grey40", alpha = .6)
+
+
 
 	return(roc_by_flanking_snvs_by_repeats_plot)
+}
+
+# ROC by (SV len (eventsizebin) x repeat)
+# Doesn't appear in final plot
+roc_by_event_size_by_repeats <- function(callgr, metadata, truth_id, genome) {
+
+	grouped_plot_df <-
+		rocby(callgr, eventSizeBin, repeatAnn, truth_id = truth_id) %>%
+		# Need to filter truth_id here, as in roc_by_repeat_class_merged?
+		metadata_annotate(metadata) %>%
+		group_by(eventSizeBin, repeatAnn) %>% # Maybe this should only be grouped by one of these??
+		mutate(
+			scaled_tp=tp/max(tp),
+			max_tp = max(tp))
+
+	roc_by_event_size_by_repeats_plot <-
+		grouped_plot_df %>%
+		ungroup() %>%
+		roc_common() +
+		aes(x=scaled_tp) +
+		facet_grid(repeatAnn ~ eventSizeBin, scales="free") +
+		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand event size"),
+				 x = "relative sensitivity") +
+		geom_text(
+			data = grouped_plot_df %>% distinct(eventSizeBin, repeatAnn, max_tp, .keep_all = TRUE),
+			aes(label = max_tp),
+			x = .5, y = .5, size = 12, color = "grey40", alpha = .6)
+
+	return(roc_by_event_size_by_repeats_plot)
 }
 
 fig_4_grob <- function(callgr, metadata, truth_id,
@@ -414,9 +466,9 @@ fig_4_grob <- function(callgr, metadata, truth_id,
 	fig4_grob <- grid.arrange(
 		grobs = list(eventsize_grob, flanking_snvs_grob, repeat_grob),
 		layout_matrix = rbind(
-			c(1, 1),
 			c(2, 2),
-			c(3, 4)),
+			c(3, 4),
+			c(1, 1)),
 		widths = c(1.50, 0.10),
 		heights = c(1, 1, 1.75))
 
@@ -775,6 +827,8 @@ fig_5_grob <- function(ids, callgr, metadata) {
 
 duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 
+	# browse()
+
 	dup_plot_df <- callgr[callgr$Id != truth_id] %>%
 		as.data.frame() %>% as.tbl() %>%
 		dplyr::select(Id, CallSet, truthQUAL, selfQUAL) %>%
@@ -805,6 +859,7 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 }
 
 ## Ensemble calling plot ###################################################
+
 #' @params p number of callers to calculate ensemble for (nCp)
 ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids), minlongreadhits=1000000000) {
 	ensemble_df <- calc_ensemble_performance(callgr, metadata, ids, p, minlongreadhits)

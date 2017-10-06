@@ -511,24 +511,24 @@ import.sv.bedpe.dir <- function(dir) {
 	names(grlist) <- ids
 	allgr <- GRangesList(grlist)
 	allgr <- unlist(allgr, recursive=TRUE, use.names=FALSE)
-	allgr$ignore.filtered=FALSE
+	allgr$ignore.filtered <- rep(FALSE, length(allgr)) # Crashing here on empty grs for BND
 
 	allgrfiltered <- GRangesList(grlist)
 	allgrfiltered <- unlist(allgr, recursive=TRUE, use.names=FALSE)
-	allgrfiltered$ignore.filtered=TRUE
+	allgrfiltered$ignore.filtered <- rep(TRUE, length(allgrfiltered))
 	allgrfiltered <- allgrfiltered[allgrfiltered$FILTER %in% c(".", "PASS")]
-	names(allgrfiltered) <- paste0("f", names(allgrfiltered))
-	allgrfiltered$partner <- paste0("f", allgrfiltered$partner)
+	names(allgrfiltered) <- paste0("f", names(allgrfiltered))[seq_along(allgrfiltered)]
+	allgrfiltered$partner <- paste0("f", allgrfiltered$partner)[seq_along(allgrfiltered)]
 
 	allgr <- c(allgr, allgrfiltered)
-	allgr$CallSet = ifelse(allgr$ignore.filtered, PASS_CALLS, ALL_CALLS)
+	allgr$CallSet = ifelse(allgr$ignore.filtered, rep(PASS_CALLS, length(allgr)), rep(ALL_CALLS, length(allgr)))
 
 	# initialise to -1 to indicate no match
 	for (id in ids) {
 		colname <- paste0("Id", id)
-		mcols(allgr)[[colname]] <- -1
+		mcols(allgr)[[colname]] <- rep(-1, length(allgr))
 		colname <- paste0("fId", id)
-		mcols(allgr)[[colname]] <- -1
+		mcols(allgr)[[colname]] <- rep(-1, length(allgr))
 	}
 	for (ignore.filtered.q in c(TRUE, FALSE)) {
 		for (ignore.filtered.s in c(TRUE, FALSE)) {
