@@ -39,7 +39,14 @@ longreadbedpedir <- paste0(datadir, "/../", "input.na12878/longread/")
 for (i in seq_along(na12878_truth)) {
 	truth_id <- na12878_truth[i]
 	truth_name <- names(na12878_truth)[i]
-	generate_figures_by_eventtype(datadir, sample_name, ids, truth_id, truth_name, grtransformName, longreadbedpedir=longreadbedpedir)
+	generate_figures_by_eventtype(
+		datadir, sample_name, ids, truth_id, truth_name,
+		grtransformName,
+		longreadbedpedir = NULL,
+		#### LONG READS NOT WORKING ###
+		# longreadbedpedir = longreadbedpedir,
+		#### CORTEX NOT FINISHED ###
+		allow_missing_callers = TRUE)
 }
 
 ## chm datasets
