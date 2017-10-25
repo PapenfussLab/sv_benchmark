@@ -34,11 +34,8 @@ generate_figures <- function(
 	metadata <- metadata %>%
 		filter(Id %in% all_ids) %>%
 		mutate(
-			CX_CALLER = ifelse(is.na(CX_CALLER), truth_name, CX_CALLER),
 			# force truth
 			CX_REFERENCE_VCF = list.files(datadir, pattern=paste0("^", truth_id, ".*.vcf$")))
-
-
 
 	if (!allow_missing_callers) {
 		missing_callers <- fulldatacallers[!(fulldatacallers %in% StripCallerVersion(metadata$CX_CALLER))]
@@ -63,6 +60,11 @@ generate_figures <- function(
 		nominalPosition=nominalPosition,
 		eventtype=eventtype)
 	write(sprintf("callgr generated."), stderr())
+
+	# set truth caller sonce we've generated the data sets so withqual() doesn't
+	# die since it doesn't know what caller truth_name is
+	metadata <- metadata %>% mutate(CX_CALLER = ifelse(is.na(CX_CALLER), truth_name, CX_CALLER))
+
 
 	callgr$longreadhits <- -1
 	if (!is.null(longreadbedpedir)) {
