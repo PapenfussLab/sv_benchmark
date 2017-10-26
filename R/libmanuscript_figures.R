@@ -495,7 +495,7 @@ fig_4_grob <- function(callgr, metadata, truth_id,
 			c(3, 4),
 			c(1, 1)),
 		widths = c(1.50, 0.10),
-		heights = c(1, 1, 1.75))
+		heights = c(1, 1.75, 1))
 
 	return(fig4_grob)
 }
