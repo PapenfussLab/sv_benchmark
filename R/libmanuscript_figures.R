@@ -112,8 +112,7 @@ generate_figures <- function(
 	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
 
 	# This is a great place from which to debug.
-
-	browser()
+  # browser()
 
 	### PLOTTING ###
 
@@ -273,9 +272,17 @@ fixed_caller_metadata <- data_frame(
 		c("pindel",  "manta",   "breakdancer", "hydra",   "gridss",  "socrates", "crest",   "cortex",  "delly",   "lumpy"),
 	caller_initial =
 		c("P",       "M",       "B",           "H",       "G",       "S",        "C",       "X",       "D",       "L"),
-	caller_color =
+	caller_colour =
 		c("#396AB1", "#DA7C30", "#3E9651",     "#CC2529", "#535154", "#6B4C9A",  "#922428", "#948B3D", "#e2a198", "#45b0cd")
 )
+
+caller_colour_scheme <-
+	scale_colour_manual(
+		values = purrr::set_names(
+			fixed_caller_metadata$caller_colour,
+			fixed_caller_metadata$caller_name),
+		na.value = "black"
+	)
 
 metadata_annotate <- function(df, metadata) {
 	df %>%
@@ -283,28 +290,35 @@ metadata_annotate <- function(df, metadata) {
 		mutate(caller_name = StripCallerVersion(CX_CALLER)) %>%
 		left_join(fixed_caller_metadata) %>%
 		replace_na(list(
-			caller_color = "black",
-			caller_initial = "-",
+			caller_colour = "black",
+			caller_initial = "﹡",
 			caller_name = "(no name)"
 		))
 }
-
-#rocby_theme <-
-#	cowplot::theme_cowplot() +
-#	background_grid("xy", "none", colour.major = "grey70") %+replace%
-#	theme(panel.border = element_rect(color = "grey70", linetype = 1, size = 0.2))
 
 use_roc_fdr <- FALSE
 roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
 
 roc_common <- function(df) {
 	gg <- ggplot(df) +
-		aes(y = ifelse(use_roc_fdr, 1 - precision, precision),
+		aes(
+			y = ifelse(use_roc_fdr, 1 - precision, precision),
 			x = tp,
 			colour = caller_name,
 			linetype = CallSet) +
-		geom_line() +
-		geom_point(data = df %>% filter(is_endpoint), size = 2) +
+		geom_line(size = 0.3) +
+		# Baubles -- optional?
+		geom_point(data = df %>% filter(is_endpoint), size = 6
+							 # , colour = "black", fill = "white", stroke = 0.3, shape = 21
+							 ) +
+		geom_text(
+			aes(label = caller_initial),
+			data = df %>% filter(is_endpoint),
+			# nudge_x = .2, nudge_y = .2,
+			fontface = "bold",
+			hjust = "center", vjust = "center",
+			nudge_y = .001,
+			color = "white") +
 		caller_colour_scheme +
 		coord_cartesian(ylim = c(0,1)) +
 		scale_y_continuous(labels = scales::percent) +
