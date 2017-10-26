@@ -112,7 +112,7 @@ generate_figures <- function(
 	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
 
 	# This is a great place from which to debug.
-  # browser()
+  browser()
 
 	### PLOTTING ###
 
@@ -535,7 +535,7 @@ make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 			truth_factor + Id ~ .,
 			labeller = labeller(
 				truth_factor=function(s) {rep("", length(s))},
-				Id=function(s) {ifelse(s==truth_id, truth_name,
+				Id=function(s) {ifelse(s==truth_id, paste("(", truth_name, ")", sep = ""),
 									   as.character((data.frame(Id=s) %>%
 									   metadata_annotate(metadata))$caller_name))}),
 			switch = "y") +
