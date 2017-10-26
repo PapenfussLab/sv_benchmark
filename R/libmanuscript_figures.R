@@ -111,6 +111,10 @@ generate_figures <- function(
 	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
 	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
 
+	# This is a great place from which to debug.
+
+	browser()
+
 	### PLOTTING ###
 
 	write(sprintf("Figure 1"), stderr())
@@ -248,16 +252,11 @@ display_log_qual <- function(caller) {
 }
 
 qual_or_read_count <- function(caller) {
-	paste0(ifelse(StripCallerVersion(caller) %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
-				 			 "read count", "quality score"),
+	paste0(ifelse(StripCallerVersion(caller) %in% c(
+		"socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
+		"read count", "quality score"),
 				 ifelse(display_log_qual(caller), " + 1", "")
 	)
-}
-
-metadata_annotate <- function(df, metadata) {
-	df %>%
-		left_join(metadata, by="Id") %>%
-		mutate(caller_name = StripCallerVersion(CX_CALLER))
 }
 
 n_callers_palette <- function(caller_count, hue = 235) {
@@ -269,14 +268,26 @@ n_callers_palette <- function(caller_count, hue = 235) {
 		rev()
 }
 
-caller_colour_scheme <-
-	scale_color_manual(
-					 # Maureen Stone
-		values = c("#396AB1", "#DA7C30", "#3E9651", "#CC2529",
-				   "#535154", "#6B4C9A", "#922428", "#948B3D",
-				   # Manually added:
-				   "#e2a198", "#45b0cd",
-		rep("black", 100)))
+fixed_caller_metadata <- data_frame(
+	caller_name=
+		c("pindel",  "manta",   "breakdancer", "hydra",   "gridss",  "socrates", "crest",   "cortex",  "delly",   "lumpy"),
+	caller_initial =
+		c("P",       "M",       "B",           "H",       "G",       "S",        "C",       "X",       "D",       "L"),
+	caller_color =
+		c("#396AB1", "#DA7C30", "#3E9651",     "#CC2529", "#535154", "#6B4C9A",  "#922428", "#948B3D", "#e2a198", "#45b0cd")
+)
+
+metadata_annotate <- function(df, metadata) {
+	df %>%
+		left_join(metadata, by="Id") %>%
+		mutate(caller_name = StripCallerVersion(CX_CALLER)) %>%
+		left_join(fixed_caller_metadata) %>%
+		replace_na(list(
+			caller_color = "black",
+			caller_initial = "-",
+			caller_name = "(no name)"
+		))
+}
 
 #rocby_theme <-
 #	cowplot::theme_cowplot() +
