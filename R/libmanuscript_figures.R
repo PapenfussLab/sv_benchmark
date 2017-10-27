@@ -599,6 +599,18 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 		return(grid.text("false_positive_plot_df empty!"))
 	}
 
+	summary_df <- false_positive_plot_df %>%
+		group_by(Id, CallSet) %>%
+		summarise(total=n())
+
+	# Is the "PASS" field distinct for each caller?
+	distinct_pass_df <-
+		summary_df %>%
+		select(Id, CallSet, total) %>%
+		spread(key = CallSet, value = total) %>%
+		mutate(distinct_pass = `All calls` != `PASS only`) %>%
+		select(Id, distinct_pass)
+
 	n_callers_plus_truth <-
 		length(unique(false_positive_plot_df$caller_name))
 
@@ -611,6 +623,10 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 
 	plot_out <-
 		false_positive_plot_df %>%
+		left_join(distinct_pass_df) %>%
+		filter(
+			# Show only "All calls" unles there's a meaningful "PASS" field
+			(CallSet == "All calls" | distinct_pass)) %>%
 		ggplot(aes(x = CallSet)) +
 		facet_grid(
 			Id ~ .,
@@ -619,14 +635,17 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 					ifelse(s==truth_id, truth_name,
 						as.character((data.frame(Id=s) %>%
 							metadata_annotate(metadata))$caller_name))}),
-			switch = "y") +
+			switch = "y", scales = "free", space = "free") +
 		scale_y_continuous(expand = c(0,0)) +
 		# scale_x_discrete(labels = )
 		geom_bar(aes(fill = interaction(factor(caller_hits_ex_truth), CallSet)),
 				 size = 0.5, color = "black", width = 1) +
-		geom_text(aes(label=total), data=false_positive_plot_df %>%
-					  group_by(Id, CallSet) %>%
-					  summarise(total=n()),
+		geom_text(aes(label=total),
+			data=false_positive_plot_df %>%
+						  group_by(Id, CallSet) %>%
+						  summarise(total=n()) %>%
+							left_join(distinct_pass_df) %>%
+							filter((CallSet == "All calls" | distinct_pass)),
 				  y=ymax_shared * 1.1,
 				  hjust=1,
 				  color="grey50") +
