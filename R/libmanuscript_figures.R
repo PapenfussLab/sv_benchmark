@@ -273,7 +273,7 @@ fixed_caller_metadata <- data_frame(
 	caller_initial =
 		c("P",       "M",       "B",           "H",       "G",       "S",        "C",       "X",       "D",       "L"),
 	caller_colour =
-		c("#396AB1", "#DA7C30", "#3E9651",     "#CC2529", "#535154", "#6B4C9A",  "#922428", "#948B3D", "#e2a198", "#45b0cd")
+		c("#CC2529", "#396AB1", "#3E9651",     "#45b0cd", "#535154", "#6B4C9A",  "#922428", "#948B3D", "#e2a198", "#DA7C30")
 )
 
 caller_colour_scheme <-
