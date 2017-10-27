@@ -258,11 +258,11 @@ qual_or_read_count <- function(caller) {
 	)
 }
 
-n_callers_palette <- function(caller_count, hue = 235) {
+n_callers_palette <- function(caller_count, hue = 235, crange = c(30, 20), lrange = c(40, 100)) {
 	c("black",
 	  sequential_hcl(
 		  caller_count - 2,
-		  h = hue, c. = c(30, 20), l = c(40, 100)),
+		  h = hue, c. = crange, l = lrange),
 	  "white") %>%
 		rev()
 }
@@ -525,11 +525,26 @@ make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 		group_by(Id, CallSet, truth_factor) %>%
 		summarise(total=n())
 
+	# Is the "PASS" field distinct for each caller?
+	distinct_pass_df <-
+		summary_df %>%
+		select(Id, CallSet, total) %>%
+		spread(key = CallSet, value = total) %>%
+		mutate(distinct_pass = `All calls` != `PASS only`) %>%
+		select(Id, distinct_pass)
+
 	n_callers_plus_truth <-
 		length(unique(truth_hits_df$caller_name))
 
-	plot_out <-
+	plot_df <-
 		truth_hits_df %>%
+		left_join(distinct_pass_df) %>%
+		filter(
+			# Show only "All calls" unles there's a meaningful "PASS" field
+			(CallSet == "All calls" | distinct_pass))
+
+	plot_out <-
+		plot_df %>%
 		ggplot(aes(x = CallSet)) +
 		facet_grid(
 			truth_factor + Id ~ .,
@@ -538,17 +553,20 @@ make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 				Id=function(s) {ifelse(s==truth_id, paste("(", truth_name, ")", sep = ""),
 									   as.character((data.frame(Id=s) %>%
 									   metadata_annotate(metadata))$caller_name))}),
-			switch = "y") +
+			switch = "y", scales = "free", space = "free") +
 		scale_y_continuous(expand = c(0,0)) +
 		# scale_x_discrete(labels = )
 		geom_bar(aes(fill = interaction(factor(caller_hits_ex_truth), CallSet)),
 			size = 0.5, color = "black", width = 1) +
-		geom_text(aes(label=total), data=summary_df,
+		geom_text(aes(label=total), data=summary_df %>% left_join(distinct_pass_df) %>% filter((CallSet == "All calls" | distinct_pass)),
 				  hjust=1,
 				  y=max(summary_df$total),
 				  color="grey50") +
 		scale_fill_manual(
-			values = c(n_callers_palette(n_callers_plus_truth, 235), n_callers_palette(n_callers_plus_truth, 90)),
+			values = c(
+				n_callers_palette(n_callers_plus_truth, 40),
+				# we need to avoid "white" because the truth set isn't "PASS"
+				n_callers_palette(n_callers_plus_truth, 100)[2:(n_callers_plus_truth)]),
 			name = "# callers\nsharing",
 			labels = rep("", 2 * n_callers_plus_truth)) +
 		xlab("") +
