@@ -151,8 +151,8 @@ generate_figures <- function(
 	saveplot(paste0(fileprefix, "_figure3_common_calls"), plot=plot3, height=12, width=14)
 
 	write(sprintf("Ensemble"), stderr())
-	plot_ensemble <- ensemble_plot(callgr, metadata, truth_id, ids)
-	saveplot(paste0(fileprefix, "_ensemble"), plot=plot_ensemble, height=12, width=14)
+	plot_ensemble <- ensemble_plot_list(callgr, metadata, truth_id, ids)
+	# saveplot(paste0(fileprefix, "_ensemble"), plot=plot_ensemble, height=12, width=14)
 
 	# TODO: call error margin
 
@@ -934,15 +934,19 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 ## Ensemble calling plot ###################################################
 
 #' @params p number of callers to calculate ensemble for (nCp)
-ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids), minlongreadhits=1000000000) {
+ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p=length(ids), minlongreadhits=1000000000) {
+
 	ensemble_df <- calc_ensemble_performance(callgr, metadata, ids, p, minlongreadhits)
 	eventcount <- sum(callgr$Id == truth_id & callgr$CallSet == ALL_CALLS)
-	ensemble_df <- ensemble_df %>%
+	ensemble_df <-
+		ensemble_df %>%
 		mutate(
 			sens = tp / eventcount,
-			f1score = 2 * precision * sens / (precision + sens))
+			f1score = 2 * precision * sens / (precision + sens),
+			ensemble = str_c(minhits, " of ", ncallers))
 
-	facted_plot <- ggplot(ensemble_df) +
+	faceted_plot <-
+		ggplot(ensemble_df) +
 		aes(x=tp, y=precision, colour=CallSet) + #, shape=as.factor(minhits))
 		geom_point() +
 		coord_cartesian(ylim = c(0,1)) +
@@ -950,92 +954,150 @@ ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids), minlong
 		theme_cowplot() +
 		background_grid("xy", "none") +
 		facet_grid(ncallers ~ minhits) +
-		labs(title="Ensemble caller performance for calls requiring x of y callers")
-
-	ggplot() +
-		aes(x=tp, y=precision) +
-		geom_point(data=ensemble_df,
-			aes(colour=factor(ncallers), shape=factor(minhits))) +
-		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
-				metadata_annotate(metadata),
-			aes(group=interaction(Id, CallSet)),
-			colour="grey50", size=2) +
-		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
 		labs(title="Ensemble caller performance for calls requiring x of y callers") +
-		geom_point(data=ensemble_df %>% filter(
-			ncallers == 3,
-			minhits %in% c(2,3),
-			str_detect(callers, "delly"),
-			str_detect(callers, "manta"),
-			str_detect(callers, "lumpy"),
-			str_detect(callers, "delly")),
-			size=3,
-			colour="black") +
-		geom_text(data=ensemble_df %>% filter(
-			ncallers == 3,
-			minhits %in% c(2,3),
-			str_detect(callers, "delly"),
-			str_detect(callers, "manta"),
-			str_detect(callers, "lumpy"),
-			str_detect(callers, "delly")),
-			size=3,
-			colour="black",
-			aes(label=callers))
+		theme_cowplot() +
+		scale_color_brewer(palette = "Set2") +
+		background_grid()
 
-	ggplot() +
-		aes(x=tp, y=precision) +
-		geom_point(data=ensemble_df %>% filter(!str_detect(callers, "gridss") & !str_detect(callers, "manta")),
-							 aes(colour=factor(ncallers), shape=factor(minhits))) +
-		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
-								metadata_annotate(metadata),
-							aes(group=interaction(Id, CallSet)),
-							colour="grey50", size=0.5) +
-		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
-		labs(title="Ensemble caller performance for calls requiring x of y callers\nEnsembles using GRIDSS or manta excluded.")
+	pareto_frontier_by_ensemble_df <-
+		ensemble_df %>%
+		group_by(minhits, ncallers) %>%
+		arrange(desc(precision)) %>%
+		filter(sens == cummax(sens))
 
-	ggplot() +
-		aes(x=tp, y=precision) +
-		#geom_point(data=ensemble_df %>% filter(str_detect(callers, "gridss") | str_detect(callers, "manta")),
-		#					 aes(shape=factor(minhits)), colour="black") +
-		geom_point(data=ensemble_df %>% filter(!str_detect(callers, "gridss") & !str_detect(callers, "manta")),
-							 aes(colour=factor(ncallers), shape=factor(minhits))) +
-		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
-								metadata_annotate(metadata),
-							aes(group=interaction(Id, CallSet)),
-							colour="grey50", size=0.5) +
-		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
-		labs(title="Ensemble caller performance for calls requiring x of y callers\nEnsembles using GRIDSS or manta excluded.") +
-		geom_point(data=ensemble_df %>% filter(
-			ncallers == 3,
-			minhits %in% c(2,3),
-			str_detect(callers, "delly"),
-			str_detect(callers, "manta"),
-			str_detect(callers, "lumpy"),
-			str_detect(callers, "delly")),
-			size=3,
-			colour="black") +
-		geom_text(data=ensemble_df %>% filter(
-			ncallers == 3,
-			minhits %in% c(2,3),
-			str_detect(callers, "delly"),
-			str_detect(callers, "manta"),
-			str_detect(callers, "lumpy"),
-			str_detect(callers, "delly")),
-			size=3,
-			colour="black",
-			aes(label=callers))
+	pareto_frontier_df <-
+		ensemble_df %>%
+		arrange(desc(precision)) %>%
+		filter(sens == cummax(sens))
 
-	ggplot(bind_rows(lapply(as.character(StripCallerVersion(metadata$CX_CALLER[metadata$Id %in% ids])), function(c) {
-			caller_df <- ensemble_df %>%
-				filter(str_detect(callers, c)) %>%
-				mutate(caller_name=c)
-		})) %>%
-			filter(ncallers <= 2)) +
-		caller_colour_scheme +
-		aes(x=tp, y=precision, colour=caller_name, shape=interaction(ncallers, minhits)) +
-		geom_point() +
-		labs(title="Ensemble caller performance for calls requiring x of y callers")
+	overall_roc_df <-
+		rocby(callgr, truth_id = truth_id) %>%
+		filter(Id != truth_id) %>%
+		metadata_annotate(metadata)
+
+	bauble_points <-
+		geom_point(data = overall_roc_df %>% filter(is_endpoint), size = 6)
+
+	bauble_text <-
+		geom_text(
+			aes(label = caller_initial),
+			data = overall_roc_df %>% filter(is_endpoint),
+			# nudge_x = .2, nudge_y = .2,
+			fontface = "bold",
+			hjust = "center", vjust = "center",
+			nudge_y = .001,
+			color = "white")
+
+	overall_roc_plot <-
+		ggplot(overall_roc_df) +
+		aes(
+			y = precision,
+			x = tp) +
+		coord_cartesian(ylim = c(0,1)) +
+		scale_y_continuous(labels = scales::percent) +
+		theme_cowplot() +
+		background_grid("y", "none")
+
+	pareto_frontier_plot_overall <-
+		overall_roc_plot +
+		geom_point(
+			data = ensemble_df %>% filter(ensemble %in% c("1 of 5", "2 of 3", "4 of 5")),
+			aes(color = ensemble),
+			size = 0.6) +
+		geom_line(
+			data = pareto_frontier_df) +
+		scale_color_brewer(palette = "Set2") +
+		bauble_points + bauble_text
+
+	all_ensemble_plot <-
+		overall_roc_plot +
+		geom_point(
+			data = ensemble_df %>% mutate(minhits = pmin(minhits, 3), ncallers = pmin(ncallers, 4), ensemble = str_c(minhits, ifelse(minhits >= 3, "+", ""), " of ", ncallers, ifelse(ncallers >= 4, "+", ""))) %>% filter(ensemble != "1 of 1") %>% mutate(ensemble=ifelse(minhits==1, "1 of n", ensemble)) %>% arrange(desc(minhits)),
+			aes(color = ensemble),
+			size = 0.6) +
+		scale_color_brewer(palette = "Set2") +
+		bauble_points + bauble_text
+
+	# ggplot() +
+	# 	aes(x=tp, y=precision) +
+	# 	geom_point(data=ensemble_df,
+	# 		aes(colour=factor(ncallers), shape=factor(minhits))) +
+	# 	geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
+	# 			metadata_annotate(metadata),
+	# 		aes(group=interaction(Id, CallSet)),
+	# 		colour="grey50", size=2) +
+	# 	scale_shape_manual(values=1:max(ensemble_df$minhits)) +
+	# 	labs(title="Ensemble caller performance for calls requiring x of y callers") +
+	# 	geom_point(data=ensemble_df %>% filter(
+	# 		ncallers == 3,
+	# 		minhits %in% c(2,3),
+	# 		str_detect(callers, "delly"),
+	# 		str_detect(callers, "manta"),
+	# 		str_detect(callers, "lumpy"),
+	# 		str_detect(callers, "delly")),
+	# 		size=3,
+	# 		colour="black") +
+	# 	geom_text(data=ensemble_df %>% filter(
+	# 		ncallers == 3,
+	# 		minhits %in% c(2,3),
+	# 		str_detect(callers, "delly"),
+	# 		str_detect(callers, "manta"),
+	# 		str_detect(callers, "lumpy"),
+	# 		str_detect(callers, "delly")),
+	# 		size=3,
+	# 		colour="black",
+	# 		aes(label=callers))
+#
+# 	ggplot() +
+# 		aes(x=tp, y=precision) +
+# 		geom_point(data=ensemble_df %>% filter(!str_detect(callers, "gridss") & !str_detect(callers, "manta")),
+# 							 aes(colour=factor(ncallers), shape=factor(minhits))) +
+# 		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
+# 								metadata_annotate(metadata),
+# 							aes(group=interaction(Id, CallSet)),
+# 							colour="grey50", size=0.5) +
+# 		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
+# 		labs(title="Ensemble caller performance for calls requiring x of y callers\nEnsembles using GRIDSS or manta excluded.")
+#
+# 	ggplot() +
+# 		aes(x=tp, y=precision) +
+# 		#geom_point(data=ensemble_df %>% filter(str_detect(callers, "gridss") | str_detect(callers, "manta")),
+# 		#					 aes(shape=factor(minhits)), colour="black") +
+# 		geom_point(data=ensemble_df %>% filter(!str_detect(callers, "gridss") & !str_detect(callers, "manta")),
+# 							 aes(colour=factor(ncallers), shape=factor(minhits))) +
+# 		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
+# 								metadata_annotate(metadata),
+# 							aes(group=interaction(Id, CallSet)),
+# 							colour="grey50", size=0.5) +
+# 		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
+# 		labs(title="Ensemble caller performance for calls requiring x of y callers\nEnsembles using GRIDSS or manta excluded.") +
+# 		geom_point(data=ensemble_df %>% filter(
+# 			ncallers == 3,
+# 			minhits %in% c(2,3),
+# 			str_detect(callers, "delly"),
+# 			str_detect(callers, "manta"),
+# 			str_detect(callers, "lumpy"),
+# 			str_detect(callers, "delly")),
+# 			size=3,
+# 			colour="black") +
+# 		geom_text(data=ensemble_df %>% filter(
+# 			ncallers == 3,
+# 			minhits %in% c(2,3),
+# 			str_detect(callers, "delly"),
+# 			str_detect(callers, "manta"),
+# 			str_detect(callers, "lumpy"),
+# 			str_detect(callers, "delly")),
+# 			size=3,
+# 			colour="black",
+# 			aes(label=callers))
+
+	return(list(
+		pareto_frontier_plot_overall,
+		all_ensemble_plot,
+		faceted_plot
+	))
 }
+
 calc_ensemble_performance <- function(callgr, metadata, ids, p, minlongreadhits) {
 	allgr <- callgr[callgr$CallSet==ALL_CALLS]
 	passgr <- callgr[callgr$CallSet==PASS_CALLS]
