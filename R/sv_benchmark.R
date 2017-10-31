@@ -78,7 +78,8 @@ withqual <- function(vcf, caller) {
 			} else if (caller %in% c("lumpy")) {
 				altqual <- unlist(info(vcf)$SU)
 			} else if (caller %in% c("cortex")) {
-				altqual <- geno(vcf)$COV[,1,1]
+													 # Assuming 1 is ref, 2 is alt
+				altqual <- geno(vcf)$COV[,1,2]
 			} else if (caller %in% c("manta")) {
 			    altqual <- 0
 			}
