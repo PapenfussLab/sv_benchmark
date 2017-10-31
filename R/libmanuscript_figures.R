@@ -829,7 +829,14 @@ flipped_hist_plot <- function(test_df, qual_column, caller_name) {
 
 		all_labels <- sort(c(10**(0:(max_log_qual_level + 1)), # 1, 10, ...
 												 10**(0:(max_log_qual_level + 1)) * 3)) # 3, 30, ...
+
 		labels <- all_labels[all_labels < 10**max_log_qual_level]
+
+		if (length(labels) > 6) {
+			labels <- 10**(0:(max_log_qual_level + 1))
+			labels <- all_labels[all_labels < 10**max_log_qual_level]
+		}
+
 		breaks <- log10(labels)
 
 		hist_ggplot <- hist_ggplot + scale_x_continuous(breaks = breaks, labels = labels)
