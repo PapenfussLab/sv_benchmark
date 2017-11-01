@@ -353,7 +353,7 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE) {
 			)
 
 	if (monochrome) {
-		gg <- gg + aes(color = "black")
+		gg <- gg + aes(color = "black") + guides(color = FALSE)
 	}
 
 	if (use_roc_fdr) {
