@@ -832,12 +832,16 @@ flipped_hist_plot <- function(test_df, qual_column, caller_name) {
 
 		labels <- all_labels[all_labels < 10**max_log_qual_level]
 
-		if (length(labels) > 6) {
-			labels <- 10**(0:(max_log_qual_level + 1))
-			labels <- all_labels[all_labels < 10**max_log_qual_level]
+		if (length(labels) > 7) {
+			labels <- (10**(0:(max_log_qual_level + 1)))
+			if (length(labels) > 7) {
+				labels <- labels[seq(1, length(labels), 2)]
+			}
+			breaks <- log10(labels)
+			labels <- scales::trans_format('log10', scales::math_format())(labels)
+		} else {
+			breaks <- log10(labels)
 		}
-
-		breaks <- log10(labels)
 
 		hist_ggplot <- hist_ggplot + scale_x_continuous(breaks = breaks, labels = labels)
 	}
