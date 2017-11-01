@@ -978,7 +978,8 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p=length(ids), m
 		mutate(
 			sens = tp / eventcount,
 			f1score = 2 * precision * sens / (precision + sens),
-			ensemble = str_c(minhits, " of ", ncallers))
+			ensemble = str_c(minhits, " of ", ncallers)) %>%
+		as.tbl()
 
 	faceted_plot <-
 		ggplot(ensemble_df) +
@@ -1013,10 +1014,28 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p=length(ids), m
 	bauble_points <-
 		geom_point(data = overall_roc_df %>% filter(is_endpoint), size = 6)
 
-	bauble_text <-
+	# Baubles - "All calls"
+	bauble_points_all <-
+		geom_point(data = overall_roc_df %>% filter(is_endpoint, CallSet == "All calls"), size = 6,
+						   fill = "white", stroke = 0.3, shape = 21)
+
+	bauble_text_all <-
 		geom_text(
 			aes(label = caller_initial),
-			data = overall_roc_df %>% filter(is_endpoint),
+			data = overall_roc_df %>% filter(is_endpoint, CallSet == "All calls"),
+			# nudge_x = .2, nudge_y = .2,
+			fontface = "bold",
+			hjust = "center", vjust = "center",
+			nudge_y = .001)
+
+	# Baubles - "PASS only"
+	bauble_points_pass <-
+		geom_point(data = overall_roc_df %>% filter(is_endpoint, CallSet == "PASS only"), size = 6)
+
+	bauble_text_pass <-
+		geom_text(
+			aes(label = caller_initial),
+			data = overall_roc_df %>% filter(is_endpoint, CallSet == "PASS only"),
 			# nudge_x = .2, nudge_y = .2,
 			fontface = "bold",
 			hjust = "center", vjust = "center",
@@ -1042,7 +1061,8 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p=length(ids), m
 		geom_line(
 			data = pareto_frontier_df) +
 		scale_color_brewer(palette = "Set2") +
-		bauble_points + bauble_text
+		bauble_points_all + bauble_text_all +
+		bauble_points_pass + bauble_text_pass
 
 	all_ensemble_plot <-
 		overall_roc_plot +
