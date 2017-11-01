@@ -310,13 +310,26 @@ roc_common <- function(df) {
 			colour = caller_name,
 			linetype = CallSet) +
 		geom_line(size = 0.3) +
-		# Baubles -- optional?
-		geom_point(data = df %>% filter(is_endpoint), size = 6
+		# Baubles - "All calls"
+		geom_point(data = df %>% filter(is_endpoint, CallSet == "All calls"), size = 6
+							 , fill = "white", stroke = 0.3, shape = 21
+		) +
+		geom_text(
+			aes(label = caller_initial),
+			data = df %>% filter(is_endpoint, CallSet == "All calls"),
+			# nudge_x = .2, nudge_y = .2,
+			fontface = "bold",
+			hjust = "center", vjust = "center",
+			nudge_y = .001
+			#, color = "white"
+		) +
+		# Baubles - "PASS only"
+		geom_point(data = df %>% filter(is_endpoint, CallSet == "PASS only"), size = 6
 							 # , colour = "black", fill = "white", stroke = 0.3, shape = 21
 							 ) +
 		geom_text(
 			aes(label = caller_initial),
-			data = df %>% filter(is_endpoint),
+			data = df %>% filter(is_endpoint, CallSet == "PASS only"),
 			# nudge_x = .2, nudge_y = .2,
 			fontface = "bold",
 			hjust = "center", vjust = "center",
