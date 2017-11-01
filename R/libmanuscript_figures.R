@@ -302,14 +302,20 @@ metadata_annotate <- function(df, metadata) {
 use_roc_fdr <- FALSE
 roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
 
-roc_common <- function(df) {
+roc_common <- function(df, use_lines = TRUE, monochrome = FALSE) {
+	if (use_lines) {
+		line_trace <- geom_line(size = 0.3)
+	} else {
+		line_trace <- element_blank()
+	}
+
 	gg <- ggplot(df) +
 		aes(
 			y = ifelse(use_roc_fdr, 1 - precision, precision),
 			x = tp,
 			colour = caller_name,
-			linetype = CallSet) +
-		geom_line(size = 0.3) +
+			linetype = (CallSet == "All calls")) +
+		line_trace +
 		# Baubles - "All calls"
 		geom_point(data = df %>% filter(is_endpoint, CallSet == "All calls"), size = 6
 							 , fill = "white", stroke = 0.3, shape = 21
@@ -345,7 +351,11 @@ roc_common <- function(df) {
 			linetype = "call set",
 			x = "# true positives"
 			)
-		# Add endpoint showing properties of call set.
+
+	if (monochrome) {
+		gg <- gg + aes(color = "black")
+	}
+
 	if (use_roc_fdr) {
 		gg <- gg +
 			aes(y = fdr) +
@@ -355,6 +365,7 @@ roc_common <- function(df) {
 			aes(y = precision) +
 			labs(y = "precision")
 	}
+
 	return(gg)
 }
 
