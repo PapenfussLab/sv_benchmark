@@ -374,7 +374,7 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 		coord_cartesian(ylim = c(0,1)) +
 		scale_y_continuous(labels = scales::percent) +
 		theme_cowplot() +
-		background_grid("y", "none") +
+		background_grid(minor = "none") +
 		labs(
 			color = "caller",
 			# linetype = "call set",
@@ -400,12 +400,12 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 
 ## Overall ROC ########################################################
 
-overall_roc_plot <- function(callgr, metadata, truth_id, truth_name, ...) {
+overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 	plot_out <-
 		rocby(callgr, truth_id = truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common(...) +
+		roc_common(use_baubles = TRUE) +
 		labs(title = roc_title())
 	return(plot_out)
 }
@@ -417,7 +417,7 @@ roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
 	flanking_snvs_rocplot <-
 		rocby(callgr, snp50bpbin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		facet_grid(. ~ snp50bpbin, scales="free") +
 		labs(title=paste(roc_title(), "by flanking SNV/indels"))
 
@@ -431,7 +431,7 @@ roc_by_eventsize <- function(callgr, metadata, truth_id) {
 		# The number of TP should differ by category -- e.g. "free_x" -- ???.
 		rocby(callgr, simpleEvent, eventSizeBin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		facet_grid(
 			# raw data stratified by simpleEvent
 			. ~ eventSizeBin, scales="free") +
@@ -447,7 +447,7 @@ roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 	repeatmasker_rocplot <-
 		rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		facet_wrap(simpleEvent ~ repeatClass, scales="free") +
 		labs(title=paste(roc_title(), "by RepeatMasker annotation"))
 
@@ -460,7 +460,7 @@ roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
 		rocby(callgr, repeatAnn, truth_id=truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		facet_wrap( ~ repeatAnn, scales="free", nrow = 2) +
 		labs(title=paste(roc_title(), "by presence of repeats at breakpoint"))
 
@@ -483,7 +483,7 @@ roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) 
 	roc_by_flanking_snvs_by_repeats_plot <-
 		grouped_plot_df %>%
 		ungroup() %>%
-		roc_common() +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 			aes(x=scaled_tp) +
 		facet_grid(repeatAnn ~ snp50bpbin, scales="free") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"),
@@ -514,7 +514,7 @@ roc_by_event_size_by_repeats <- function(callgr, metadata, truth_id, genome) {
 	roc_by_event_size_by_repeats_plot <-
 		grouped_plot_df %>%
 		ungroup() %>%
-		roc_common() +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		aes(x=scaled_tp) +
 		facet_grid(repeatAnn ~ eventSizeBin, scales="free") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand event size"),
@@ -743,7 +743,7 @@ prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name) {
 		rocby(callgr, caller_hits_ex_truth, truth_id = truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		facet_wrap(
 			~ factor(caller_hits_ex_truth, levels = max(caller_hits_ex_truth):1),
 			scale = "free",
