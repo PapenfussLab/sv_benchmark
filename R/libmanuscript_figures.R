@@ -302,11 +302,58 @@ metadata_annotate <- function(df, metadata) {
 use_roc_fdr <- FALSE
 roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
 
-roc_common <- function(df, use_lines = TRUE, monochrome = FALSE) {
+roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = FALSE) {
 	if (use_lines) {
 		line_trace <- geom_line(size = 0.3)
 	} else {
 		line_trace <- element_blank()
+	}
+
+	if (monochrome) {
+		colour_scheme <- scale_colour_manual(values = rep("black", 100))
+		color_guide_off_if_monochrome <- guides(color = FALSE)
+	} else {
+		colour_scheme <- caller_colour_scheme
+		color_guide_off_if_monochrome <- element_blank()
+	}
+
+	if (use_baubles) {
+		plot_points_all_calls <-
+			geom_point(data = df %>% filter(is_endpoint, CallSet == "All calls"), size = 6
+																				, fill = "white", stroke = 0.3, shape = 21)
+		plot_text_all_calls <-
+			geom_text(
+			aes(label = caller_initial),
+				data = df %>% filter(is_endpoint, CallSet == "All calls"),
+				# nudge_x = .2, nudge_y = .2,
+				fontface = "bold",
+				hjust = "center", vjust = "center",
+				nudge_y = .001)
+
+		plot_points_pass_only <-
+			geom_point(
+				data = df %>% filter(is_endpoint, CallSet == "PASS only"), size = 6)
+		plot_text_pass_only <-
+			geom_text(
+				aes(label = caller_initial),
+				data = df %>% filter(is_endpoint, CallSet == "PASS only"),
+				# nudge_x = .2, nudge_y = .2,
+				fontface = "bold",
+				hjust = "center", vjust = "center",
+				nudge_y = .001,
+				color = "white")
+	} else {
+		plot_points_all_calls <-
+			geom_point(data = df %>% filter(is_endpoint, CallSet == "All calls"), size = 2
+								 , fill = "white", stroke = 0.3, shape = 21)
+		plot_text_all_calls <-
+			element_blank()
+
+		plot_points_pass_only <-
+			geom_point(
+				data = df %>% filter(is_endpoint, CallSet == "PASS only"), size = 2)
+		plot_text_pass_only <-
+			element_blank()
 	}
 
 	gg <- ggplot(df) +
@@ -317,31 +364,13 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE) {
 			linetype = (CallSet == "All calls")) +
 		line_trace +
 		# Baubles - "All calls"
-		geom_point(data = df %>% filter(is_endpoint, CallSet == "All calls"), size = 6
-							 , fill = "white", stroke = 0.3, shape = 21
-		) +
-		geom_text(
-			aes(label = caller_initial),
-			data = df %>% filter(is_endpoint, CallSet == "All calls"),
-			# nudge_x = .2, nudge_y = .2,
-			fontface = "bold",
-			hjust = "center", vjust = "center",
-			nudge_y = .001
-			#, color = "white"
-		) +
+		plot_points_all_calls +
+		plot_text_all_calls +
 		# Baubles - "PASS only"
-		geom_point(data = df %>% filter(is_endpoint, CallSet == "PASS only"), size = 6
-							 # , colour = "black", fill = "white", stroke = 0.3, shape = 21
-							 ) +
-		geom_text(
-			aes(label = caller_initial),
-			data = df %>% filter(is_endpoint, CallSet == "PASS only"),
-			# nudge_x = .2, nudge_y = .2,
-			fontface = "bold",
-			hjust = "center", vjust = "center",
-			nudge_y = .001,
-			color = "white") +
-		caller_colour_scheme +
+		plot_points_pass_only +
+		plot_text_pass_only +
+		colour_scheme +
+		color_guide_off_if_monochrome +
 		coord_cartesian(ylim = c(0,1)) +
 		scale_y_continuous(labels = scales::percent) +
 		theme_cowplot() +
@@ -351,10 +380,6 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE) {
 			linetype = "call set",
 			x = "# true positives"
 			)
-
-	if (monochrome) {
-		gg <- gg + aes(color = "black") + guides(color = FALSE)
-	}
 
 	if (use_roc_fdr) {
 		gg <- gg +
@@ -371,12 +396,12 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE) {
 
 ## Overall ROC ########################################################
 
-overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
+overall_roc_plot <- function(callgr, metadata, truth_id, truth_name, ...) {
 	plot_out <-
 		rocby(callgr, truth_id = truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
+		roc_common(...) +
 		labs(title = roc_title())
 	return(plot_out)
 }
