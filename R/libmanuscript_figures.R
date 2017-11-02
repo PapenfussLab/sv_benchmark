@@ -361,7 +361,7 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 			y = ifelse(use_roc_fdr, 1 - precision, precision),
 			x = tp,
 			colour = caller_name,
-			linetype = (CallSet == "All calls")) +
+			linetype = CallSet == "All calls") +
 		line_trace +
 		# Baubles - "All calls"
 		plot_points_all_calls +
@@ -377,9 +377,13 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 		background_grid("y", "none") +
 		labs(
 			color = "caller",
-			linetype = "call set",
+			# linetype = "call set",
 			x = "# true positives"
-			)
+			) +
+		guides(
+			# Check this
+			linetype = FALSE
+		)
 
 	if (use_roc_fdr) {
 		gg <- gg +
