@@ -1017,7 +1017,7 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p=length(ids), m
 	faceted_plot <-
 		ggplot(ensemble_df) +
 		aes(x=tp, y=precision, colour=CallSet) + #, shape=as.factor(minhits))
-		geom_point() +
+		geom_point(size = 0.3) +
 		coord_cartesian(ylim = c(0,1)) +
 		scale_y_continuous(labels = scales::percent) +
 		theme_cowplot() +
@@ -1026,7 +1026,7 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p=length(ids), m
 		labs(title="Ensemble caller performance for calls requiring x of y callers") +
 		theme_cowplot() +
 		scale_color_brewer(palette = "Set2") +
-		background_grid()
+		background_grid(minor = "none")
 
 	pareto_frontier_by_ensemble_df <-
 		ensemble_df %>%
