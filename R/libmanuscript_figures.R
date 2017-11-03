@@ -150,9 +150,23 @@ generate_figures <- function(
 	plot3 <- fig_3_grob(callgr, metadata, truth_id, truth_name)
 	saveplot(paste0(fileprefix, "_figure3_common_calls"), plot=plot3, height=12, width=14)
 
-	write(sprintf("Ensemble"), stderr())
-	plot_ensemble <- ensemble_plot_list(callgr, metadata, truth_id, ids)
-	# saveplot(paste0(fileprefix, "_ensemble"), plot=plot_ensemble, height=12, width=14)
+	##  Various ensemble plots
+
+	write(sprintf("Ensemble plots"), stderr())
+	ensemble_plots <- ensemble_plot_list(callgr, metadata, truth_id, ids)
+	# faceted_plot
+	saveplot(paste0(fileprefix, "_ensemble_faceted"), plot = ensemble_plots[[1]], height = 18, width = 18)
+	# figure_plot
+	saveplot(paste0(fileprefix, "_ensemble_figure_plot"), plot = ensemble_plots[[2]], height = 6, width = 7)
+	# dc_ensemble_plot
+	saveplot(paste0(fileprefix, "_ensemble_dc_plot"), plot = ensemble_plots[[3]], height = 6, width = 7)
+	# plain_all_ensemble_plot
+	saveplot(paste0(fileprefix, "_ensemble_plain_all"), plot = ensemble_plots[[4]], height = 6, width = 7)
+	# plain_all_ensemble_plot_plus_pareto
+	saveplot(paste0(fileprefix, "_ensemble_plain_all_plus_pareto"), plot = ensemble_plots[[5]], height = 6, width = 7)
+	# up_to_5_callers_w_pareto
+	saveplot(paste0(fileprefix, "_ensemble_up_to_5_plus_pareto"), plot = ensemble_plots[[6]], height = 6, width = 7)
+
 
 	# TODO: call error margin
 
@@ -1002,7 +1016,7 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 ## Ensemble calling plot ###################################################
 
 #' @params p number of callers to calculate ensemble for (nCp)
-ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p=length(ids), minlongreadhits=1000000000) {
+ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p = length(ids), minlongreadhits = 1000000000) {
 
 	ensemble_df <- calc_ensemble_performance(callgr, metadata, ids, p, minlongreadhits)
 	eventcount <- sum(callgr$Id == truth_id & callgr$CallSet == ALL_CALLS)
@@ -1083,7 +1097,7 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p=length(ids), m
 		theme_cowplot() +
 		background_grid("y", "none")
 
-	pareto_frontier_plot_overall <-
+	figure_plot <-
 		overall_roc_plot +
 		geom_point(
 			data = ensemble_df %>% filter(ensemble %in% c("1 of 5", "2 of 3", "4 of 5")),
@@ -1093,9 +1107,10 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p=length(ids), m
 			data = pareto_frontier_df) +
 		scale_color_brewer(palette = "Set2") +
 		bauble_points_all + bauble_text_all +
-		bauble_points_pass + bauble_text_pass
+		bauble_points_pass + bauble_text_pass +
+		ggtitle(str_c("Ensemble calling against ", truth_name))
 
-	dc_all_ensemble_plot <-
+	dc_ensemble_plot <-
 		overall_roc_plot +
 		geom_point(
 			data =
@@ -1124,31 +1139,38 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p=length(ids), m
 			shape = "x"
 		) +
 		bauble_points_all + bauble_text_all +
-		bauble_points_pass + bauble_text_pass
+		bauble_points_pass + bauble_text_pass +
+		ggtitle("All 'x of y' ensembles of callers.")
 
 	plain_all_ensemble_plot_plus_pareto <-
 		plain_all_ensemble_plot +
 		geom_line(
-			data = pareto_frontier_df)
+			data = pareto_frontier_df) +
+		ggtitle("All ensembles, showing Pareto frontier.")
 
 	up_to_5_callers_w_pareto <-
 		overall_roc_plot +
 		geom_point(
 			data = ensemble_df %>% filter(ncallers <= 5),
 			color = "#58a0d0",
-			size = .7
+			size = 2,
+			alpha = .3,
+			shape = "x"
 		) +
 		bauble_points_all + bauble_text_all +
 		bauble_points_pass + bauble_text_pass +
 		geom_line(
 			data = pareto_frontier_df) +
-		ggtitle("All ensembles of less than or equal to\\5 callers.")
+		ggtitle("All ensembles of 5 or fewer callers.")
 
 
 	return(list(
-		pareto_frontier_plot_overall,
-		all_ensemble_plot,
-		faceted_plot
+		faceted_plot,
+		figure_plot,
+		dc_ensemble_plot,
+		plain_all_ensemble_plot,
+		plain_all_ensemble_plot_plus_pareto,
+		up_to_5_callers_w_pareto
 	))
 }
 
