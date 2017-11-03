@@ -109,7 +109,7 @@ generate_figures <- function(
 	callgr$repeatAnn <- ifelse(callgr$repeatAnn %in% c("TRF", "Simple_repeat"), "Simple/Tandem", callgr$repeatAnn)
 	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "", "No repeat", callgr$repeatAnn)
 	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
-	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
+	callgr$repeatAnn <- factor(callgr$repeatAnn, levels = c("No repeat", "SINE", "LINE", "DNA", "LTR", "Simple/Tandem", "Low complexity", "Other"))
 
 	# This is a great place from which to debug.
   browser()
