@@ -424,13 +424,15 @@ roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
 	return(flanking_snvs_rocplot)
 }
 
-roc_by_eventsize <- function(callgr, metadata, truth_id) {
+roc_by_event_size <- function(callgr, metadata, truth_id) {
 
 	eventsize_rocplot <-
 		# Is this plot misleading?
 		# The number of TP should differ by category -- e.g. "free_x" -- ???.
 		rocby(callgr, simpleEvent, eventSizeBin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
+		# Deal with Hydra event size calling issue.
+		filter(caller_name != "hydra") %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		facet_grid(
 			# raw data stratified by simpleEvent
@@ -513,6 +515,8 @@ roc_by_event_size_by_repeats <- function(callgr, metadata, truth_id, genome) {
 
 	roc_by_event_size_by_repeats_plot <-
 		grouped_plot_df %>%
+		# Deal with Hydra event size calling issue.
+		filter(caller_name != "hydra") %>%
 		ungroup() %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		aes(x=scaled_tp) +
@@ -532,7 +536,7 @@ fig_4_grob <- function(callgr, metadata, truth_id,
 	# Merge plots
 
 	eventsize_grob <-
-		ggplotGrob(roc_by_eventsize(callgr, metadata, truth_id) +
+		ggplotGrob(roc_by_event_size(callgr, metadata, truth_id) +
 			theme(legend.position = "none"))
 
 	flanking_snvs_grob <-
