@@ -158,14 +158,16 @@ generate_figures <- function(
 	saveplot(paste0(fileprefix, "_ensemble_faceted"), plot = ensemble_plots[[1]], height = 18, width = 18)
 	# figure_plot
 	saveplot(paste0(fileprefix, "_ensemble_figure_plot"), plot = ensemble_plots[[2]], height = 6, width = 7)
+	# figure_plot_bg_version
+	saveplot(paste0(fileprefix, "_ensemble_figure_plot_bg_version"), plot = ensemble_plots[[3]], height = 6, width = 7)
 	# dc_ensemble_plot
-	saveplot(paste0(fileprefix, "_ensemble_dc_plot"), plot = ensemble_plots[[3]], height = 6, width = 7)
+	saveplot(paste0(fileprefix, "_ensemble_dc_plot"), plot = ensemble_plots[[4]], height = 6, width = 7)
 	# plain_all_ensemble_plot
-	saveplot(paste0(fileprefix, "_ensemble_plain_all"), plot = ensemble_plots[[4]], height = 6, width = 7)
+	saveplot(paste0(fileprefix, "_ensemble_plain_all"), plot = ensemble_plots[[5]], height = 6, width = 7)
 	# plain_all_ensemble_plot_plus_pareto
-	saveplot(paste0(fileprefix, "_ensemble_plain_all_plus_pareto"), plot = ensemble_plots[[5]], height = 6, width = 7)
+	saveplot(paste0(fileprefix, "_ensemble_plain_all_plus_pareto"), plot = ensemble_plots[[6]], height = 6, width = 7)
 	# up_to_5_callers_w_pareto
-	saveplot(paste0(fileprefix, "_ensemble_up_to_5_plus_pareto"), plot = ensemble_plots[[6]], height = 6, width = 7)
+	saveplot(paste0(fileprefix, "_ensemble_up_to_5_plus_pareto"), plot = ensemble_plots[[7]], height = 6, width = 7)
 
 
 	# TODO: call error margin
@@ -1110,6 +1112,24 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p = length(ids),
 		bauble_points_pass + bauble_text_pass +
 		ggtitle(str_c("Ensemble calling against ", truth_name))
 
+	figure_plot_bg_option <-
+		overall_roc_plot +
+		geom_point(
+			data = ensemble_df,
+			color = "grey50",
+			size = 2,
+			alpha = .3,
+			shape = "x"
+		) +
+		geom_point(
+			data = ensemble_df %>% filter(ensemble %in% c("1 of 5", "2 of 3", "4 of 5")),
+			aes(color = ensemble),
+			size = 0.6) +
+		scale_color_brewer(palette = "Set2") +
+		bauble_points_all + bauble_text_all +
+		bauble_points_pass + bauble_text_pass +
+		ggtitle(str_c("Ensemble calling against ", truth_name))
+
 	dc_ensemble_plot <-
 		overall_roc_plot +
 		geom_point(
@@ -1124,7 +1144,10 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p = length(ids),
 				mutate(ensemble=ifelse(minhits==1, "1 of n", ensemble)) %>%
 				arrange(desc(minhits)),
 			aes(color = ensemble),
-			size = 0.6) +
+			size = 2,
+			alpha = .3,
+			shape = "x"
+            ) +
 		scale_color_brewer(palette = "Set2") +
 		bauble_points_all + bauble_text_all +
 		bauble_points_pass + bauble_text_pass
@@ -1167,6 +1190,7 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p = length(ids),
 	return(list(
 		faceted_plot,
 		figure_plot,
+		figure_plot_bg_option,
 		dc_ensemble_plot,
 		plain_all_ensemble_plot,
 		plain_all_ensemble_plot_plus_pareto,
