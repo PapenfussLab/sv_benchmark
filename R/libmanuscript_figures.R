@@ -112,7 +112,7 @@ generate_figures <- function(
 	callgr$repeatAnn <- factor(callgr$repeatAnn, levels = c("No repeat", "SINE", "LINE", "DNA", "LTR", "Simple/Tandem", "Low complexity", "Other"))
 
 	# This is a great place from which to debug.
-  browser()
+  # browser()
 
 	### PLOTTING ###
 
@@ -1116,7 +1116,7 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p = length(ids),
 		overall_roc_plot +
 		geom_point(
 			data = ensemble_df,
-			color = "grey50",
+			color = "grey30",
 			size = 2,
 			alpha = .3,
 			shape = "x"
