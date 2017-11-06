@@ -1116,7 +1116,7 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p = length(ids),
 		overall_roc_plot +
 		geom_point(
 			data = ensemble_df,
-			color = "grey30",
+			color = "grey80",
 			size = 2,
 			shape = "x"
 		) +
