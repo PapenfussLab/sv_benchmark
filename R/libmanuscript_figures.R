@@ -118,7 +118,7 @@ generate_figures <- function(
 
 	write(sprintf("Figure 1"), stderr())
 	plot_overall_roc <- overall_roc_plot(callgr, metadata, truth_id, truth_name)
-	saveplot(paste0(fileprefix, "_figure1_roc"), plot=plot_overall_roc, height=6, width=7)
+	saveplot(paste0(fileprefix, "_figure1_roc"), plot=plot_overall_roc, height=6, width=8)
 
 	# Figure 2: simulation
 	# done by precache.R
