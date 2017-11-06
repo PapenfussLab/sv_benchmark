@@ -1118,7 +1118,6 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p = length(ids),
 			data = ensemble_df,
 			color = "grey30",
 			size = 2,
-			alpha = .3,
 			shape = "x"
 		) +
 		geom_point(
