@@ -1117,13 +1117,13 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p = length(ids),
 		geom_point(
 			data = ensemble_df,
 			color = "grey80",
-			size = 1
+			size = 0.6
 		) +
 		geom_point(
 			data = ensemble_df %>% filter(ensemble %in% c("1 of 5", "2 of 3", "4 of 5")),
 			aes(color = ensemble),
-			size = 0.6) +
-		scale_color_manual(values = c("#FF0000", "#00FF00", "#0000FF")) +
+			size = 1.5) +
+		scale_color_manual(values = c("#DB4747", "#18ADC9", "#FFCD34")) +
 		bauble_points_all + bauble_text_all +
 		bauble_points_pass + bauble_text_pass +
 		ggtitle(str_c("Ensemble calling against ", truth_name))
