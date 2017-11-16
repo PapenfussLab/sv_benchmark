@@ -284,6 +284,11 @@ n_callers_palette <- function(caller_count, hue = 235, crange = c(30, 20), lrang
 		rev()
 }
 
+rd_callers <- c("lumpy")
+dp_callers <- c("breakdancer", "delly", "gridss", "hydra", "lumpy", "manta")
+sr_callers <- c("crest", "delly", "gridss", "lumpy", "manta", "pindel", "socrates")
+as_callers <- c("cortex", "gridss", "manta")
+
 fixed_caller_metadata <- data_frame(
 	caller_name =
 		c("pindel",  "manta",   "breakdancer", "hydra",   "gridss",  "socrates", "crest",   "cortex",  "delly",   "lumpy"),
@@ -293,10 +298,10 @@ fixed_caller_metadata <- data_frame(
 		c("#CC2529", "#396AB1", "#3E9651",     "#45b0cd", "#535154", "#6B4C9A",  "#922428", "#948B3D", "#e2a198", "#DA7C30")
 	) %>%
 	mutate(
-		evidence_RD = caller_name %in% c("lumpy"),
-		evidence_DP = caller_name %in% c("breakdancer", "delly", "gridss", "hydra", "lumpy", "manta"),
-		evidence_SR = caller_name %in% c("crest", "delly", "gridss", "lumpy", "manta", "pindel", "socrates"),
-		evidence_AS = caller_name %in% c("cortex", "gridss", "manta")
+		evidence_RD = caller_name %in% rd_callers,
+		evidence_DP = caller_name %in% dp_callers,
+		evidence_SR = caller_name %in% sr_callers,
+		evidence_AS = caller_name %in% as_callers
 	)
 
 caller_colour_scheme <-
