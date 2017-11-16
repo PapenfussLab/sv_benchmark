@@ -112,7 +112,7 @@ generate_figures <- function(
 	callgr$repeatAnn <- factor(callgr$repeatAnn, levels = c("No repeat", "SINE", "LINE", "DNA", "LTR", "Simple/Tandem", "Low complexity", "Other"))
 
 	# This is a great place from which to debug.
-  # browser()
+  browser()
 
 	### PLOTTING ###
 
@@ -153,7 +153,8 @@ generate_figures <- function(
 	##  Various ensemble plots
 
 	write(sprintf("Ensemble plots"), stderr())
-	ensemble_plots <- ensemble_plot_list(callgr, metadata, truth_id, ids)
+	ensemble_plots <- ensemble_plot_list(callgr = callgr, metadata = metadata, truth_id = truth_id,ids =
+																			 	ids, file_prefix =  fileprefix)
 	# faceted_plot
 	saveplot(paste0(fileprefix, "_ensemble_faceted"), plot = ensemble_plots[[1]], height = 18, width = 18)
 	# figure_plot
@@ -284,13 +285,19 @@ n_callers_palette <- function(caller_count, hue = 235, crange = c(30, 20), lrang
 }
 
 fixed_caller_metadata <- data_frame(
-	caller_name=
+	caller_name =
 		c("pindel",  "manta",   "breakdancer", "hydra",   "gridss",  "socrates", "crest",   "cortex",  "delly",   "lumpy"),
 	caller_initial =
 		c("P",       "M",       "B",           "H",       "G",       "S",        "C",       "X",       "D",       "L"),
 	caller_colour =
 		c("#CC2529", "#396AB1", "#3E9651",     "#45b0cd", "#535154", "#6B4C9A",  "#922428", "#948B3D", "#e2a198", "#DA7C30")
-)
+	) %>%
+	mutate(
+		evidence_RD = caller_name %in% c("lumpy"),
+		evidence_DP = caller_name %in% c("breakdancer", "delly", "gridss", "hydra", "lumpy", "manta"),
+		evidence_SR = caller_name %in% c("crest", "delly", "gridss", "lumpy", "manta", "pindel", "socrates"),
+		evidence_AS = caller_name %in% c("cortex", "gridss", "manta")
+	)
 
 caller_colour_scheme <-
 	scale_colour_manual(
@@ -1018,7 +1025,9 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 ## Ensemble calling plot ###################################################
 
 #' @params p number of callers to calculate ensemble for (nCp)
-ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p = length(ids), minlongreadhits = 1000000000) {
+ensemble_plot_list <- function(
+	callgr, metadata, truth_id, ids,
+	p = length(ids), minlongreadhits = 1000000000, file_prefix) {
 
 	ensemble_df <- calc_ensemble_performance(callgr, metadata, ids, p, minlongreadhits)
 	eventcount <- sum(callgr$Id == truth_id & callgr$CallSet == ALL_CALLS)
@@ -1029,6 +1038,8 @@ ensemble_plot_list <- function(callgr, metadata, truth_id, ids, p = length(ids),
 			f1score = 2 * precision * sens / (precision + sens),
 			ensemble = str_c(minhits, " of ", ncallers)) %>%
 		as.tbl()
+
+	write_tsv(ensemble_df, str_c("ensemble_data_tsvs/", file_prefix, "_ensemble_df.tsv"))
 
 	faceted_plot <-
 		ggplot(ensemble_df) +

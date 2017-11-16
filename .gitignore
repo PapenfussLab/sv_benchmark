@@ -5,6 +5,7 @@
 /R/png
 /R/eps
 /R/pdf
+/R/ensemble_data_tsvs
 /.Rhistory
 .DS_Store
 *.Rcache*
