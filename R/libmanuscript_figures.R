@@ -112,7 +112,7 @@ generate_figures <- function(
 	callgr$repeatAnn <- factor(callgr$repeatAnn, levels = c("No repeat", "SINE", "LINE", "DNA", "LTR", "Simple/Tandem", "Low complexity", "Other"))
 
 	# This is a great place from which to debug.
-  browser()
+  # browser()
 
 	### PLOTTING ###
 
@@ -330,7 +330,8 @@ metadata_annotate <- function(df, metadata) {
 use_roc_fdr <- FALSE
 roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
 
-roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = FALSE) {
+roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = FALSE,
+											 fixed_aspect = TRUE) {
 	if (use_lines) {
 		line_trace <- geom_line(size = 0.3)
 	} else {
@@ -384,6 +385,12 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 			element_blank()
 	}
 
+	if (fixed_aspect) {
+		aspect_ratio <- theme(aspect.ratio = 1)
+	} else {
+		aspect_ratio <- theme()
+	}
+
 	gg <- ggplot(df) +
 		aes(
 			y = ifelse(use_roc_fdr, 1 - precision, precision),
@@ -402,11 +409,12 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 		coord_cartesian(ylim = c(0,1)) +
 		scale_y_continuous(labels = scales::percent) +
 		theme_cowplot() +
+		aspect_ratio +
 		background_grid(minor = "none") +
 		labs(
 			color = "caller",
 			# linetype = "call set",
-			x = "# true positives"
+			x = "true positives"
 			) +
 		guides(
 			# Check this
@@ -666,7 +674,7 @@ make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 				n_callers_palette(n_callers_plus_truth, 235),
 				# we need to avoid "white" because the truth set isn't "PASS"
 				n_callers_palette(n_callers_plus_truth, 90)[2:(n_callers_plus_truth)]),
-			name = "# callers\nsharing",
+			name = "number of\ncallers\nsharing",
 			labels = rep("", 2 * n_callers_plus_truth)) +
 		xlab("") +
 		coord_flip() +
@@ -751,7 +759,7 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 				# I'm not sure why there needs to be a +1 here
 				n_callers_palette(n_callers_plus_truth + 1, 235)[1:n_callers_plus_truth + 1],
 				n_callers_palette(n_callers_plus_truth + 1, 90 )[1:n_callers_plus_truth + 1]),
-			name = "# callers\nsharing",
+			name = "number of\ncallers\nsharing",
 			labels = rep("", 2 * n_callers_plus_truth)) +
 		xlab("") +
 		coord_flip(ylim=c(0, 1.1 * ymax_shared)) +
@@ -906,7 +914,7 @@ flipped_hist_plot <- function(test_df, qual_column, caller_name) {
 			axis.line = element_blank(),
 			axis.ticks = element_blank(),
 			plot.margin = unit(c(0, 1, 1, 1), "lines")) +
-		ylab("# calls") +
+		ylab("calls") +
 		xlab(qual_or_read_count(caller_name))
 
 	if (str_detect(qual_column, "^log")) {
