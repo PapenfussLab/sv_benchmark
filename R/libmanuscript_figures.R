@@ -679,6 +679,7 @@ make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 			name = "number of\ncallers\nsharing",
 			labels = rep("", 2 * n_callers_plus_truth)) +
 		xlab("") +
+		ylab("true positives") +
 		coord_flip() +
 		ggtitle("Sharing of true positive calls") +
 		theme_cowplot() +
@@ -764,6 +765,7 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 			name = "number of\ncallers\nsharing",
 			labels = rep("", 2 * n_callers_plus_truth)) +
 		xlab("") +
+		ylab("false positives") +
 		coord_flip(ylim=c(0, 1.1 * ymax_shared)) +
 		ggtitle("Sharing of false positive calls") +
 		theme_cowplot() +
