@@ -638,7 +638,9 @@ make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 			caller_name =
 				caller_name %>%
 				relevel("NA") %>%
-				recode(`NA` = paste("(", truth_name, ")", sep = "")))
+				recode(
+					`NA` = "truth set" # paste("(", truth_name, ")", sep = "")
+		))
 
 	n_callers_plus_truth <-
 		length(unique(truth_hits_df$caller_name))
