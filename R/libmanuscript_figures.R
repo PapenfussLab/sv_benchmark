@@ -3,8 +3,12 @@ source("sv_benchmark.R")
 source("shinyCache2.R")
 
 library(tidyverse)
+
 library(ggplot2)
 library(cowplot)
+# No grey box around facet labels
+theme_update(strip.background = element_blank())
+
 library(colorspace)
 library(grid)
 library(gridExtra)
