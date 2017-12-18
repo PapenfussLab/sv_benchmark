@@ -413,6 +413,7 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 		coord_cartesian(ylim = c(0,1)) +
 		scale_y_continuous(labels = scales::percent) +
 		theme_cowplot() +
+		theme(strip.background = element_blank()) +
 		aspect_ratio +
 		background_grid(minor = "none") +
 		labs(
