@@ -35,6 +35,17 @@ subsetToArgs <- function(df) {
 	}
 	return(df)
 }
+# To generate the supp figures in the paper:
+simoptions$maxgap <- 200
+simoptions$sizemargin <- 0.25
+simoptions$ignore.strand <- TRUE
+simoptions$mineventsize <- 48
+simoptions$ignore.interchromosomal
+simoptions$ignore.duplicates <- TRUE
+rootdir <- "W:/i/"
+dataLocation <- "W:/i/"
+dataoptions$datadir <- simoptions$datadir
+
 
 plotdata <- NULL
 simcache <- function(datadir, maxgap, ignore.strand, sizemargin, ignore.duplicates, ignore.interchromosomal, requiredHits, mineventsize) {
@@ -89,7 +100,7 @@ simcache <- function(datadir, maxgap, ignore.strand, sizemargin, ignore.duplicat
 			#geom_label(data=expand.grid(caller=unique(plotdf$caller), eventtype=unique(plotdf$eventtype)), colour="grey", x=2**(16/2)-mineventsize, y=0.5, aes(label=caller)) +
 			geom_line(size=0.5, aes(group=paste(Id, CallSet), x=abs(svLen), y=sens, linetype=CallSet)) +
 			scale_x_svlen +
-			#coord_cartesian(xlim=c(min(abs(plotdf$svLen), max(abs(plotdf$svLen))))) +
+			coord_cartesian(xlim=c(50, 2**16)) + # start at 50bp as per reviewer request
 			#scale_colour_brewer(palette="Dark2") +
 			# simfacets for the fields not displayed in linetype or colour
 			facet_grid(caller ~ eventtype) +

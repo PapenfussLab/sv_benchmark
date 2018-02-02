@@ -624,20 +624,24 @@ IdCallSet_to_colname <- function(id, callset) {
 	result <- loadCache(key=cachekey, dirs=cachedir)
 	if (is.null(result)) {
 		result <- .CachedTransformVcf(datadir, metadata, id, grtransform, grtransformName, nominalPosition)
-		if (ignore.interchromosomal) {
-			result <- result[!is.na(result$svLen)]
-		}
-		if (!is.null(mineventsize)) {
-			result <- result[is.na(result$svLen) | pmax(abs(result$svLen), result$insLen) >= mineventsize]
-		}
-		if (!is.null(maxeventsize)) {
-			result <- result[is.na(result$svLen) | pmax(abs(result$svLen), result$insLen) <= mineventsize]
-		}
-		# sanity adjustments to filters
-		result <- result[names(result) %in% result$partner & result$partner %in% names(result)]
 		if (!is.null(result)) {
+			if (ignore.interchromosomal) {
+				result <- result[!is.na(result$svLen)]
+			}
+			if (!is.null(mineventsize)) {
+				result <- result[is.na(result$svLen) | pmax(abs(result$svLen), result$insLen) >= mineventsize]
+			}
+			if (!is.null(maxeventsize)) {
+				result <- result[is.na(result$svLen) | pmax(abs(result$svLen), result$insLen) <= mineventsize]
+			}
+			# sanity adjustments to filters
+			result <- result[names(result) %in% result$partner & result$partner %in% names(result)]
+
 			saveCache(result, key=cachekey, dirs=cachedir)
 		}
+	}
+	if (!is.null(result) & length(result) == 0) {
+		return(NULL)
 	}
 	return(result)
 }
@@ -696,6 +700,9 @@ IdCallSet_to_colname <- function(id, callset) {
 	}
 	# strip any unpaired breakends
 	gr <- gr[gr$partner %in% names(gr)]
+	if (length(gr) == 0) {
+		return(NULL)
+	}
 	gr$paramRangeID <- NULL
 	gr$REF <- NULL
 	gr$ALT <- NULL
