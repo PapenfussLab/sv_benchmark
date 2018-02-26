@@ -150,4 +150,4 @@ lroptions$mintruthscore <- c(0, 1, 10, 20)
 
 
 # testing
-simoptions$datadir <- c("TEST" = "testdata")
+#simoptions$datadir <- c("TEST" = "testdata")

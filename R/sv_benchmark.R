@@ -91,6 +91,7 @@ withqual <- function(vcf, caller) {
 	if (any(is.na(VariantAnnotation::fixed(vcf)$QUAL))) {
 		#if (is.null(caller) && is.na(caller)) {
 		warning(paste("Missing QUAL scores for", caller))
+		stop(paste("Missing QUAL scores for", caller))
 	}
 	return(vcf)
 }
