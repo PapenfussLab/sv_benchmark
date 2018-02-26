@@ -184,6 +184,10 @@ import.sv.bedpe.dir <- function(dir) {
 	for (plotName in names(dfslist[[1]])) {
 		result[[plotName]] <- bind_rows(lapply(dfslist, function(item) item[[plotName]]))
 	}
+	result$mostSensitiveAligner <- result$mostSensitiveAligner %>%
+		arrange(desc(tp)) %>%
+		distinct(CallSet, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF, .keep_all = TRUE) %>%
+		dplyr::select(Id, CallSet)
 	# Pair-wise correlation of callers?
 	# Qual scores for each caller
 
@@ -272,10 +276,8 @@ import.sv.bedpe.dir <- function(dir) {
 		group_by(Id, CallSet) %>%
 		summarise(tp=sum(tp)) %>%
 		ungroup() %>%
-		arrange(desc(tp)) %>%
-		left_join(md, by="Id") %>%
-		distinct(CallSet, CX_CALLER, CX_READ_LENGTH, CX_READ_DEPTH, CX_READ_FRAGMENT_LENGTH, CX_REFERENCE_VCF, .keep_all = TRUE) %>%
-		dplyr::select(Id, CallSet)
+		left_join(md, by="Id")
+
 	callsByEventSize <- NULL
 	if (!is.null(md$eventtype)) { # only generate callsByEventSize for simulation data sets
 		callsByEventSize <- calls %>%
@@ -624,20 +626,24 @@ IdCallSet_to_colname <- function(id, callset) {
 	result <- loadCache(key=cachekey, dirs=cachedir)
 	if (is.null(result)) {
 		result <- .CachedTransformVcf(datadir, metadata, id, grtransform, grtransformName, nominalPosition)
-		if (ignore.interchromosomal) {
-			result <- result[!is.na(result$svLen)]
-		}
-		if (!is.null(mineventsize)) {
-			result <- result[is.na(result$svLen) | pmax(abs(result$svLen), result$insLen) >= mineventsize]
-		}
-		if (!is.null(maxeventsize)) {
-			result <- result[is.na(result$svLen) | pmax(abs(result$svLen), result$insLen) <= mineventsize]
-		}
-		# sanity adjustments to filters
-		result <- result[names(result) %in% result$partner & result$partner %in% names(result)]
 		if (!is.null(result)) {
+			if (ignore.interchromosomal) {
+				result <- result[!is.na(result$svLen)]
+			}
+			if (!is.null(mineventsize)) {
+				result <- result[is.na(result$svLen) | pmax(abs(result$svLen), result$insLen) >= mineventsize]
+			}
+			if (!is.null(maxeventsize)) {
+				result <- result[is.na(result$svLen) | pmax(abs(result$svLen), result$insLen) <= mineventsize]
+			}
+			# sanity adjustments to filters
+			result <- result[names(result) %in% result$partner & result$partner %in% names(result)]
+
 			saveCache(result, key=cachekey, dirs=cachedir)
 		}
+	}
+	if (!is.null(result) & length(result) == 0) {
+		return(NULL)
 	}
 	return(result)
 }
@@ -696,6 +702,9 @@ IdCallSet_to_colname <- function(id, callset) {
 	}
 	# strip any unpaired breakends
 	gr <- gr[gr$partner %in% names(gr)]
+	if (length(gr) == 0) {
+		return(NULL)
+	}
 	gr$paramRangeID <- NULL
 	gr$REF <- NULL
 	gr$ALT <- NULL

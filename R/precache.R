@@ -35,6 +35,17 @@ subsetToArgs <- function(df) {
 	}
 	return(df)
 }
+# To generate the supp figures in the paper:
+simoptions$maxgap <- 200
+simoptions$sizemargin <- 0.25
+simoptions$ignore.strand <- TRUE
+simoptions$mineventsize <- 48
+simoptions$ignore.interchromosomal
+simoptions$ignore.duplicates <- TRUE
+rootdir <- "W:/i/"
+dataLocation <- "W:/i/"
+dataoptions$datadir <- simoptions$datadir
+
 
 plotdata <- NULL
 simcache <- function(datadir, maxgap, ignore.strand, sizemargin, ignore.duplicates, ignore.interchromosomal, requiredHits, mineventsize) {
@@ -75,6 +86,23 @@ simcache <- function(datadir, maxgap, ignore.strand, sizemargin, ignore.duplicat
 			"fs"="CX_READ_FRAGMENT_LENGTH")[[datadir]]
 		simlinetype <- "CallSet"
 		####
+		# Breakend error distribution
+		plotdata$dfs$bpErrorDistribution %>%
+		  filter(CallSet==ALL_CALLS) %>%
+		  mutate(fill=if_else(nominalPosition, "Nominal position", "Incorporating caller\nconfidence interval and\nreported microhomology")) %>%
+		  mutate(
+		    caller=StripCallerVersion(CX_CALLER, FALSE),
+		    eventtype=factor(eventtype, c("Deletion","Insertion","Inversion","Tandem Duplication","Breakpoint"))) %>%
+		ggplot() +
+		  aes(x=bperror, y=rate, fill=fill) +
+		  #geom_bar(stat="identity") +
+		  geom_bar(stat="identity", data=plotdf %>% filter(nominalPosition==FALSE), alpha=0.5) +
+		  geom_bar(stat="identity", data=plotdf %>% filter(nominalPosition==TRUE), alpha=0.5) +
+		  scale_fill_brewer(type="qual", palette="Dark2", name="Error margin") +
+		  facet_wrap(eventtype ~ caller) +
+		  labs(title="Error in called position", x="Error (base pairs)", y="Portion of true positive calls")
+		saveplot(paste0("sim_error_", filenamePrefix), scale=2, height=18, width=12, units="cm")
+		####
 		# Event Size
 		plotdf <- plotdata$dfs$callsByEventSize %>%
 			filter(abs(svLen) >= mineventsize) %>% # hack to 48 shows up for 51bp min
@@ -89,7 +117,7 @@ simcache <- function(datadir, maxgap, ignore.strand, sizemargin, ignore.duplicat
 			#geom_label(data=expand.grid(caller=unique(plotdf$caller), eventtype=unique(plotdf$eventtype)), colour="grey", x=2**(16/2)-mineventsize, y=0.5, aes(label=caller)) +
 			geom_line(size=0.5, aes(group=paste(Id, CallSet), x=abs(svLen), y=sens, linetype=CallSet)) +
 			scale_x_svlen +
-			#coord_cartesian(xlim=c(min(abs(plotdf$svLen), max(abs(plotdf$svLen))))) +
+			coord_cartesian(xlim=c(50, 2**16)) + # start at 50bp as per reviewer request
 			#scale_colour_brewer(palette="Dark2") +
 			# simfacets for the fields not displayed in linetype or colour
 			facet_grid(caller ~ eventtype) +
@@ -119,6 +147,7 @@ simcache <- function(datadir, maxgap, ignore.strand, sizemargin, ignore.duplicat
 			facet_grid(caller ~ eventtype) +
 			labs(title="", y="Sensitivity", x="False Positives", linetype="Call Set", colour=names(simfacets)[simfacets==simcolour])
 		saveplot(paste0("simroc_", filenamePrefix), scale=2, height=18, width=12, units="cm")
+		browser()
 	}
 }
 simparam = expand.grid(
@@ -129,7 +158,8 @@ simparam = expand.grid(
 	ignore.strand=simoptions$ignore.strand,
 	sizemargin=simoptions$sizemargin,
 	requiredHits=simoptions$requiredHits,
-	datadir=dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir])
+	datadir=dataoptions$datadir[dataoptions$datadir %in% simoptions$datadir],
+	stringsAsFactors=FALSE)
 simparam <-simparam[sample(nrow(simparam)),] # randomise row ordering
 simparam <- subsetToArgs(simparam)
 simcachedf <- function(pass, df) {
@@ -250,7 +280,8 @@ lrparam = expand.grid(
 	truthbedpedir=lroptions$truthpath,
 	mintruthbedpescore=lroptions$mintruthscore,
 	# .Rcache/LoadMinimalSVs
-	datadir=lroptions$datadir
+	datadir=lroptions$datadir,
+	stringsAsFactors=FALSE
 	)
 lrparam <-lrparam[sample(nrow(lrparam)),] # randomise row ordering
 lrparam <- subsetToArgs(lrparam)
