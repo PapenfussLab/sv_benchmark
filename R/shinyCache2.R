@@ -585,6 +585,12 @@ IdCallSet_to_colname <- function(id, callset) {
 		hits <- findBreakpointOverlaps(querygr, subjectgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
 		hits$queryQUAL <- querygr$QUAL[hits$queryHits]
 		hits$subjectQUAL <- subjectgr$QUAL[hits$subjectHits]
+		if (any(is.na(hits$queryQUAL))) {
+			stop("Missing QUAL")
+		}
+		if (any(is.na(hits$subjectQUAL))) {
+			stop("Missing QUAL")
+		}
 
 		bestQueryQUALforSubject <- rep(missingQUAL, length(subjectgr))
 		if (is.null(duplicateHitQUAL)) {
@@ -654,7 +660,6 @@ IdCallSet_to_colname <- function(id, callset) {
 	if (is.null(result)) {
 		md <- metadata %>% filter(Id == id)
 		if (nrow(md) != 1) {
-			browser()
 			stop(paste(id, "not found in metadata"))
 		}
 		caller <- md$CX_CALLER
