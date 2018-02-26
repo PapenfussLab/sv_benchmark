@@ -62,10 +62,10 @@ LoadMetadata <- function(directory) {
 }
 # infer proxy quality scores for ROC purposes based on strength of support
 withqual <- function(vcf, caller) {
-	if (is.null(rowRanges(vcf)$QUAL)) {
-		rowRanges(vcf)$QUAL <- NA_real_
+	if (is.null(VariantAnnotation::fixed(vcf)$QUAL)) {
+		fixed(vcf)$QUAL <- NA_real_
 	}
-	if (any(is.na(rowRanges(vcf)$QUAL))) {
+	if (any(is.na(VariantAnnotation::fixed(vcf)$QUAL))) {
 		if (!is.na(caller) && !is.null(caller)) {
 			caller <- str_extract(caller, "^[^/]+") # strip version
 			# use total read support as a qual proxy
@@ -82,13 +82,13 @@ withqual <- function(vcf, caller) {
 			} else if (caller %in% c("manta")) {
 			    altqual <- 0
 			}
-			rowRanges(vcf)$QUAL <- ifelse(is.na(rowRanges(vcf)$QUAL), altqual, rowRanges(vcf)$QUAL)
+			VariantAnnotation::fixed(vcf)$QUAL <- ifelse(is.na(VariantAnnotation::fixed(vcf)$QUAL), altqual, VariantAnnotation::fixed(vcf)$QUAL)
 		} else {
 			# use a placeholder QUAL for truth sets
-			rowRanges(vcf)$QUAL <- 1
+			VariantAnnotation::fixed(vcf)$QUAL <- 1
 		}
 	}
-	if (any(is.na(rowRanges(vcf)$QUAL))) {
+	if (any(is.na(VariantAnnotation::fixed(vcf)$QUAL))) {
 		#if (is.null(caller) && is.na(caller)) {
 		warning(paste("Missing QUAL scores for", caller))
 	}
@@ -275,10 +275,10 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 		callgr <- callgr[callgr$partner %in% names(callgr)]
 	}
 	if (is.null(callgr$ihomlen)) {
-		callgr$ihomlen <- NA_integer_
+		callgr$ihomlen <- rep(NA_integer_, length(callgr))
 	}
 	if (is.null(truthgr$ihomlen)) {
-		truthgr$ihomlen <- NA_integer_
+		truthgr$ihomlen <- rep(NA_integer_, length(truthgr))
 	}
 	hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
 
