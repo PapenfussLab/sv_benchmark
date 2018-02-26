@@ -459,7 +459,7 @@ roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
 		rocby(callgr, snp50bpbin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE) +
-		facet_grid(. ~ snp50bpbin, scales="free") +
+		facet_grid(. ~ snp50bpbin, scales="free_x") +
 		labs(title=paste(roc_title(), "by flanking SNV/indels"))
 
 	return(flanking_snvs_rocplot)
@@ -477,7 +477,7 @@ roc_by_event_size <- function(callgr, metadata, truth_id) {
 		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		facet_grid(
 			# raw data stratified by simpleEvent
-			. ~ eventSizeBin, scales="free") +
+			. ~ eventSizeBin, scales="free_x") +
 		labs(title=paste(roc_title(), "by event size"))
 
 	return(eventsize_rocplot)
@@ -491,7 +491,7 @@ roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 		rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE) +
-		facet_wrap(simpleEvent ~ repeatClass, scales="free") +
+		facet_wrap(simpleEvent ~ repeatClass, scales="free_x") +
 		labs(title=paste(roc_title(), "by RepeatMasker annotation"))
 
 	return(repeatmasker_rocplot)
@@ -504,7 +504,7 @@ roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE) +
-		facet_wrap( ~ repeatAnn, scales="free", nrow = 2) +
+		facet_wrap( ~ repeatAnn, scales="free_x", nrow = 2) +
 		labs(title=paste(roc_title(), "by presence of repeats at breakpoint"))
 
 	return(repeat_rocplot)
@@ -528,7 +528,7 @@ roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) 
 		ungroup() %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 			aes(x=scaled_tp) +
-		facet_grid(repeatAnn ~ snp50bpbin, scales="free") +
+		facet_grid(repeatAnn ~ snp50bpbin, scales="free_x") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"),
 				 x = "relative sensitivity") +
 		geom_text(
@@ -561,7 +561,7 @@ roc_by_event_size_by_repeats <- function(callgr, metadata, truth_id, genome) {
 		ungroup() %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		aes(x=scaled_tp) +
-		facet_grid(repeatAnn ~ eventSizeBin, scales="free") +
+		facet_grid(repeatAnn ~ eventSizeBin, scales="free_x") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand event size"),
 				 x = "relative sensitivity") +
 		geom_text(
