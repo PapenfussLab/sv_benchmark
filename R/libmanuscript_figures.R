@@ -3,8 +3,12 @@ source("sv_benchmark.R")
 source("shinyCache2.R")
 
 library(tidyverse)
+
 library(ggplot2)
 library(cowplot)
+# No grey box around facet labels
+theme_update(strip.background = element_blank())
+
 library(colorspace)
 library(grid)
 library(gridExtra)
@@ -109,13 +113,16 @@ generate_figures <- function(
 	callgr$repeatAnn <- ifelse(callgr$repeatAnn %in% c("TRF", "Simple_repeat"), "Simple/Tandem", callgr$repeatAnn)
 	callgr$repeatAnn <- ifelse(callgr$repeatAnn == "", "No repeat", callgr$repeatAnn)
 	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
-	callgr$repeatAnn <- relevel(factor(callgr$repeatAnn), ref = "No repeat")
+	callgr$repeatAnn <- factor(callgr$repeatAnn, levels = c("No repeat", "SINE", "LINE", "DNA", "LTR", "Simple/Tandem", "Low complexity", "Other"))
+
+	# This is a great place from which to debug.
+  # browser()
 
 	### PLOTTING ###
 
 	write(sprintf("Figure 1"), stderr())
 	plot_overall_roc <- overall_roc_plot(callgr, metadata, truth_id, truth_name)
-	saveplot(paste0(fileprefix, "_figure1_roc"), plot=plot_overall_roc, height=6, width=7)
+	saveplot(paste0(fileprefix, "_figure1_roc"), plot=plot_overall_roc, height=6, width=8)
 
 	# Figure 2: simulation
 	# done by precache.R
@@ -147,9 +154,26 @@ generate_figures <- function(
 	plot3 <- fig_3_grob(callgr, metadata, truth_id, truth_name)
 	saveplot(paste0(fileprefix, "_figure3_common_calls"), plot=plot3, height=12, width=14)
 
-	write(sprintf("Ensemble"), stderr())
-	plot_ensemble <- ensemble_plot(callgr, metadata, truth_id, ids)
-	saveplot(paste0(fileprefix, "_ensemble"), plot=plot_ensemble, height=12, width=14)
+	##  Various ensemble plots
+
+	write(sprintf("Ensemble plots"), stderr())
+	ensemble_plots <- ensemble_plot_list(callgr = callgr, metadata = metadata, truth_id = truth_id,ids =
+																			 	ids, file_prefix =  fileprefix)
+	# faceted_plot
+	saveplot(paste0(fileprefix, "_ensemble_faceted"), plot = ensemble_plots[[1]], height = 18, width = 18)
+	# figure_plot
+	saveplot(paste0(fileprefix, "_ensemble_figure_plot"), plot = ensemble_plots[[2]], height = 6, width = 7)
+	# figure_plot_bg_version
+	saveplot(paste0(fileprefix, "_ensemble_figure_plot_bg_version"), plot = ensemble_plots[[3]], height = 6, width = 7)
+	# dc_ensemble_plot
+	saveplot(paste0(fileprefix, "_ensemble_dc_plot"), plot = ensemble_plots[[4]], height = 6, width = 7)
+	# plain_all_ensemble_plot
+	saveplot(paste0(fileprefix, "_ensemble_plain_all"), plot = ensemble_plots[[5]], height = 6, width = 7)
+	# plain_all_ensemble_plot_plus_pareto
+	saveplot(paste0(fileprefix, "_ensemble_plain_all_plus_pareto"), plot = ensemble_plots[[6]], height = 6, width = 7)
+	# up_to_5_callers_w_pareto
+	saveplot(paste0(fileprefix, "_ensemble_up_to_5_plus_pareto"), plot = ensemble_plots[[7]], height = 6, width = 7)
+
 
 	# TODO: call error margin
 
@@ -248,63 +272,160 @@ display_log_qual <- function(caller) {
 }
 
 qual_or_read_count <- function(caller) {
-	paste0(ifelse(StripCallerVersion(caller) %in% c("socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
-				 			 "read count", "quality score"),
+	paste0(ifelse(StripCallerVersion(caller) %in% c(
+		"socrates", "delly", "crest", "pindel", "lumpy", "cortex"),
+		"read count", "quality score"),
 				 ifelse(display_log_qual(caller), " + 1", "")
 	)
 }
 
-metadata_annotate <- function(df, metadata) {
-	df %>%
-		left_join(metadata, by="Id") %>%
-		mutate(caller_name = StripCallerVersion(CX_CALLER))
-}
-
-n_callers_palette <- function(caller_count, hue = 235) {
+n_callers_palette <- function(caller_count, hue = 235, crange = c(30, 20), lrange = c(40, 100)) {
 	c("black",
 	  sequential_hcl(
 		  caller_count - 2,
-		  h = hue, c. = c(30, 20), l = c(40, 100)),
+		  h = hue, c. = crange, l = lrange),
 	  "white") %>%
 		rev()
 }
 
-caller_colour_scheme <-
-	scale_color_manual(
-					 # Maureen Stone
-		values = c("#396AB1", "#DA7C30", "#3E9651", "#CC2529",
-				   "#535154", "#6B4C9A", "#922428", "#948B3D",
-				   # Manually added:
-				   "#e2a198", "#45b0cd",
-		rep("black", 100)))
+rd_callers <- c("lumpy")
+dp_callers <- c("breakdancer", "delly", "gridss", "hydra", "lumpy", "manta")
+sr_callers <- c("crest", "delly", "gridss", "lumpy", "manta", "pindel", "socrates")
+as_callers <- c("cortex", "gridss", "manta")
 
-#rocby_theme <-
-#	cowplot::theme_cowplot() +
-#	background_grid("xy", "none", colour.major = "grey70") %+replace%
-#	theme(panel.border = element_rect(color = "grey70", linetype = 1, size = 0.2))
+fixed_caller_metadata <- data_frame(
+	caller_name =
+		c("pindel",  "manta",   "breakdancer", "hydra",   "gridss",  "socrates", "crest",   "cortex",  "delly",   "lumpy"),
+	caller_initial =
+		c("P",       "M",       "B",           "H",       "G",       "S",        "C",       "X",       "D",       "L"),
+	caller_colour =
+		c("#CC2529", "#396AB1", "#3E9651",     "#45b0cd", "#535154", "#6B4C9A",  "#922428", "#948B3D", "#e2a198", "#DA7C30")
+	) %>%
+	mutate(
+		evidence_RD = caller_name %in% rd_callers,
+		evidence_DP = caller_name %in% dp_callers,
+		evidence_SR = caller_name %in% sr_callers,
+		evidence_AS = caller_name %in% as_callers
+	)
+
+caller_colour_scheme <-
+	scale_colour_manual(
+		values = purrr::set_names(
+			fixed_caller_metadata$caller_colour,
+			fixed_caller_metadata$caller_name),
+		na.value = "black"
+	)
+
+metadata_annotate <- function(df, metadata) {
+	df %>%
+		left_join(metadata, by="Id") %>%
+		mutate(caller_name = StripCallerVersion(CX_CALLER)) %>%
+		left_join(fixed_caller_metadata) %>%
+		replace_na(list(
+			caller_colour = "black",
+			caller_initial = "﹡",
+			caller_name = "(no name)"
+		)) %>%
+		mutate(
+			caller_name = factor(caller_name)
+		)
+}
 
 use_roc_fdr <- FALSE
 roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
 
-roc_common <- function(df) {
+roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = FALSE,
+											 fixed_aspect = TRUE) {
+	if (use_lines) {
+		line_trace <- geom_line(size = 0.3)
+	} else {
+		line_trace <- element_blank()
+	}
+
+	if (monochrome) {
+		colour_scheme <- scale_colour_manual(values = rep("black", 100))
+		color_guide_off_if_monochrome <- guides(color = FALSE)
+	} else {
+		colour_scheme <- caller_colour_scheme
+		color_guide_off_if_monochrome <- element_blank()
+	}
+
+	if (use_baubles) {
+		plot_points_all_calls <-
+			geom_point(data = df %>% filter(is_endpoint, CallSet == "All calls"), size = 6
+																				, fill = "white", stroke = 0.3, shape = 21)
+		plot_text_all_calls <-
+			geom_text(
+			aes(label = caller_initial),
+				data = df %>% filter(is_endpoint, CallSet == "All calls"),
+				# nudge_x = .2, nudge_y = .2,
+				fontface = "bold",
+				hjust = "center", vjust = "center",
+				nudge_y = .001)
+
+		plot_points_pass_only <-
+			geom_point(
+				data = df %>% filter(is_endpoint, CallSet == "PASS only"), size = 6)
+		plot_text_pass_only <-
+			geom_text(
+				aes(label = caller_initial),
+				data = df %>% filter(is_endpoint, CallSet == "PASS only"),
+				# nudge_x = .2, nudge_y = .2,
+				fontface = "bold",
+				hjust = "center", vjust = "center",
+				nudge_y = .001,
+				color = "white")
+	} else {
+		plot_points_all_calls <-
+			geom_point(data = df %>% filter(is_endpoint, CallSet == "All calls"), size = 2
+								 , fill = "white", stroke = 0.3, shape = 21)
+		plot_text_all_calls <-
+			element_blank()
+
+		plot_points_pass_only <-
+			geom_point(
+				data = df %>% filter(is_endpoint, CallSet == "PASS only"), size = 2)
+		plot_text_pass_only <-
+			element_blank()
+	}
+
+	if (fixed_aspect) {
+		aspect_ratio <- theme(aspect.ratio = 1)
+	} else {
+		aspect_ratio <- theme()
+	}
+
 	gg <- ggplot(df) +
-		aes(y = ifelse(use_roc_fdr, 1 - precision, precision),
+		aes(
+			y = ifelse(use_roc_fdr, 1 - precision, precision),
 			x = tp,
 			colour = caller_name,
-			linetype = CallSet) +
-		geom_line() +
-		geom_point(data = df %>% filter(is_endpoint), size = 2) +
-		caller_colour_scheme +
+			linetype = CallSet == "All calls") +
+		line_trace +
+		# Baubles - "All calls"
+		plot_points_all_calls +
+		plot_text_all_calls +
+		# Baubles - "PASS only"
+		plot_points_pass_only +
+		plot_text_pass_only +
+		colour_scheme +
+		color_guide_off_if_monochrome +
 		coord_cartesian(ylim = c(0,1)) +
 		scale_y_continuous(labels = scales::percent) +
 		theme_cowplot() +
-		background_grid("y", "none") +
+		theme(strip.background = element_blank()) +
+		aspect_ratio +
+		background_grid(minor = "none") +
 		labs(
 			color = "caller",
-			linetype = "call set",
-			x = "# true positives"
-			)
-		# Add endpoint showing properties of call set.
+			# linetype = "call set",
+			x = "true positives"
+			) +
+		guides(
+			# Check this
+			linetype = FALSE
+		)
+
 	if (use_roc_fdr) {
 		gg <- gg +
 			aes(y = fdr) +
@@ -314,6 +435,7 @@ roc_common <- function(df) {
 			aes(y = precision) +
 			labs(y = "precision")
 	}
+
 	return(gg)
 }
 
@@ -324,7 +446,7 @@ overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 		rocby(callgr, truth_id = truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
+		roc_common(use_baubles = TRUE) +
 		labs(title = roc_title())
 	return(plot_out)
 }
@@ -336,24 +458,26 @@ roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
 	flanking_snvs_rocplot <-
 		rocby(callgr, snp50bpbin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
-		facet_grid(. ~ snp50bpbin, scales="free") +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
+		facet_grid(. ~ snp50bpbin, scales="free_x") +
 		labs(title=paste(roc_title(), "by flanking SNV/indels"))
 
 	return(flanking_snvs_rocplot)
 }
 
-roc_by_eventsize <- function(callgr, metadata, truth_id) {
+roc_by_event_size <- function(callgr, metadata, truth_id) {
 
 	eventsize_rocplot <-
 		# Is this plot misleading?
 		# The number of TP should differ by category -- e.g. "free_x" -- ???.
 		rocby(callgr, simpleEvent, eventSizeBin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
+		# Deal with Hydra event size calling issue.
+		filter(caller_name != "hydra") %>%
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		facet_grid(
 			# raw data stratified by simpleEvent
-			. ~ eventSizeBin, scales="free") +
+			. ~ eventSizeBin, scales="free_x") +
 		labs(title=paste(roc_title(), "by event size"))
 
 	return(eventsize_rocplot)
@@ -366,8 +490,8 @@ roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 	repeatmasker_rocplot <-
 		rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
-		facet_wrap(simpleEvent ~ repeatClass, scales="free") +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
+		facet_wrap(simpleEvent ~ repeatClass, scales="free_x") +
 		labs(title=paste(roc_title(), "by RepeatMasker annotation"))
 
 	return(repeatmasker_rocplot)
@@ -379,8 +503,8 @@ roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
 		rocby(callgr, repeatAnn, truth_id=truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
-		facet_wrap( ~ repeatAnn, scales="free", nrow = 2) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
+		facet_wrap( ~ repeatAnn, scales="free_x", nrow = 2) +
 		labs(title=paste(roc_title(), "by presence of repeats at breakpoint"))
 
 	return(repeat_rocplot)
@@ -402,9 +526,9 @@ roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) 
 	roc_by_flanking_snvs_by_repeats_plot <-
 		grouped_plot_df %>%
 		ungroup() %>%
-		roc_common() +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 			aes(x=scaled_tp) +
-		facet_grid(repeatAnn ~ snp50bpbin, scales="free") +
+		facet_grid(repeatAnn ~ snp50bpbin, scales="free_x") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"),
 				 x = "relative sensitivity") +
 		geom_text(
@@ -432,10 +556,12 @@ roc_by_event_size_by_repeats <- function(callgr, metadata, truth_id, genome) {
 
 	roc_by_event_size_by_repeats_plot <-
 		grouped_plot_df %>%
+		# Deal with Hydra event size calling issue.
+		filter(caller_name != "hydra") %>%
 		ungroup() %>%
-		roc_common() +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		aes(x=scaled_tp) +
-		facet_grid(repeatAnn ~ eventSizeBin, scales="free") +
+		facet_grid(repeatAnn ~ eventSizeBin, scales="free_x") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand event size"),
 				 x = "relative sensitivity") +
 		geom_text(
@@ -451,7 +577,7 @@ fig_4_grob <- function(callgr, metadata, truth_id,
 	# Merge plots
 
 	eventsize_grob <-
-		ggplotGrob(roc_by_eventsize(callgr, metadata, truth_id) +
+		ggplotGrob(roc_by_event_size(callgr, metadata, truth_id) +
 			theme(legend.position = "none"))
 
 	flanking_snvs_grob <-
@@ -470,7 +596,7 @@ fig_4_grob <- function(callgr, metadata, truth_id,
 			c(3, 4),
 			c(1, 1)),
 		widths = c(1.50, 0.10),
-		heights = c(1, 1, 1.75))
+		heights = c(1, 1.75, 1))
 
 	return(fig4_grob)
 }
@@ -487,7 +613,6 @@ make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 		# Remove non-filtered subject columns
 		dplyr::select(Id, CallSet, caller_hits_ex_truth) %>%
 		mutate(is_truth = Id==truth_id) %>%
-		mutate(truth_factor=factor(1 - is_truth)) %>%
 		metadata_annotate(metadata)
 
 	p_empty <- grid.text("truth_hits_df empty!")
@@ -496,39 +621,72 @@ make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 		return(p_empty)
 	}
 
-	summary_df <- truth_hits_df %>%
-		group_by(Id, CallSet, truth_factor) %>%
-		summarise(total=n())
+	summary_df <-
+		truth_hits_df %>%
+		group_by(Id, caller_name, CallSet) %>%
+		summarise(total=n()) %>%
+		ungroup()
+
+	# Is the "PASS" field distinct for each caller?
+	distinct_pass_df <-
+		summary_df %>%
+		select(Id, caller_name, CallSet, total) %>%
+		spread(key = CallSet, value = total) %>%
+		mutate(distinct_pass = `All calls` != `PASS only`) %>%
+		select(Id, caller_name, distinct_pass)
+
+	summary_df_condensed <-
+		summary_df %>%
+		left_join(distinct_pass_df) %>%
+		filter((CallSet == "All calls" | distinct_pass)) %>%
+		mutate(
+			caller_name =
+				caller_name %>%
+				relevel("NA") %>%
+				recode(
+					`NA` = "truth set" # paste("(", truth_name, ")", sep = "")
+		))
 
 	n_callers_plus_truth <-
 		length(unique(truth_hits_df$caller_name))
 
-	plot_out <-
+	plot_df <-
 		truth_hits_df %>%
+		left_join(distinct_pass_df) %>%
+		mutate(
+			caller_name =
+				caller_name %>%
+				relevel("NA") %>%
+				recode(`NA` = paste("(", truth_name, ")", sep = ""))) %>%
+		filter(
+			# Show only "All calls" unles there's a meaningful "PASS" field
+			(CallSet == "All calls" | distinct_pass))
+
+	plot_out <-
+		plot_df %>%
 		ggplot(aes(x = CallSet)) +
 		facet_grid(
-			truth_factor + Id ~ .,
-			labeller = labeller(
-				truth_factor=function(s) {rep("", length(s))},
-				Id=function(s) {ifelse(s==truth_id, truth_name,
-									   as.character((data.frame(Id=s) %>%
-									   metadata_annotate(metadata))$caller_name))}),
-			switch = "y") +
+			caller_name ~ .,
+			switch = "y", scales = "free", space = "free") +
 		scale_y_continuous(expand = c(0,0)) +
 		# scale_x_discrete(labels = )
 		geom_bar(aes(fill = interaction(factor(caller_hits_ex_truth), CallSet)),
 			size = 0.5, color = "black", width = 1) +
-		geom_text(aes(label=total), data=summary_df,
-				  hjust=1,
-				  y=max(summary_df$total),
-				  color="grey50") +
+		geom_text(aes(label = total), data = summary_df_condensed,
+				  hjust = 1,
+				  y = max(summary_df$total),
+				  color = "grey50") +
 		scale_fill_manual(
-			values = c(n_callers_palette(n_callers_plus_truth, 235), n_callers_palette(n_callers_plus_truth, 90)),
-			name = "# callers\nsharing",
+			values = c(
+				n_callers_palette(n_callers_plus_truth, 235),
+				# we need to avoid "white" because the truth set isn't "PASS"
+				n_callers_palette(n_callers_plus_truth, 90)[2:(n_callers_plus_truth)]),
+			name = "number of\ncallers\nsharing",
 			labels = rep("", 2 * n_callers_plus_truth)) +
 		xlab("") +
+		ylab("true positives") +
 		coord_flip() +
-		ggtitle("Sharing and distribution of true positive calls") +
+		ggtitle("Sharing of true positive calls") +
 		theme_cowplot() +
 		# Blanks out "is_truth" panels
 		theme(strip.text.y = element_text(angle = 180, hjust = 1),
@@ -556,6 +714,18 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 		return(grid.text("false_positive_plot_df empty!"))
 	}
 
+	summary_df <- false_positive_plot_df %>%
+		group_by(Id, caller_name, CallSet) %>%
+		summarise(total=n())
+
+	# Is the "PASS" field distinct for each caller?
+	distinct_pass_df <-
+		summary_df %>%
+		select(Id, caller_name, CallSet, total) %>%
+		spread(key = CallSet, value = total) %>%
+		mutate(distinct_pass = `All calls` != `PASS only`) %>%
+		select(Id, caller_name, distinct_pass)
+
 	n_callers_plus_truth <-
 		length(unique(false_positive_plot_df$caller_name))
 
@@ -566,38 +736,43 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 		group_by() %>%
 		summarise(n=max(n)))$n
 
-	plot_out <-
+	plot_df <-
 		false_positive_plot_df %>%
+		left_join(distinct_pass_df) %>%
+		filter(
+			# Show only "All calls" unles there's a meaningful "PASS" field
+			(CallSet == "All calls" | distinct_pass))
+
+	plot_out <-
+		plot_df %>%
 		ggplot(aes(x = CallSet)) +
 		facet_grid(
-			Id ~ .,
-			labeller = labeller(
-				Id=function(s) {
-					ifelse(s==truth_id, truth_name,
-						as.character((data.frame(Id=s) %>%
-							metadata_annotate(metadata))$caller_name))}),
-			switch = "y") +
+			caller_name ~ .,
+			switch = "y", scales = "free", space = "free") +
 		scale_y_continuous(expand = c(0,0)) +
 		# scale_x_discrete(labels = )
 		geom_bar(aes(fill = interaction(factor(caller_hits_ex_truth), CallSet)),
 				 size = 0.5, color = "black", width = 1) +
-		geom_text(aes(label=total), data=false_positive_plot_df %>%
-					  group_by(Id, CallSet) %>%
-					  summarise(total=n()),
-				  y=ymax_shared * 1.1,
-				  hjust=1,
-				  color="grey50") +
+		geom_text(
+			aes(label = total),
+			data = (summary_df %>%
+							 left_join(distinct_pass_df) %>%
+							 filter((CallSet == "All calls" | distinct_pass))),
+		  y = ymax_shared * 1.1,
+		  hjust = 1,
+		  color = "grey50") +
 		scale_fill_manual(
 			values = c(
 				# exclude zero -> white
 				# I'm not sure why there needs to be a +1 here
 				n_callers_palette(n_callers_plus_truth + 1, 235)[1:n_callers_plus_truth + 1],
-				n_callers_palette(n_callers_plus_truth + 1, 90)[1:n_callers_plus_truth + 1]),
-			name = "# callers\nsharing",
+				n_callers_palette(n_callers_plus_truth + 1, 90 )[1:n_callers_plus_truth + 1]),
+			name = "number of\ncallers\nsharing",
 			labels = rep("", 2 * n_callers_plus_truth)) +
 		xlab("") +
+		ylab("false positives") +
 		coord_flip(ylim=c(0, 1.1 * ymax_shared)) +
-		ggtitle("Sharing and distribution of false positive calls") +
+		ggtitle("Sharing of false positive calls") +
 		theme_cowplot() +
 		# Blanks out "is_truth" panels
 		theme(strip.text.y = element_text(angle = 180, hjust = 1),
@@ -617,7 +792,7 @@ prec_recall_by_shared_plot <- function(callgr, metadata, truth_id, truth_name) {
 		rocby(callgr, caller_hits_ex_truth, truth_id = truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common() +
+		roc_common(use_baubles = FALSE, use_lines = TRUE) +
 		facet_wrap(
 			~ factor(caller_hits_ex_truth, levels = max(caller_hits_ex_truth):1),
 			scale = "free",
@@ -748,7 +923,7 @@ flipped_hist_plot <- function(test_df, qual_column, caller_name) {
 			axis.line = element_blank(),
 			axis.ticks = element_blank(),
 			plot.margin = unit(c(0, 1, 1, 1), "lines")) +
-		ylab("# calls") +
+		ylab("calls") +
 		xlab(qual_or_read_count(caller_name))
 
 	if (str_detect(qual_column, "^log")) {
@@ -756,8 +931,19 @@ flipped_hist_plot <- function(test_df, qual_column, caller_name) {
 
 		all_labels <- sort(c(10**(0:(max_log_qual_level + 1)), # 1, 10, ...
 												 10**(0:(max_log_qual_level + 1)) * 3)) # 3, 30, ...
+
 		labels <- all_labels[all_labels < 10**max_log_qual_level]
-		breaks <- log10(labels)
+
+		if (length(labels) > 7) {
+			labels <- (10**(0:(max_log_qual_level + 1)))
+			if (length(labels) > 7) {
+				labels <- labels[seq(1, length(labels), 2)]
+			}
+			breaks <- log10(labels)
+			labels <- scales::trans_format('log10', scales::math_format())(labels)
+		} else {
+			breaks <- log10(labels)
+		}
 
 		hist_ggplot <- hist_ggplot + scale_x_continuous(breaks = breaks, labels = labels)
 	}
@@ -861,108 +1047,188 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 ## Ensemble calling plot ###################################################
 
 #' @params p number of callers to calculate ensemble for (nCp)
-ensemble_plot<- function(callgr, metadata, truth_id, ids, p=length(ids), minlongreadhits=1000000000) {
+ensemble_plot_list <- function(
+	callgr, metadata, truth_id, ids,
+	p = length(ids), minlongreadhits = 1000000000, file_prefix) {
+
 	ensemble_df <- calc_ensemble_performance(callgr, metadata, ids, p, minlongreadhits)
 	eventcount <- sum(callgr$Id == truth_id & callgr$CallSet == ALL_CALLS)
-	ensemble_df <- ensemble_df %>%
+	ensemble_df <-
+		ensemble_df %>%
 		mutate(
 			sens = tp / eventcount,
-			f1score = 2 * precision * sens / (precision + sens))
+			f1score = 2 * precision * sens / (precision + sens),
+			ensemble = str_c(minhits, " of ", ncallers)) %>%
+		as.tbl()
 
-	facted_plot <- ggplot(ensemble_df) +
+	write_tsv(ensemble_df, str_c("ensemble_data_tsvs/", file_prefix, "_ensemble_df.tsv"))
+
+	faceted_plot <-
+		ggplot(ensemble_df) +
 		aes(x=tp, y=precision, colour=CallSet) + #, shape=as.factor(minhits))
-		geom_point() +
+		geom_point(size = 0.3) +
 		coord_cartesian(ylim = c(0,1)) +
 		scale_y_continuous(labels = scales::percent) +
 		theme_cowplot() +
 		background_grid("xy", "none") +
 		facet_grid(ncallers ~ minhits) +
-		labs(title="Ensemble caller performance for calls requiring x of y callers")
-
-	ggplot() +
-		aes(x=tp, y=precision) +
-		geom_point(data=ensemble_df,
-			aes(colour=factor(ncallers), shape=factor(minhits))) +
-		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
-				metadata_annotate(metadata),
-			aes(group=interaction(Id, CallSet)),
-			colour="grey50", size=2) +
-		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
 		labs(title="Ensemble caller performance for calls requiring x of y callers") +
-		geom_point(data=ensemble_df %>% filter(
-			ncallers == 3,
-			minhits %in% c(2,3),
-			str_detect(callers, "delly"),
-			str_detect(callers, "manta"),
-			str_detect(callers, "lumpy"),
-			str_detect(callers, "delly")),
-			size=3,
-			colour="black") +
-		geom_text(data=ensemble_df %>% filter(
-			ncallers == 3,
-			minhits %in% c(2,3),
-			str_detect(callers, "delly"),
-			str_detect(callers, "manta"),
-			str_detect(callers, "lumpy"),
-			str_detect(callers, "delly")),
-			size=3,
-			colour="black",
-			aes(label=callers))
+		theme_cowplot() +
+		theme(axis.text.x=element_text(angle=90,hjust=1)) +
+		scale_color_brewer(palette = "Set1") +
+		background_grid(minor = "none")
 
-	ggplot() +
-		aes(x=tp, y=precision) +
-		geom_point(data=ensemble_df %>% filter(!str_detect(callers, "gridss") & !str_detect(callers, "manta")),
-							 aes(colour=factor(ncallers), shape=factor(minhits))) +
-		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
-								metadata_annotate(metadata),
-							aes(group=interaction(Id, CallSet)),
-							colour="grey50", size=0.5) +
-		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
-		labs(title="Ensemble caller performance for calls requiring x of y callers\nEnsembles using GRIDSS or manta excluded.")
+	pareto_frontier_by_ensemble_df <-
+		ensemble_df %>%
+		group_by(minhits, ncallers) %>%
+		arrange(desc(precision)) %>%
+		filter(sens == cummax(sens))
 
-	ggplot() +
-		aes(x=tp, y=precision) +
-		#geom_point(data=ensemble_df %>% filter(str_detect(callers, "gridss") | str_detect(callers, "manta")),
-		#					 aes(shape=factor(minhits)), colour="black") +
-		geom_point(data=ensemble_df %>% filter(!str_detect(callers, "gridss") & !str_detect(callers, "manta")),
-							 aes(colour=factor(ncallers), shape=factor(minhits))) +
-		geom_line(data=rocby(callgr, truth_id=truth_id, minlongreadhits=minlongreadhits) %>%
-								metadata_annotate(metadata),
-							aes(group=interaction(Id, CallSet)),
-							colour="grey50", size=0.5) +
-		scale_shape_manual(values=1:max(ensemble_df$minhits)) +
-		labs(title="Ensemble caller performance for calls requiring x of y callers\nEnsembles using GRIDSS or manta excluded.") +
-		geom_point(data=ensemble_df %>% filter(
-			ncallers == 3,
-			minhits %in% c(2,3),
-			str_detect(callers, "delly"),
-			str_detect(callers, "manta"),
-			str_detect(callers, "lumpy"),
-			str_detect(callers, "delly")),
-			size=3,
-			colour="black") +
-		geom_text(data=ensemble_df %>% filter(
-			ncallers == 3,
-			minhits %in% c(2,3),
-			str_detect(callers, "delly"),
-			str_detect(callers, "manta"),
-			str_detect(callers, "lumpy"),
-			str_detect(callers, "delly")),
-			size=3,
-			colour="black",
-			aes(label=callers))
+	pareto_frontier_df <-
+		ensemble_df %>%
+		arrange(desc(precision)) %>%
+		filter(sens == cummax(sens))
 
-	ggplot(bind_rows(lapply(as.character(StripCallerVersion(metadata$CX_CALLER[metadata$Id %in% ids])), function(c) {
-			caller_df <- ensemble_df %>%
-				filter(str_detect(callers, c)) %>%
-				mutate(caller_name=c)
-		})) %>%
-			filter(ncallers <= 2)) +
-		caller_colour_scheme +
-		aes(x=tp, y=precision, colour=caller_name, shape=interaction(ncallers, minhits)) +
-		geom_point() +
-		labs(title="Ensemble caller performance for calls requiring x of y callers")
+	overall_roc_df <-
+		rocby(callgr, truth_id = truth_id) %>%
+		filter(Id != truth_id) %>%
+		metadata_annotate(metadata)
+
+	# Baubles - "All calls"
+	bauble_points_all <-
+		geom_point(data = overall_roc_df %>% filter(is_endpoint, CallSet == "All calls"), size = 6,
+						   fill = "white", stroke = 0.3, shape = 21)
+
+	bauble_text_all <-
+		geom_text(
+			aes(label = caller_initial),
+			data = overall_roc_df %>% filter(is_endpoint, CallSet == "All calls"),
+			# nudge_x = .2, nudge_y = .2,
+			fontface = "bold",
+			hjust = "center", vjust = "center",
+			nudge_y = .001)
+
+	# Baubles - "PASS only"
+	bauble_points_pass <-
+		geom_point(data = overall_roc_df %>% filter(is_endpoint, CallSet == "PASS only"), size = 6)
+
+	bauble_text_pass <-
+		geom_text(
+			aes(label = caller_initial),
+			data = overall_roc_df %>% filter(is_endpoint, CallSet == "PASS only"),
+			# nudge_x = .2, nudge_y = .2,
+			fontface = "bold",
+			hjust = "center", vjust = "center",
+			nudge_y = .001,
+			color = "white")
+
+	overall_roc_plot <-
+		ggplot(overall_roc_df) +
+		aes(
+			y = precision,
+			x = tp) +
+		coord_cartesian(ylim = c(0,1)) +
+		scale_y_continuous(labels = scales::percent) +
+		theme_cowplot() +
+		background_grid("y", "none")
+
+	figure_plot <-
+		overall_roc_plot +
+		geom_point(
+			data = ensemble_df %>% filter(ensemble %in% c("1 of 5", "2 of 3", "4 of 5")),
+			aes(color = ensemble),
+			size = 0.6) +
+		geom_line(
+			data = pareto_frontier_df) +
+		scale_color_brewer(palette = "Set2") +
+		bauble_points_all + bauble_text_all +
+		bauble_points_pass + bauble_text_pass +
+		ggtitle(str_c("Ensemble calling against ", truth_name))
+
+	figure_plot_bg_option <-
+		overall_roc_plot +
+		geom_point(
+			data = ensemble_df,
+			color = "grey80",
+			size = 0.6
+		) +
+		geom_point(
+			data = ensemble_df %>% filter(ensemble %in% c("1 of 5", "2 of 3", "4 of 5")),
+			aes(color = ensemble),
+			size = 1.5) +
+		scale_color_manual(values = c("#DB4747", "#18ADC9", "#FFCD34")) +
+		bauble_points_all + bauble_text_all +
+		bauble_points_pass + bauble_text_pass +
+		ggtitle(str_c("Ensemble calling against ", truth_name))
+
+	dc_ensemble_plot <-
+		overall_roc_plot +
+		geom_point(
+			data =
+				ensemble_df %>%
+				mutate(minhits = pmin(minhits, 3),
+							 ncallers = pmin(ncallers, 4),
+							 ensemble = str_c(
+							 	minhits,
+							 	ifelse(minhits >= 3, "+", ""), " of ", ncallers, ifelse(ncallers >= 4, "+", ""))) %>%
+				filter(ensemble != "1 of 1") %>%
+				mutate(ensemble=ifelse(minhits==1, "1 of n", ensemble)) %>%
+				arrange(desc(minhits)),
+			aes(color = ensemble),
+			size = 2,
+			alpha = .3,
+			shape = "x"
+            ) +
+		scale_color_brewer(palette = "Set2") +
+		bauble_points_all + bauble_text_all +
+		bauble_points_pass + bauble_text_pass
+
+	plain_all_ensemble_plot <-
+		overall_roc_plot +
+		geom_point(
+			data = ensemble_df,
+			color = "#58a0d0",
+			size = 2,
+			alpha = .3,
+			shape = "x"
+		) +
+		bauble_points_all + bauble_text_all +
+		bauble_points_pass + bauble_text_pass +
+		ggtitle("All 'x of y' ensembles of callers.")
+
+	plain_all_ensemble_plot_plus_pareto <-
+		plain_all_ensemble_plot +
+		geom_line(
+			data = pareto_frontier_df) +
+		ggtitle("All ensembles, showing Pareto frontier.")
+
+	up_to_5_callers_w_pareto <-
+		overall_roc_plot +
+		geom_point(
+			data = ensemble_df %>% filter(ncallers <= 5),
+			color = "#58a0d0",
+			size = 2,
+			alpha = .3,
+			shape = "x"
+		) +
+		bauble_points_all + bauble_text_all +
+		bauble_points_pass + bauble_text_pass +
+		geom_line(
+			data = pareto_frontier_df) +
+		ggtitle("All ensembles of 5 or fewer callers.")
+
+
+	return(list(
+		faceted_plot,
+		figure_plot,
+		figure_plot_bg_option,
+		dc_ensemble_plot,
+		plain_all_ensemble_plot,
+		plain_all_ensemble_plot_plus_pareto,
+		up_to_5_callers_w_pareto
+	))
 }
+
 calc_ensemble_performance <- function(callgr, metadata, ids, p, minlongreadhits) {
 	allgr <- callgr[callgr$CallSet==ALL_CALLS]
 	passgr <- callgr[callgr$CallSet==PASS_CALLS]
