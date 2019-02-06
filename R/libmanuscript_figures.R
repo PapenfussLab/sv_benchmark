@@ -339,7 +339,7 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 	if (use_lines) {
 		line_trace <- geom_line(size = 0.3)
 	} else {
-		line_trace <- element_blank()
+		line_trace <- geom_blank()
 	}
 
 	if (monochrome) {
@@ -347,7 +347,7 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 		color_guide_off_if_monochrome <- guides(color = FALSE)
 	} else {
 		colour_scheme <- caller_colour_scheme
-		color_guide_off_if_monochrome <- element_blank()
+		color_guide_off_if_monochrome <- geom_blank()
 	}
 
 	if (use_baubles) {
@@ -380,13 +380,13 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 			geom_point(data = df %>% filter(is_endpoint, CallSet == "All calls"), size = 2
 								 , fill = "white", stroke = 0.3, shape = 21)
 		plot_text_all_calls <-
-			element_blank()
+			geom_blank()
 
 		plot_points_pass_only <-
 			geom_point(
 				data = df %>% filter(is_endpoint, CallSet == "PASS only"), size = 2)
 		plot_text_pass_only <-
-			element_blank()
+			geom_blank()
 	}
 
 	if (fixed_aspect) {
