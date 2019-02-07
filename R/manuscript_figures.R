@@ -97,3 +97,23 @@ generate_figures(
 	datadir, sample_name, ids, truth_id, truth_name,
 	grtransformName, allow_missing_callers = TRUE, eventtype = "DEL")
 
+#chmboth
+datadir <- "../data.chmboth"
+sample_name <- "chmboth"
+ids <- c(
+	"21e805013e3d43cdb2123469a284154b", # breakdancer/1.4.5
+	"c9e4d5d92fadf3165d86aaf28a7d57e7", # delly/0.7.6
+	"97e18047b004eeafaa1f13465f2da01d", # gridss/1.4.1
+	"267c637130c88d0ed28369aa25f4fc2b", # hydra/master20160129
+	"b39d9b583e9bbb76e60e59182f25baa3", # lumpy/0.2.11
+	"38e090223d3ce8084593742f95fe3571", # manta/1.1.1
+	"0519837b3526f1bb8a92bd141bdc1d8b", # pindel/0.2.5b6
+	"50c375a9aa5b71f643effb7c78d01504"  # socrates/1.13.1
+	)
+
+truth_id <- "00000000000000000000000000000014.vcf"
+truth_name <- "Huddleston et al"
+grtransformName <- "None"
+generate_figures(
+	datadir, sample_name, ids, truth_id, truth_name,
+	grtransformName, allow_missing_callers = TRUE, eventtype = "DEL")
