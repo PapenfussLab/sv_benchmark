@@ -111,7 +111,7 @@ ids <- c(
 	"50c375a9aa5b71f643effb7c78d01504"  # socrates/1.13.1
 	)
 
-truth_id <- "00000000000000000000000000000014.vcf"
+truth_id <- "00000000000000000000000000000014"
 truth_name <- "Huddleston et al"
 grtransformName <- "None"
 generate_figures(
