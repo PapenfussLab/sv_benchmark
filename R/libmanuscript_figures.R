@@ -234,7 +234,7 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 				mutate(
 					fp=cumsum(fp),
 					tp=cumsum(tp)) %>%
-				# each QUAL score is a point on the ROC plott
+				# each QUAL score is a point on the ROC plot
 				group_by(Id, CallSet, !!!groupingCols, QUAL) %>%
 				summarise(tp=max(tp), fp=max(fp)) %>%
 				# QUAL scores with the same number of tp calls can be merged on the ROC plot
