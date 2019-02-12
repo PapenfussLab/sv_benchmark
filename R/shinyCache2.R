@@ -516,7 +516,7 @@ import.sv.bedpe.dir <- function(dir) {
 	allgr$ignore.filtered <- rep(FALSE, length(allgr)) # Crashing here on empty grs for BND
 
 	allgrfiltered <- GRangesList(grlist)
-	allgrfiltered <- unlist(allgr, recursive=TRUE, use.names=FALSE)
+	allgrfiltered <- unlist(allgrfiltered, recursive=TRUE, use.names=FALSE)
 	allgrfiltered$ignore.filtered <- rep(TRUE, length(allgrfiltered))
 	allgrfiltered <- allgrfiltered[allgrfiltered$FILTER %in% c(".", "PASS")]
 	names(allgrfiltered) <- paste0("f", names(allgrfiltered))[seq_along(allgrfiltered)]
