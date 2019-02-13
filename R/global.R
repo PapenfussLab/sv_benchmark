@@ -28,7 +28,8 @@ if (!exists("lrblacklistgr")) {
   lrblacklistgr <- list(
     None=GRanges(),
     DAC=import(paste0(dataLocation, "/input.common/wgEncodeHg19ConsensusSignalArtifactRegions.bed")),
-  	Duke=import(paste0(dataLocation, "/input.common/wgEncodeDukeMapabilityRegionsExcludable.bed"))
+  	Duke=import(paste0(dataLocation, "/input.common/wgEncodeDukeMapabilityRegionsExcludable.bed")),
+    HG002_NIST_T1=import(paste0(dataLocation, "/input.common/HG002_SVs_Tier1_v0.6_blacklist.bed"))
   )
 	seqlevelsStyle(lrblacklistgr$DAC) <- "UCSC"
 	seqlevelsStyle(lrblacklistgr$Duke) <- "UCSC"
@@ -143,7 +144,8 @@ lroptions$datadir <- c("NA12878" = "na12878", "chm1/chm13" = "chm")
 lroptions$grtransform <- list(
   None=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "None"),
   DAC=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "DAC"),
-  Duke=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "Duke"))
+  Duke=function(gr, metadata) .primaryHumanOnly_blacklist(gr, metadata, "Duke"),
+  HG002_NIST_T1=function(gr, metadata)  .primaryHumanOnly_blacklist(gr, metadata, "HG002_NIST_T1"))
 lroptions$truthpath <- c("longread") #, "longread/moleculo")
 lroptions$mintruthscore <- c(0, 1, 10, 20)
 

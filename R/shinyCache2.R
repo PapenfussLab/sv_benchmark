@@ -41,6 +41,10 @@ LoadCachedMetadata <- function(datadir) {
 		} else if (str_detect(datadir, "chmboth$")) {
 			metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000014.vcf"
 			metadata$CX_SNP_TRUTH <- "90f54397059a02d31adc4925ad57c439.vcf"
+
+		} else if (str_detect(datadir, "HG002$")) {
+			metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000002.vcf"
+			metadata$CX_SNP_TRUTH <- "c02b7bd11f533ff61f47d3b4739a3dcb.vcf"
 		}
 
 		saveCache(metadata, key=keymetadata, dirs=".Rcache/metadata")

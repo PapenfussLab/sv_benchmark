@@ -105,7 +105,7 @@ generate_figures <- function(
 				right = FALSE)
 
 	# Merged repeat classes
-	genome_name <- str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]
+	genome_name <- str_extract(str_replace(metadata$CX_REFERENCE, "hs37", "hg19"), "hg[0-9]+")[1]
 
 	callgr$trf <- overlapsAny(callgr, grtrf[[genome_name]], type="any")
 	callgr$repeatAnn <- ifelse(callgr$repeatClass %in% c("", "DNA", "LINE", "LTR", "SINE", "Other", "Low_complexity", "Simple_repeat"), callgr$repeatClass, "Other")
@@ -678,9 +678,9 @@ make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 				  color = "grey50") +
 		scale_fill_manual(
 			values = c(
-				n_callers_palette(n_callers_plus_truth, 235),
+				n_callers_palette(n_callers_plus_truth + 1, 235),
 				# we need to avoid "white" because the truth set isn't "PASS"
-				n_callers_palette(n_callers_plus_truth, 90)[2:(n_callers_plus_truth)]),
+				n_callers_palette(n_callers_plus_truth + 1, 90)[2:(n_callers_plus_truth)]),
 			name = "number of\ncallers\nsharing",
 			labels = rep("", 2 * n_callers_plus_truth)) +
 		xlab("") +

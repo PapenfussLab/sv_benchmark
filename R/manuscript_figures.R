@@ -117,3 +117,21 @@ grtransformName <- "None"
 generate_figures(
 	datadir, sample_name, ids, truth_id, truth_name,
 	grtransformName, allow_missing_callers = TRUE, eventtype = "DEL")
+
+#HG002
+datadir <- "../data.HG002"
+sample_name <- "HG002"
+ids <- c(
+	"8ad56d60d94b00233ccc5d3a009ba6b5", # breakdancer/1.4.5
+	"14935f46abc92a4326d56d9aa601d62e", # delly/0.7.6
+	"7889520520fe8c34813e1e15c0a41378" # hydra/master20160129
+	# "1ab7f5d09bc6d9d90df0ba53baaa78f1" # lumpy/0.2.11 # VCF missing
+	# "44c9f206507640ca8e8f3ac580071f2a" # pindel/0.2.5b6 # VCF missing
+)
+
+truth_id <- "00000000000000000000000000000002"
+truth_name <- "GiaB NIST v0.6"
+grtransformName <- "HG002_NIST_T1"
+generate_figures(
+	datadir, sample_name, ids, truth_id, truth_name,
+	grtransformName, allow_missing_callers = TRUE, eventtype = "DEL")
