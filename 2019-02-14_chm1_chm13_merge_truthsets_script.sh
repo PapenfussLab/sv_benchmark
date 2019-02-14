@@ -1,0 +1,9 @@
+cat data.chm13/00000000000000000000000000000013.vcf \
+    <(grep -v '^#' data.chm1/00000000000000000000000000000001.vcf) \
+    > data.chmboth/00000000000000000000000000000003_unsorted.vcf
+
+grep -E '^chr[0-9]+\t|^chrX\t|^#' \
+      data.chmboth/00000000000000000000000000000003_unsorted.vcf \
+      > data.chmboth/00000000000000000000000000000003_unsorted_filtered.vcf
+
+bcftools sort data.chmboth/00000000000000000000000000000003_unsorted_filtered.vcf -o data.chmboth/00000000000000000000000000000003.vcf

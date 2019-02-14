@@ -108,7 +108,9 @@ ids <- c(
 	"b39d9b583e9bbb76e60e59182f25baa3", # lumpy/0.2.11
 	"38e090223d3ce8084593742f95fe3571", # manta/1.1.1
 	"0519837b3526f1bb8a92bd141bdc1d8b", # pindel/0.2.5b6
-	"50c375a9aa5b71f643effb7c78d01504"  # socrates/1.13.1
+	"50c375a9aa5b71f643effb7c78d01504", # socrates/1.13.1
+	"6a7cabe5c50fb7256eaf75f30a5a7fa1", # cortex/1.0.5.14
+	"0fcd5cd6a5844ed4210db524ea841ca5"  # crest
 	)
 
 truth_id <- "00000000000000000000000000000014"
@@ -118,15 +120,42 @@ generate_figures(
 	datadir, sample_name, ids, truth_id, truth_name,
 	grtransformName, allow_missing_callers = TRUE, eventtype = "DEL")
 
+#chmboth - manually merged truth set
+datadir <- "../data.chmboth"
+sample_name <- "chmboth"
+ids <- c(
+	"21e805013e3d43cdb2123469a284154b", # breakdancer/1.4.5
+	"c9e4d5d92fadf3165d86aaf28a7d57e7", # delly/0.7.6
+	"97e18047b004eeafaa1f13465f2da01d", # gridss/1.4.1
+	"267c637130c88d0ed28369aa25f4fc2b", # hydra/master20160129
+	"b39d9b583e9bbb76e60e59182f25baa3", # lumpy/0.2.11
+	"38e090223d3ce8084593742f95fe3571", # manta/1.1.1
+	"0519837b3526f1bb8a92bd141bdc1d8b", # pindel/0.2.5b6
+	"50c375a9aa5b71f643effb7c78d01504", # socrates/1.13.1
+	"6a7cabe5c50fb7256eaf75f30a5a7fa1", # cortex/1.0.5.14
+	"0fcd5cd6a5844ed4210db524ea841ca5"  # crest
+)
+
+truth_id <- "00000000000000000000000000000003"
+truth_name <- "Manually merged truth set"
+grtransformName <- "None"
+generate_figures(
+	datadir, sample_name, ids, truth_id, truth_name,
+	grtransformName, allow_missing_callers = TRUE, eventtype = "DEL")
+
 #HG002
 datadir <- "../data.HG002"
 sample_name <- "HG002"
 ids <- c(
-	"8ad56d60d94b00233ccc5d3a009ba6b5", # breakdancer/1.4.5
-	"14935f46abc92a4326d56d9aa601d62e", # delly/0.7.6
-	"7889520520fe8c34813e1e15c0a41378" # hydra/master20160129
-	# "1ab7f5d09bc6d9d90df0ba53baaa78f1" # lumpy/0.2.11 # VCF missing
-	# "44c9f206507640ca8e8f3ac580071f2a" # pindel/0.2.5b6 # VCF missing
+	"274d2a1693dde71a4d1817f6418c004f", # breakdancer/1.4.5
+	"27fb72e39c6ba30b8e728e63deae4640", # hydra/master20160129
+	"2e285262d1cb1cb914129c5923279256", # lumpy/0.2.11
+	"465e01c683f87eeab9f899d4ad7fe65f", # manta/1.1.1
+	"476bb92e736e6842977cf0f6bfca72cc", # delly/0.7.6
+	"81bfafd1a366f2288882b93e3e0fd56e", # gridss/1.6.1-SNAPSHOT
+	"8e7ed64cfb252d7a39bfdb5b406b8d4f", # crest
+	"99ffc54b5253251c802fc3db2adf0e5c", # bcftools/1.3.1
+	"eded64e93b9fa957f80bf040baec9da4"  # pindel/0.2.5b6
 )
 
 truth_id <- "00000000000000000000000000000002"
