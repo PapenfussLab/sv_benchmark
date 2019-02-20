@@ -162,8 +162,9 @@ ids <- c(
 )
 
 truth_id <- "00000000000000000000000000000002"
-truth_name <- "GiaB NIST v0.6"
+truth_name <- "GiaB NIST Tier 1 v0.6"
 grtransformName <- "HG002_NIST_T1"
 generate_figures(
 	datadir, sample_name, ids, truth_id, truth_name,
 	grtransformName, allow_missing_callers = TRUE, eventtype = "DEL")
+
