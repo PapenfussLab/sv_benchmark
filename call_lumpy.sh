@@ -4,7 +4,6 @@
 #
 . common.sh
 CALLER=lumpy/0.2.11
-export PATH=$BASE_DIR/tools/$CALLER/bin:$PATH
 for BAM in $DATA_DIR/*.sc.bam ; do
 	cx_load $BAM
 	if [[ -f ${BAM/.bam/.sr.bam} ]] ; then
@@ -37,6 +36,7 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 	module add perl
 	module remove python
 	#module add python/2.7.12
+	export PATH=$BASE_DIR/tools/$CALLER/bin:\$PATH
 	samtools view -b -F 1294 $BAM > $CX/discordants.unsorted.bam
 	samtools view -h $BAM \
 		| ~/src/$CALLER/scripts/extractSplitReads_BwaMem -i stdin \

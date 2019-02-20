@@ -17,7 +17,7 @@ export PERL5LIB=$CORTEX_DIR/scripts/calling:$PERL5LIB
 # cd $(dirname $CX_REFERENCE)
 # stampy.py -G hg19 hg19.fa && stampy.py -g hg19 -H hg19
 # cd $CX_REFERENCE.split
-# ls -1 $CX_REFERENCE.split/*.fa > $CX_REFERENCE).splitfile_listing_fasta
+# ls -1 $CX_REFERENCE.split/*.fa > $CX_REFERENCE).split/file_listing_fasta
 # cortex_var_31_c1 --kmer_size 31 --mem_height 27 --mem_width 100 --se_list file_listing_fasta --max_read_len 10000 --dump_binary $(basename $CX_REFERENCE).k31.ctx --sample_id REF
 # cortex_var_63_c1 --kmer_size 61 --mem_height 27 --mem_width 100 --se_list file_listing_fasta --max_read_len 10000 --dump_binary $(basename $CX_REFERENCE).k61.ctx --sample_id REF
 
@@ -34,6 +34,9 @@ for FQ1 in $DATA_DIR/*.1.fq ; do
 	#fi
 	CX_FQ1=$FQ1
 	CX_FQ2=${FQ1/.1./.2.}
+	if [[ $DATA_DIR == *HG002* ]] ; then
+		CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human/hg19.fa
+	fi
 	cx_save
 	XC_OUTPUT=$CX.vcf
 	# http://cortexassembler.sourceforge.net/cortex_var_user_manual.pdf

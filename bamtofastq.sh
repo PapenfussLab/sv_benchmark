@@ -6,6 +6,7 @@
 #
 . common.sh
 
+module add bedtools
 for BAM in $DATA_DIR/*.sq.bam ; do
 	echo Processing $BAM
 	cx_load $BAM

@@ -18,7 +18,7 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 	cx_load $BAM
 	CX_BAM=$BAM
 	CX_CALLER=crest
-	CX_CALLER_ARGS=
+	CX_CALLER_SETTINGS=multithreaded
 	cx_save
 	if [ ! -f $CX_REFERENCE.2bit ] ; then
 		echo "Missing $CX_REFERENCE.2bit - unable run CREST"
@@ -27,8 +27,13 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 	BLAT_TMP_FILE=/tmp/crest.blat.$BLAT_PORT.$(basename $CX).lock
 	XC_OUTPUT=$CX.vcf
 	XC_TRAP="rm $BLAT_TMP_FILE ; if ls /tmp/crest.blat.$BLAT_PORT.*.lock 2>/dev/null ; then echo 'Additional instance using blat server' ; else gfServer stop localhost $BLAT_PORT 2>/dev/null; pkill -s 0 gfServer; echo 'Blat server terminated' ; fi "
-	XC_SCRIPT="rm -rf $CX; mkdir $CX 2>/dev/null; cd $CX
-	module add samtools ucsc-tools perl
+	XC_SCRIPT="
+	#rm -rf $CX;
+	mkdir $CX $CX/tmp 2>/dev/null; cd $CX
+	export TMP=$CX/tmp
+	export TEMP=$CX/tmp
+	export TMPDIR=$CX/tmp
+	module add samtools ucsc-tools perl parallel
 	ln -s $BAM $CX/in.bam
 	ln -s $BAM.bai $CX/in.bam.bai
 	echo > $BLAT_TMP_FILE
@@ -43,9 +48,15 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 	done
 	echo Success connecting to BLAT server 1>&2
 	# output file is in working directory so we need to move to the data directory before running CREST
-	extractSClip.pl -i in.bam --ref_genome $CX_REFERENCE
-	echo extractSClip.pl complete. Runnin CREST.pl
-	CREST.pl $CX_CALLER_ARGS -l $CX_READ_LENGTH -f in.bam.cover -d in.bam --ref_genome $CX_REFERENCE -t $CX_REFERENCE.2bit --blatserver localhost --blatport $BLAT_PORT && \
+	if [[ ! -f in.bam.cover ]] ; then
+		cut -f 1 $CX_REFERENCE.fai | parallel extractSClip.pl -i in.bam --ref_genome $CX_REFERENCE -r {}
+		cat in.bam.*.cover > in.bam.cover
+		echo extractSClip.pl complete. Runnin CREST.pl
+	else 
+		echo Skipping extractSClip.pl - in.bam.cover already exists
+	fi
+	cut -f 1 $CX_REFERENCE.fai | parallel CREST.pl $CX_CALLER_ARGS -l $CX_READ_LENGTH --tmpdir $CX/tmp -f in.bam.cover -d in.bam --ref_genome $CX_REFERENCE -t $CX_REFERENCE.2bit --blatserver localhost --blatport $BLAT_PORT -r {} -p in.bam.{}
+	cat in.bam.*.predSV.txt > in.bam.predSV.txt
 	$BASE_DIR/crest2vcf.py < in.bam.predSV.txt > $CX.vcf
 	"
 	xc_exec

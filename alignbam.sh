@@ -50,12 +50,14 @@ function align_bwa {
 		ARGS="-a"
 	fi
 	cx_save
-	INDEX=$(ls -1 ${CX_REFERENCE/.fa/}*.bwt)
-	INDEX=${INDEX/.bwt/}
-	if [ ! -f $INDEX.bwt ] ; then
-		echo "Unable to find bwa index $INDEX for $CX_REFERENCE"
-		echo bwa index $CX_REFERENCE
-		exit 1
+	INDEX=${CX_REFERENCE}.bwa
+	if [ ! -f "$INDEX.bwt" ] ; then
+		INDEX=${CX_REFERENCE}
+		if [ ! -f "$INDEX.bwt" ] ; then
+			echo "Unable to find bwa index for $CX_REFERENCE"
+			echo bwa index $CX_REFERENCE
+			exit 1
+		fi
 	fi
 	XC_MULTICORE=1
 	XC_OUTPUT=$CX.su.bam
@@ -96,6 +98,7 @@ function align_bowtie2 {
 	XC_MULTICORE=1
 	XC_OUTPUT=$CX.su.bam
 	XC_SCRIPT="
+	module add bowtie2
 	bowtie2 --threads \$(nproc) --mm $ALIGNER_FLAGS -x $INDEX -1 $1 -2 $2 |
 		AddOrReplaceReadGroups I=/dev/stdin O=$CX.tmp.bam $READ_GROUP_PARAMS &&
 	mv $CX.tmp.bam $XC_OUTPUT

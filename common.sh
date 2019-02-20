@@ -35,6 +35,7 @@ GRIDSS_ALIGNER="bwa" # TODO: update script so more than just bwa works
 source settings.$CONFIG
 
 EXECUTION_CONTEXT=torque #can be one of {local, torque, slurm}
+#EXECUTION_CONTEXT=local #can be one of {local, torque, slurm}
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DATA_DIR=$BASE_DIR/../data.$CONFIG
 if [[ ! -d $DATA_DIR ]] ; then

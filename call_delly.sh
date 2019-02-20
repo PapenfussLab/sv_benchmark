@@ -27,7 +27,7 @@ for BAM in $DATA_DIR/*.sc.bam ; do
 		delly call -t DUP -o dup.bcf -g $CX_REFERENCE $CX_BAM && \
 		delly call -t INV -o inv.bcf -g $CX_REFERENCE $CX_BAM && \
 		delly call -t TRA -o tra.bcf -g $CX_REFERENCE $CX_BAM && \
-		bcftools merge --force-samples del.bcf dup.bcf inv.bcf tra.bcf > merged.vcf && \
+		bcftools merge --force-samples *.bcf > merged.vcf && \
 		cp merged.vcf $XC_OUTPUT
 		"
 	fi
