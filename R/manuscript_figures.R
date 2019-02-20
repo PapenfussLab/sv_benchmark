@@ -1,3 +1,4 @@
+# setwd("R")
 source("libmanuscript_figures.R")
 
 #generate_figures(datadir, sample_name, ids, truth_id, truth_name, grtransformName, allow_missing_callers=TRUE)
@@ -149,12 +150,14 @@ sample_name <- "HG002"
 ids <- c(
 	"274d2a1693dde71a4d1817f6418c004f", # breakdancer/1.4.5
 	"27fb72e39c6ba30b8e728e63deae4640", # hydra/master20160129
-	"2e285262d1cb1cb914129c5923279256", # lumpy/0.2.11
+	"06b54896d6319ad0a3a25891d6d9bb03", # lumpy/0.2.11 # vcf empty
 	"465e01c683f87eeab9f899d4ad7fe65f", # manta/1.1.1
 	"476bb92e736e6842977cf0f6bfca72cc", # delly/0.7.6
+	"4d3c8e2d0f784d80c7f73e534e0a7d22", # crest
+	"5a52bfca501ce56c15771a96bac99fa0", # cortex/1.0.5.14
 	"81bfafd1a366f2288882b93e3e0fd56e", # gridss/1.6.1-SNAPSHOT
-	"8e7ed64cfb252d7a39bfdb5b406b8d4f", # crest
-	"99ffc54b5253251c802fc3db2adf0e5c", # bcftools/1.3.1
+	# "8e7ed64cfb252d7a39bfdb5b406b8d4f", # crest # broken - alt contigs only
+	# "99ffc54b5253251c802fc3db2adf0e5c", # bcftools/1.3.1 # Presumably don't want/need this
 	"eded64e93b9fa957f80bf040baec9da4"  # pindel/0.2.5b6
 )
 

@@ -33,6 +33,7 @@ if (!exists("lrblacklistgr")) {
   )
 	seqlevelsStyle(lrblacklistgr$DAC) <- "UCSC"
 	seqlevelsStyle(lrblacklistgr$Duke) <- "UCSC"
+	seqlevelsStyle(lrblacklistgr$HG002_NIST_T1) <- "UCSC"
 }
 
 # load repeatmasker annotations

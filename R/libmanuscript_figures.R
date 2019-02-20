@@ -989,7 +989,6 @@ stacked_precision_plot <- function(
 
 
 fig_5_grob <- function(ids, callgr, metadata) {
-
 	all_grobs <-
 		map(
 			ids,
