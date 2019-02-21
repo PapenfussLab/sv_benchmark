@@ -657,7 +657,7 @@ make_shared_tp_calls_grob <- function(callgr, metadata, truth_id, truth_name) {
 			caller_name =
 				caller_name %>%
 				relevel("NA") %>%
-				recode(`NA` = paste("(", truth_name, ")", sep = ""))) %>%
+				recode(`NA` = "truth set")) %>%
 		filter(
 			# Show only "All calls" unles there's a meaningful "PASS" field
 			(CallSet == "All calls" | distinct_pass))
