@@ -111,7 +111,7 @@ ids <- c(
 	"0519837b3526f1bb8a92bd141bdc1d8b", # pindel/0.2.5b6
 	"50c375a9aa5b71f643effb7c78d01504", # socrates/1.13.1
 	"6a7cabe5c50fb7256eaf75f30a5a7fa1", # cortex/1.0.5.14
-	"0fcd5cd6a5844ed4210db524ea841ca5"  # crest
+	"7f68a76e39035415d21552c914950e74"  # crest
 	)
 
 truth_id <- "00000000000000000000000000000014"
@@ -131,7 +131,7 @@ ids <- c(
 	"267c637130c88d0ed28369aa25f4fc2b", # hydra/master20160129
 	"b39d9b583e9bbb76e60e59182f25baa3", # lumpy/0.2.11
 	"38e090223d3ce8084593742f95fe3571", # manta/1.1.1
-	"0519837b3526f1bb8a92bd141bdc1d8b", # pindel/0.2.5b6
+	# "0519837b3526f1bb8a92bd141bdc1d8b", # pindel/0.2.5b6
 	"50c375a9aa5b71f643effb7c78d01504", # socrates/1.13.1
 	"6a7cabe5c50fb7256eaf75f30a5a7fa1", # cortex/1.0.5.14
 	"0fcd5cd6a5844ed4210db524ea841ca5"  # crest
