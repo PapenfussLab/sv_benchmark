@@ -133,6 +133,11 @@ generate_figures <- function(
 	plot4 <- fig_4_grob(callgr, metadata, truth_id)
 	saveplot(paste0(fileprefix, "_figure4_roc_by"), plot=plot4, height=12, width=14)
 
+	write(sprintf("Figure 4 - recall axes"), stderr())
+	plot4_recall <- fig_4_grob(callgr, metadata, truth_id, recall_x_axis = TRUE)
+	saveplot(paste0(fileprefix, "_figure4_recall_axis_roc_by"), plot=plot4_recall, height=12, width=14)
+
+
 	write(sprintf("Supp ROC by plots"), stderr())
 	# Supp figure:
 	roc_by_snp_by_repeats_plot <-
@@ -368,7 +373,8 @@ roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
 roc_common <- function(df, use_lines = TRUE,
 					   monochrome = FALSE,
 					   use_baubles = FALSE,
-					   recall_axis = TRUE,
+					   recall_sec_axis = FALSE,
+					   recall_x_axis = FALSE,
 					   fixed_aspect = TRUE) {
 	if (use_lines) {
 		line_trace <- geom_line(size = 0.3)
@@ -429,12 +435,23 @@ roc_common <- function(df, use_lines = TRUE,
 		aspect_ratio <- theme()
 	}
 
-	gg <- ggplot(df) +
+
+	aesthetics <- if (recall_x_axis) {
+		aes(
+			y = ifelse(use_roc_fdr, 1 - precision, precision),
+			x = recall,
+			colour = caller_name,
+			linetype = CallSet == "All calls")
+	} else {
 		aes(
 			y = ifelse(use_roc_fdr, 1 - precision, precision),
 			x = tp,
 			colour = caller_name,
-			linetype = CallSet == "All calls") +
+			linetype = CallSet == "All calls")
+	}
+
+	gg <- ggplot(df) +
+		aesthetics +
 		line_trace +
 		# Baubles - "All calls"
 		plot_points_all_calls +
@@ -451,9 +468,8 @@ roc_common <- function(df, use_lines = TRUE,
 		aspect_ratio +
 		background_grid(minor = "none") +
 		labs(
-			color = "caller",
+			color = "caller"
 			# linetype = "call set",
-			x = "true positives"
 			) +
 		guides(
 			# Check this
@@ -470,19 +486,30 @@ roc_common <- function(df, use_lines = TRUE,
 			labs(y = "precision")
 	}
 
-	if (recall_axis) {
+	if (recall_x_axis) {
+		gg <- gg + labs(x = "recall")
+	} else {
+		gg <- gg + labs(x = "true positives")
+	}
+
+	if (recall_sec_axis) {
 		# Pretty sure that the below doesn't hold w/ grouping
 		# assert_that(all(df$total_truth_calls == mean(df$total_truth_calls)))
 
 		total_truth_calls <- mean(df$total_truth_calls)
 
-		browser()
+		# browser()
 
 		gg <- gg + scale_x_continuous(
 			sec.axis = sec_axis(.~(.)/total_truth_calls * 100,
 								name = "recall",
-								labels = function(x){str_c(x, "%")}))
+								labels = function(x){ str_c(x, "%") }))
 	}
+
+	if (recall_x_axis) {
+		gg <- gg + scale_x_continuous(labels = scales::percent)
+	}
+	# browser()
 
 	return(gg)
 }
@@ -494,26 +521,26 @@ overall_roc_plot <- function(callgr, metadata, truth_id, truth_name) {
 		rocby(callgr, truth_id = truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common(use_baubles = TRUE) +
+		roc_common(use_baubles = TRUE, recall_sec_axis = TRUE) +
 		labs(title = roc_title())
 	return(plot_out)
 }
 
 ## ROC by stuff ######################################################
 
-roc_by_flanking_snvs <- function(callgr, metadata, truth_id) {
+roc_by_flanking_snvs <- function(callgr, metadata, truth_id, recall_x_axis = FALSE) {
 
 	flanking_snvs_rocplot <-
 		rocby(callgr, snp50bpbin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis) +
 		facet_grid(. ~ snp50bpbin, scales="free_x") +
 		labs(title=paste(roc_title(), "by flanking SNV/indels"))
 
 	return(flanking_snvs_rocplot)
 }
 
-roc_by_event_size <- function(callgr, metadata, truth_id) {
+roc_by_event_size <- function(callgr, metadata, truth_id, recall_x_axis = FALSE) {
 
 	eventsize_rocplot <-
 		# Is this plot misleading?
@@ -522,7 +549,7 @@ roc_by_event_size <- function(callgr, metadata, truth_id) {
 		metadata_annotate(metadata) %>%
 		# Deal with Hydra event size calling issue.
 		filter(caller_name != "hydra") %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis) +
 		facet_grid(
 			# raw data stratified by simpleEvent
 			. ~ eventSizeBin, scales="free_x") +
@@ -547,13 +574,13 @@ roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 	return(repeatmasker_rocplot)
 }
 
-roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome) {
+roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome, recall_x_axis = FALSE) {
 
 	repeat_rocplot <-
 		rocby(callgr, repeatAnn, truth_id=truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis) +
 		facet_wrap( ~ repeatAnn, scales="free_x", nrow = 2) +
 		labs(title=paste(roc_title(), "by presence of repeats at breakpoint"))
 
@@ -576,11 +603,12 @@ roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) 
 	roc_by_flanking_snvs_by_repeats_plot <-
 		grouped_plot_df %>%
 		ungroup() %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE) +
-			aes(x=scaled_tp) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE) +
+		# aes(x=scaled_tp) +
 		facet_grid(repeatAnn ~ snp50bpbin, scales="free_x") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"),
-				 x = "relative sensitivity") +
+			 # x = "relative sensitivity") +
+			 x = "recall") +
 		geom_text(
 			data = grouped_plot_df %>% distinct(snp50bpbin, repeatAnn, max_tp, .keep_all = TRUE),
 			aes(label = max_tp),
@@ -609,11 +637,12 @@ roc_by_event_size_by_repeats <- function(callgr, metadata, truth_id, genome) {
 		# Deal with Hydra event size calling issue.
 		filter(caller_name != "hydra") %>%
 		ungroup() %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE) +
-		aes(x=scaled_tp) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE) +
+		# aes(x=scaled_tp) +
 		facet_grid(repeatAnn ~ eventSizeBin, scales="free_x") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand event size"),
-				 x = "relative sensitivity") +
+				 # x = "relative sensitivity") +
+			     x = "recall") +
 		geom_text(
 			data = grouped_plot_df %>% distinct(eventSizeBin, repeatAnn, max_tp, .keep_all = TRUE),
 			aes(label = max_tp),
@@ -623,20 +652,21 @@ roc_by_event_size_by_repeats <- function(callgr, metadata, truth_id, genome) {
 }
 
 fig_4_grob <- function(callgr, metadata, truth_id,
-											 genome = str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1]) {
+					   genome = str_extract(metadata$CX_REFERENCE, "hg[0-9]+")[1],
+					   recall_x_axis = FALSE) {
 	# Merge plots
 
 	eventsize_grob <-
-		ggplotGrob(roc_by_event_size(callgr, metadata, truth_id) +
+		ggplotGrob(roc_by_event_size(callgr, metadata, truth_id, recall_x_axis = recall_x_axis) +
 			theme(legend.position = "none"))
 
 	flanking_snvs_grob <-
-		ggplotGrob(roc_by_flanking_snvs(callgr, metadata, truth_id) +
+		ggplotGrob(roc_by_flanking_snvs(callgr, metadata, truth_id, recall_x_axis = recall_x_axis) +
 		theme(legend.position = "none")
 		)
 
 	repeat_grob <-
-		roc_by_repeat_class_merged(callgr, metadata, truth_id, genome) %>%
+		roc_by_repeat_class_merged(callgr, metadata, truth_id, genome, recall_x_axis = recall_x_axis) %>%
 		ggplotGrob()
 
 	fig4_grob <- grid.arrange(
@@ -1098,7 +1128,8 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 #' @params p number of callers to calculate ensemble for (nCp)
 ensemble_plot_list <- function(
 	callgr, metadata, truth_id, ids,
-	p = length(ids), minlongreadhits = 1000000000, file_prefix) {
+	p = length(ids), minlongreadhits = 1000000000, file_prefix,
+	recall_sec_axis = TRUE) {
 
 	ensemble_df <- calc_ensemble_performance(callgr, metadata, ids, p, minlongreadhits)
 	eventcount <- sum(callgr$Id == truth_id & callgr$CallSet == ALL_CALLS)
@@ -1111,6 +1142,9 @@ ensemble_plot_list <- function(
 		as.tbl()
 
 	write_tsv(ensemble_df, str_c("ensemble_data_tsvs/", file_prefix, "_ensemble_df.tsv"))
+
+	recall_secondary_axis <-
+		scale_x_continuous(sec.axis = sec_axis(.~(.)/eventcount), name = "recall")
 
 	faceted_plot <-
 		ggplot(ensemble_df) +
@@ -1267,15 +1301,25 @@ ensemble_plot_list <- function(
 		ggtitle("All ensembles of 5 or fewer callers.")
 
 
-	return(list(
-		faceted_plot,
-		figure_plot,
-		figure_plot_bg_option,
-		dc_ensemble_plot,
-		plain_all_ensemble_plot,
-		plain_all_ensemble_plot_plus_pareto,
-		up_to_5_callers_w_pareto
-	))
+	if (!recall_sec_axis) {
+			out_list <- list(
+				faceted_plot,
+				figure_plot,
+				figure_plot_bg_option,
+				dc_ensemble_plot,
+				plain_all_ensemble_plot,
+				plain_all_ensemble_plot_plus_pareto,
+				up_to_5_callers_w_pareto )
+			} else {
+			out_list <- list(
+				faceted_plot + recall_secondary_axis,
+				figure_plot + recall_secondary_axis,
+				figure_plot_bg_option + recall_secondary_axis,
+				dc_ensemble_plot + recall_secondary_axis,
+				plain_all_ensemble_plot + recall_secondary_axis,
+				plain_all_ensemble_plot_plus_pareto + recall_secondary_axis,
+				up_to_5_callers_w_pareto + recall_secondary_axis )
+		}
 }
 
 calc_ensemble_performance <- function(callgr, metadata, ids, p, minlongreadhits) {
