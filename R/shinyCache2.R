@@ -44,7 +44,7 @@ LoadCachedMetadata <- function(datadir) {
 
 		} else if (str_detect(datadir, "HG002$")) {
 			metadata$CX_REFERENCE_VCF <- "00000000000000000000000000000002.vcf"
-			metadata$CX_SNP_TRUTH <- "c02b7bd11f533ff61f47d3b4739a3dcb.vcf"
+			metadata$CX_SNP_TRUTH <- "2871cbd704c55d40fef7068e0a21dff9.vcf"
 		}
 
 		saveCache(metadata, key=keymetadata, dirs=".Rcache/metadata")
@@ -727,6 +727,7 @@ IdCallSet_to_colname <- function(id, callset) {
 	gr$snp50bp <- 0
 	if (!is.null(metadata$CX_SNP_TRUTH)) {
 		snpgr <- .CachedRawVcfGRanges(datadir, metadata$CX_SNP_TRUTH)
+		seqlevelsStyle(snpgr) <- seqlevelsStyle(gr)
 		gr$snp50bp <- countOverlaps(gr, snpgr, maxgap=50)
 		if (!nominalPosition) {
 			# we want to calculate SNVs in the 50bp window around the nominal

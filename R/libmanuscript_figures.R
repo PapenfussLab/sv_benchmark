@@ -115,8 +115,6 @@ generate_figures <- function(
 	callgr$repeatAnn <- str_replace(callgr$repeatAnn, "_", " ")
 	callgr$repeatAnn <- factor(callgr$repeatAnn, levels = c("No repeat", "SINE", "LINE", "DNA", "LTR", "Simple/Tandem", "Low complexity", "Other"))
 
-	# This is a great place from which to debug.
-  # browser()
 
 	### PLOTTING ###
 
@@ -225,7 +223,23 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 			dplyr::select(Id, CallSet, !!!groupingCols, QUAL, fp, tp, fn) %>%
 			bind_rows(truthhitsdf, longread_truthhitsdf)
 	}
-	return (rocdf %>%
+
+	truth_gr <- callgr[callgr$Id == truth_id & callgr$CallSet == "All calls"]
+
+	# Filter to full truth call set
+	# total_truth_calls <- sum(mcols(truth_gr)[, paste0("fId", truth_id)] > 0)
+
+	# Convert to data frame
+	truth_calls_by_groupingCols <-
+		truth_gr %>%
+		as.data.frame() %>%
+		group_by(!!!groupingCols) %>%
+		filter(truthQUAL >= 0) %>%
+		summarise(total_truth_calls = n())
+
+	# browser()
+
+	final_df <- rocdf %>%
 				filter(Id != truth_id) %>%
 				group_by(Id, CallSet, !!!groupingCols, QUAL) %>%
 				summarise(fp=sum(fp), tp=sum(tp)) %>%
@@ -250,10 +264,27 @@ rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=T
 				))) %>%
 				mutate(is_endpoint = tp == max(tp)) %>%
 				ungroup() %>%
+				# Add relevant truth totals
+				(function(x) {
+					if (length(groupingCols) != 0) {
+						left_join(x, truth_calls_by_groupingCols) %>%
+							replace_na(list(total_truth_calls = 0))
+						}
+					else {
+						mutate(
+							x, total_truth_calls = truth_calls_by_groupingCols[[1]])
+					}}) %>%
 				#TODO: fn and sens need eventCount using group_by(Id, CallSet, !!!groupingCols)
 				mutate(
-					precision=tp / (tp + fp),
-					fdr=1-precision))
+					precision = tp / (tp + fp),
+					fdr=1-precision,
+					recall = ifelse(total_truth_calls != 0,
+									tp / (total_truth_calls),
+									0),
+					total_truth_calls = total_truth_calls)
+
+	return(final_df)
+
 }
 
 self_qual <- function(callgr) {
@@ -334,8 +365,11 @@ metadata_annotate <- function(df, metadata) {
 use_roc_fdr <- FALSE
 roc_title <- function() { ifelse(use_roc_fdr, "FDR-recall", "Precision-recall")}
 
-roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = FALSE,
-											 fixed_aspect = TRUE) {
+roc_common <- function(df, use_lines = TRUE,
+					   monochrome = FALSE,
+					   use_baubles = FALSE,
+					   recall_axis = TRUE,
+					   fixed_aspect = TRUE) {
 	if (use_lines) {
 		line_trace <- geom_line(size = 0.3)
 	} else {
@@ -436,6 +470,20 @@ roc_common <- function(df, use_lines = TRUE, monochrome = FALSE, use_baubles = F
 			labs(y = "precision")
 	}
 
+	if (recall_axis) {
+		# Pretty sure that the below doesn't hold w/ grouping
+		# assert_that(all(df$total_truth_calls == mean(df$total_truth_calls)))
+
+		total_truth_calls <- mean(df$total_truth_calls)
+
+		browser()
+
+		gg <- gg + scale_x_continuous(
+			sec.axis = sec_axis(.~(.)/total_truth_calls * 100,
+								name = "recall",
+								labels = function(x){str_c(x, "%")}))
+	}
+
 	return(gg)
 }
 
@@ -479,6 +527,8 @@ roc_by_event_size <- function(callgr, metadata, truth_id) {
 			# raw data stratified by simpleEvent
 			. ~ eventSizeBin, scales="free_x") +
 		labs(title=paste(roc_title(), "by event size"))
+
+	# browser()
 
 	return(eventsize_rocplot)
 }
