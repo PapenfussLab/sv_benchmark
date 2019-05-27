@@ -17,6 +17,15 @@ library(binom)
 
 ## Main figure-generating function ###################################
 
+custom_percent_scale <- function(x) {
+	# If second smallest value is < 1%, use a decimal point ...
+	if (round(x[2] * 100, 1) < 1) {
+		scales::percent(x, accuracy = .1)
+	} else {
+		scales::percent(x, accuracy = 1)
+	}
+}
+
 generate_figures_by_eventtype <- function(
 	datadir, sample_name, ids, truth_id, truth_name, grtransformName,
 	longreadbedpedir=NULL, allow_missing_callers=FALSE) {
@@ -118,6 +127,8 @@ generate_figures <- function(
 
 	### PLOTTING ###
 
+	browser()
+
 	write(sprintf("Figure 1"), stderr())
 	plot_overall_roc <- overall_roc_plot(callgr, metadata, truth_id, truth_name)
 	saveplot(paste0(fileprefix, "_figure1_roc"), plot=plot_overall_roc, height=6, width=8)
@@ -185,6 +196,8 @@ generate_figures <- function(
 }
 
 ## ROC by ... utilities ##############################################
+
+
 
 rocby <- function(callgr, ..., truth_id, rocSlicePoints=100, ignore.duplicates=TRUE, minlongreadhits=1000000000) {
 	groupingCols <- quos(...)
@@ -462,7 +475,7 @@ roc_common <- function(df, use_lines = TRUE,
 		colour_scheme +
 		color_guide_off_if_monochrome +
 		coord_cartesian(ylim = c(0,1)) +
-		scale_y_continuous(labels = scales::percent(accuracy = 1)) +
+		scale_y_continuous(labels = custom_percent_scale) +
 		theme_cowplot() +
 		theme(strip.background = element_blank()) +
 		aspect_ratio +
@@ -507,7 +520,7 @@ roc_common <- function(df, use_lines = TRUE,
 	}
 
 	if (recall_x_axis) {
-		gg <- gg + scale_x_continuous(labels = scales::percent(accuracy = 1))
+		gg <- gg + scale_x_continuous(labels = custom_percent_scale)
 	}
 	# browser()
 
@@ -971,7 +984,7 @@ ci_plot <- function(test_id, test_df, qual_column, metadata) {
 		scale_color_manual(values = c("#396AB1", "grey70")) +
 		cowplot::theme_cowplot() +
 		cowplot::background_grid(major = "xy", minor = "none") +
-		scale_y_continuous(labels = scales::percent(accuracy = 1)) +
+		scale_y_continuous(labels = custom_percent_scale) +
 		theme(
 			legend.position = "none",
 			axis.text.x = element_blank(),
@@ -1121,7 +1134,7 @@ duplicates_ggplot <- function(callgr, truth_id, truth_name, metadata) {
 		scale_color_brewer(palette = "Dark2", name = "") +
 		# Actually: percentage of calls overlapping one of higher quality
 		labs(x = "", y = "duplicate calls") +
-		scale_y_continuous(labels = scales::percent(accuracy = 1), limits = c(0, 1), expand = c(.05,.05)) +
+		scale_y_continuous(labels = custom_percent_scale, limits = c(0, 1), expand = c(.05,.05)) +
 		theme(axis.line = element_blank(), axis.ticks.y = element_blank(),
 			  axis.text.y = element_text(margin = margin(t = 0, r = -10, b = 0, l = 0))) +
 		coord_flip()
@@ -1153,7 +1166,7 @@ ensemble_plot_list <- function(
 		scale_x_continuous(
 			sec.axis = sec_axis(.~(.)/eventcount,
 			                    name = "recall",
-								labels = scales::percent(accuracy = 1))
+								labels = custom_percent_scale)
 			)
 
 	faceted_plot <-
@@ -1161,7 +1174,7 @@ ensemble_plot_list <- function(
 		aes(x=tp, y=precision, colour=CallSet) + #, shape=as.factor(minhits))
 		geom_point(size = 0.3) +
 		coord_cartesian(ylim = c(0,1)) +
-		scale_y_continuous(labels = scales::percent(accuracy = 1)) +
+		scale_y_continuous(labels = custom_percent_scale) +
 		theme_cowplot() +
 		background_grid("xy", "none") +
 		facet_grid(ncallers ~ minhits) +
@@ -1221,7 +1234,7 @@ ensemble_plot_list <- function(
 			y = precision,
 			x = tp) +
 		coord_cartesian(ylim = c(0,1)) +
-		scale_y_continuous(labels = scales::percent(accuracy = 1)) +
+		scale_y_continuous(labels = custom_percent_scale) +
 		theme_cowplot() +
 		background_grid("y", "none")
 
