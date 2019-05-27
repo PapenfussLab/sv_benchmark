@@ -534,6 +534,7 @@ roc_by_flanking_snvs <- function(callgr, metadata, truth_id, recall_x_axis = FAL
 		rocby(callgr, snp50bpbin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis) +
+		theme(axis.text.x = element_text(angle = 60)) +
 		facet_grid(. ~ snp50bpbin, scales="free_x") +
 		labs(title=paste(roc_title(), "by flanking SNV/indels"))
 
@@ -550,6 +551,7 @@ roc_by_event_size <- function(callgr, metadata, truth_id, recall_x_axis = FALSE)
 		# Deal with Hydra event size calling issue.
 		filter(caller_name != "hydra") %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis) +
+		theme(axis.text.x = element_text(angle = 60)) +
 		facet_grid(
 			# raw data stratified by simpleEvent
 			. ~ eventSizeBin, scales="free_x") +
@@ -567,7 +569,8 @@ roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 	repeatmasker_rocplot <-
 		rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE) +
+		theme(axis.text.x = element_text(angle = 60)) +
 		facet_wrap(simpleEvent ~ repeatClass, scales="free_x") +
 		labs(title=paste(roc_title(), "by RepeatMasker annotation"))
 
@@ -581,6 +584,7 @@ roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome, recal
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis) +
+		theme(axis.text.x = element_text(angle = 60)) +
 		facet_wrap( ~ repeatAnn, scales="free_x", nrow = 2) +
 		labs(title=paste(roc_title(), "by presence of repeats at breakpoint"))
 
@@ -604,6 +608,7 @@ roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) 
 		grouped_plot_df %>%
 		ungroup() %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE) +
+		theme(axis.text.x = element_text(angle = 60)) +
 		# aes(x=scaled_tp) +
 		facet_grid(repeatAnn ~ snp50bpbin, scales="free_x") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"),
@@ -638,6 +643,7 @@ roc_by_event_size_by_repeats <- function(callgr, metadata, truth_id, genome) {
 		filter(caller_name != "hydra") %>%
 		ungroup() %>%
 		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE) +
+		theme(axis.text.x = element_text(angle = 60)) +
 		# aes(x=scaled_tp) +
 		facet_grid(repeatAnn ~ eventSizeBin, scales="free_x") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand event size"),
@@ -1144,7 +1150,11 @@ ensemble_plot_list <- function(
 	write_tsv(ensemble_df, str_c("ensemble_data_tsvs/", file_prefix, "_ensemble_df.tsv"))
 
 	recall_secondary_axis <-
-		scale_x_continuous(sec.axis = sec_axis(.~(.)/eventcount), name = "recall")
+		scale_x_continuous(
+			sec.axis = sec_axis(.~(.)/eventcount,
+			                    name = "recall",
+								labels = scales::percent)
+			)
 
 	faceted_plot <-
 		ggplot(ensemble_df) +
