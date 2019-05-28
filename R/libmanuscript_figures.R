@@ -20,7 +20,8 @@ library(binom)
 custom_percent_scale <- function(x) {
 	# If second smallest value is < 1%, use a decimal point ...
 	if (round(x[2] * 100, 1) < 1) {
-		scales::percent(x, accuracy = .1)
+		# No change for now.
+		scales::percent(x, accuracy = 1)
 	} else {
 		scales::percent(x, accuracy = 1)
 	}
@@ -342,7 +343,7 @@ dp_callers <- c("breakdancer", "delly", "gridss", "hydra", "lumpy", "manta")
 sr_callers <- c("crest", "delly", "gridss", "lumpy", "manta", "pindel", "socrates")
 as_callers <- c("cortex", "gridss", "manta")
 
-fixed_caller_metadata <- data_frame(
+fixed_caller_metadata <- tibble(
 	caller_name =
 		c("pindel",  "manta",   "breakdancer", "hydra",   "gridss",  "socrates", "crest",   "cortex",  "delly",   "lumpy"),
 	caller_initial =
@@ -388,7 +389,8 @@ roc_common <- function(df, use_lines = TRUE,
 					   use_baubles = FALSE,
 					   recall_sec_axis = FALSE,
 					   recall_x_axis = FALSE,
-					   fixed_aspect = TRUE) {
+					   fixed_aspect = TRUE,
+					   pretty_tick_n = NA) {
 	if (use_lines) {
 		line_trace <- geom_line(size = 0.3)
 	} else {
@@ -499,6 +501,12 @@ roc_common <- function(df, use_lines = TRUE,
 			labs(y = "precision")
 	}
 
+	if (!is.na(pretty_tick_n)) {
+		custom_break_function <- scales::pretty_breaks(n = pretty_tick_n)
+	} else {
+		custom_break_function <- NULL
+	}
+
 	if (recall_x_axis) {
 		gg <- gg + labs(x = "recall")
 	} else {
@@ -516,11 +524,12 @@ roc_common <- function(df, use_lines = TRUE,
 		gg <- gg + scale_x_continuous(
 			sec.axis = sec_axis(.~(.)/total_truth_calls * 100,
 								name = "recall",
-								labels = function(x){ str_c(x, "%") }))
+								labels = custom_percent_scale))
 	}
 
 	if (recall_x_axis) {
-		gg <- gg + scale_x_continuous(labels = custom_percent_scale)
+		gg <- gg + scale_x_continuous(labels = custom_percent_scale,
+									  breaks = custom_break_function)
 	}
 	# browser()
 
@@ -546,8 +555,9 @@ roc_by_flanking_snvs <- function(callgr, metadata, truth_id, recall_x_axis = FAL
 	flanking_snvs_rocplot <-
 		rocby(callgr, snp50bpbin, truth_id = truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis) +
-		theme(axis.text.x = element_text(angle = 60)) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis,
+				   pretty_tick_n = 3) +
+		theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 0.9)) +
 		facet_grid(. ~ snp50bpbin, scales="free_x") +
 		labs(title=paste(roc_title(), "by flanking SNV/indels"))
 
@@ -563,8 +573,10 @@ roc_by_event_size <- function(callgr, metadata, truth_id, recall_x_axis = FALSE)
 		metadata_annotate(metadata) %>%
 		# Deal with Hydra event size calling issue.
 		filter(caller_name != "hydra") %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis) +
-		theme(axis.text.x = element_text(angle = 60)) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE,
+				   recall_x_axis = recall_x_axis,
+				   pretty_tick_n = 3) +
+		theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 0.9)) +
 		facet_grid(
 			# raw data stratified by simpleEvent
 			. ~ eventSizeBin, scales="free_x") +
@@ -582,8 +594,9 @@ roc_by_repeatmasker <- function(callgr, metadata, truth_id) {
 	repeatmasker_rocplot <-
 		rocby(callgr, repeatClass, simpleEvent, truth_id=truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE) +
-		theme(axis.text.x = element_text(angle = 60)) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE,
+				   pretty_tick_n = 3) +
+		theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 0.9)) +
 		facet_wrap(simpleEvent ~ repeatClass, scales="free_x") +
 		labs(title=paste(roc_title(), "by RepeatMasker annotation"))
 
@@ -596,8 +609,9 @@ roc_by_repeat_class_merged <- function(callgr, metadata, truth_id, genome, recal
 		rocby(callgr, repeatAnn, truth_id=truth_id) %>%
 		filter(Id != truth_id) %>%
 		metadata_annotate(metadata) %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis) +
-		theme(axis.text.x = element_text(angle = 60)) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = recall_x_axis,
+				   pretty_tick_n = 3) +
+		theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 0.9)) +
 		facet_wrap( ~ repeatAnn, scales="free_x", nrow = 2) +
 		labs(title=paste(roc_title(), "by presence of repeats at breakpoint"))
 
@@ -620,8 +634,9 @@ roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) 
 	roc_by_flanking_snvs_by_repeats_plot <-
 		grouped_plot_df %>%
 		ungroup() %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE) +
-		theme(axis.text.x = element_text(angle = 60)) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE,
+				   pretty_tick_n = 3) +
+		theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 0.9)) +
 		# aes(x=scaled_tp) +
 		facet_grid(repeatAnn ~ snp50bpbin, scales="free_x") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand flanking SNV/indels"),
@@ -655,8 +670,9 @@ roc_by_event_size_by_repeats <- function(callgr, metadata, truth_id, genome) {
 		# Deal with Hydra event size calling issue.
 		filter(caller_name != "hydra") %>%
 		ungroup() %>%
-		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE) +
-		theme(axis.text.x = element_text(angle = 60)) +
+		roc_common(use_baubles = FALSE, use_lines = TRUE, recall_x_axis = TRUE,
+				   pretty_tick_n = 3) +
+		theme(axis.text.x = element_text(angle = 60, vjust = 1, hjust = 0.9)) +
 		# aes(x=scaled_tp) +
 		facet_grid(repeatAnn ~ eventSizeBin, scales="free_x") +
 		labs(title = paste(roc_title(), "by presence of repeats at breakpoint\nand event size"),
@@ -665,7 +681,10 @@ roc_by_event_size_by_repeats <- function(callgr, metadata, truth_id, genome) {
 		geom_text(
 			data = grouped_plot_df %>% distinct(eventSizeBin, repeatAnn, max_tp, .keep_all = TRUE),
 			aes(label = max_tp),
-			x = .5, y = .5, size = 12, color = "grey40", alpha = .6)
+			x = .5, y = .5, size = 12, color = "grey40", alpha = .6) +
+		scale_x_continuous(labels = custom_percent_scale,
+						   breaks = scales::pretty_breaks(n = 3),
+						   limits = c(0, 1))
 
 	return(roc_by_event_size_by_repeats_plot)
 }
