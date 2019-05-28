@@ -128,7 +128,7 @@ generate_figures <- function(
 
 	### PLOTTING ###
 
-	browser()
+	# browser()
 
 	write(sprintf("Figure 1"), stderr())
 	plot_overall_roc <- overall_roc_plot(callgr, metadata, truth_id, truth_name)
@@ -522,7 +522,7 @@ roc_common <- function(df, use_lines = TRUE,
 		# browser()
 
 		gg <- gg + scale_x_continuous(
-			sec.axis = sec_axis(.~(.)/total_truth_calls * 100,
+			sec.axis = sec_axis(.~(.)/total_truth_calls,
 								name = "recall",
 								labels = custom_percent_scale))
 	}
@@ -645,7 +645,10 @@ roc_by_flanking_snvs_by_repeats <- function(callgr, metadata, truth_id, genome) 
 		geom_text(
 			data = grouped_plot_df %>% distinct(snp50bpbin, repeatAnn, max_tp, .keep_all = TRUE),
 			aes(label = max_tp),
-			x = .5, y = .5, size = 12, color = "grey40", alpha = .6)
+			x = .5, y = .5, size = 12, color = "grey40", alpha = .6) +
+		scale_x_continuous(labels = custom_percent_scale,
+						   breaks = scales::pretty_breaks(n = 3),
+						   limits = c(0, 1))
 
 
 
