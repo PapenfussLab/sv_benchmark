@@ -95,8 +95,10 @@ withqual <- function(vcf, caller) {
 			} else if (caller %in% c("lumpy")) {
 				altqual <- unlist(info(vcf)$SU)
 			} else if (caller %in% c("cortex")) {
-													 # Assuming 1 is ref, 2 is alt
+				# Assuming 1 is ref, 2 is alt
 				altqual <- geno(vcf)$COV[,1,2]
+				altqual[is.na(altqual)] <- 0
+				print(str_c("The number of Cortex calls with altqual 0 is ", sum(is.na(altqual))))
 			} else if (caller %in% c("manta")) {
 			    altqual <- 0
 			}
