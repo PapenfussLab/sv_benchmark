@@ -878,8 +878,8 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 		setNames(
 			c(  # exclude zero <-> white
 				# I'm not sure why there needs to be a +1 here
-				n_callers_palette(n_callers_plus_truth + 1, 235)[2:n_callers_plus_truth + 1],
-				n_callers_palette(n_callers_plus_truth + 1, 90 )[2:n_callers_plus_truth + 1]),
+				n_callers_palette(n_callers_plus_truth + 1, 235)[1:n_callers_plus_truth + 1],
+				n_callers_palette(n_callers_plus_truth + 1, 90 )[1:n_callers_plus_truth + 1]),
 			levels(interaction(factor(plot_df$caller_hits_ex_truth), plot_df$CallSet))
 		)
 
