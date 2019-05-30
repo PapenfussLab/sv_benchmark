@@ -872,6 +872,17 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 			# Show only "All calls" unles there's a meaningful "PASS" field
 			(CallSet == "All calls" | distinct_pass))
 
+	browser()
+
+	fill_scale <-
+		setNames(
+			c(  # exclude zero <-> white
+				# I'm not sure why there needs to be a +1 here
+				n_callers_palette(n_callers_plus_truth + 1, 235)[2:n_callers_plus_truth + 1],
+				n_callers_palette(n_callers_plus_truth + 1, 90 )[2:n_callers_plus_truth + 1]),
+			levels(interaction(factor(plot_df$caller_hits_ex_truth), plot_df$CallSet))
+		)
+
 	plot_out <-
 		plot_df %>%
 		ggplot(aes(x = CallSet)) +
@@ -891,11 +902,7 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 		  hjust = 1,
 		  color = "grey50") +
 		scale_fill_manual(
-			values = c(
-				# exclude zero -> white
-				# I'm not sure why there needs to be a +1 here
-				n_callers_palette(n_callers_plus_truth + 1, 235)[1:n_callers_plus_truth + 1],
-				n_callers_palette(n_callers_plus_truth + 1, 90 )[1:n_callers_plus_truth + 1]),
+			values = fill_scale,
 			name = "number of\ncallers\nsharing",
 			labels = rep("", 2 * n_callers_plus_truth)) +
 		xlab("") +
