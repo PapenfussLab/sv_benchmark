@@ -872,7 +872,7 @@ make_shared_fp_calls_grob <- function(callgr, truth_id, metadata) {
 			# Show only "All calls" unles there's a meaningful "PASS" field
 			(CallSet == "All calls" | distinct_pass))
 
-	browser()
+	# browser()
 
 	fill_scale <-
 		setNames(
