@@ -1,0 +1,11 @@
+CX_ALIGNER=bwamem
+CX_ALIGNER_SOFTCLIP=1
+CX_ALIGNER_VERSION=0.6.1-r104-tpx
+CX_BAM=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.na12878/illumina_platinum_ERA172924.sq.bam
+CX_BLACKLIST=/home/cameron.d/Papenfuss_lab/projects/reference_genomes/human/blacklist_annotations/wgEncodeDacMapabilityConsensusExcludable.bed
+CX_CALLER=hydra/master20160129
+CX_READ_DEPTH=50
+CX_READ_FRAGMENT_LENGTH=319
+CX_READ_FRAGMENT_STDDEV=72
+CX_READ_LENGTH=101
+CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human/hg19.fa

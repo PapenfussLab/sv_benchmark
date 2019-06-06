@@ -1,0 +1,9 @@
+CX_ALIGNER=novoalign
+CX_ALIGNER_VERSION=3.02.07
+CX_BAM=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.HG002/HG002_hs37d5_2x250.sq.bam
+CX_BLACKLIST=/home/cameron.d/Papenfuss_lab/projects/reference_genomes/human/blacklist_annotations/wgEncodeDacMapabilityConsensusExcludable.bed
+CX_CALLER=hydra/master20160129
+CX_READ_FRAGMENT_LENGTH=412
+CX_READ_FRAGMENT_STDDEV=87
+CX_READ_LENGTH=250
+CX_REFERENCE=/home/cameron.d/refdata/genomes/hs37d5.fa

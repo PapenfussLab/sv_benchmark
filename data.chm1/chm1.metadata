@@ -1,0 +1,5 @@
+CX_READ_DEPTH=40
+CX_READ_LENGTH=151
+CX_READ_FRAGMENT_LENGTH=268
+CX_READ_FRAGMENT_STDDEV=111
+CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human_new/no_alt/hg38_no_alt.fa

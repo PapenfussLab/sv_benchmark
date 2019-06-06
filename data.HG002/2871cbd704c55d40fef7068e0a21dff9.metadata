@@ -1,0 +1,11 @@
+CX_ALIGNER=novoalign
+CX_ALIGNER_VERSION=3.02.07
+CX_BAM=/home/cameron.d/projects/sv_benchmark/scripts/../data.HG002/HG002_hs37d5_300x.sc.bam
+CX_BLACKLIST=/home/cameron.d/Papenfuss_lab/projects/reference_genomes/human/blacklist_annotations/wgEncodeDacMapabilityConsensusExcludable.bed
+CX_CALLER=bcftools/1.3.1
+CX_CALLER_OPTIONS=-m
+CX_READ_DEPTH=300
+CX_READ_FRAGMENT_LENGTH=570
+CX_READ_FRAGMENT_STDDEV=156
+CX_READ_LENGTH=150
+CX_REFERENCE=/home/cameron.d/refdata/genomes/hs37d5.fa

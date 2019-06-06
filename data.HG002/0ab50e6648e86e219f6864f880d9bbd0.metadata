@@ -1,0 +1,12 @@
+CX_ALIGNER=novoalign
+CX_ALIGNER_VERSION=3.02.07
+CX_BAM=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.HG002/HG002_hs37d5_300x.sc.bam
+CX_BAM2CFG_FLAGS=-m
+CX_BLACKLIST=/home/cameron.d/Papenfuss_lab/projects/reference_genomes/human/blacklist_annotations/wgEncodeDacMapabilityConsensusExcludable.bed
+CX_CALLER=breakdancer/1.4.5
+CX_CALLER_FLAGS=
+CX_READ_DEPTH=300
+CX_READ_FRAGMENT_LENGTH=570
+CX_READ_FRAGMENT_STDDEV=156
+CX_READ_LENGTH=150
+CX_REFERENCE=/home/cameron.d/refdata/genomes/hs37d5.fa

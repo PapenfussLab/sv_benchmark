@@ -1,0 +1,13 @@
+CX_ALIGNER=bwamem
+CX_ALIGNER_SOFTCLIP=1
+CX_ALIGNER_VERSION=0.6.1-r104-tpx
+CX_BLACKLIST=/home/cameron.d/Papenfuss_lab/projects/reference_genomes/human/blacklist_annotations/wgEncodeDacMapabilityConsensusExcludable.bed
+CX_CALLER=cortex/1.0.5.14
+CX_CALLER_ARGS=31,30,61
+CX_FQ1=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.na12878/illumina_platinum_ERA172924.1.fq
+CX_FQ2=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.na12878/illumina_platinum_ERA172924.2.fq
+CX_READ_DEPTH=50
+CX_READ_FRAGMENT_LENGTH=319
+CX_READ_FRAGMENT_STDDEV=72
+CX_READ_LENGTH=101
+CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human/hg19.fa

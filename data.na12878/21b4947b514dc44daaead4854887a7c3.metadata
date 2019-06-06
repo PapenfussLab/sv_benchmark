@@ -1,0 +1,10 @@
+CX_ALIGNER=bowtie2
+CX_BAM=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.na12878/multi.sc.bam
+CX_BLACKLIST=/home/cameron.d/Papenfuss_lab/projects/reference_genomes/human/blacklist_annotations/wgEncodeDacMapabilityConsensusExcludable.bed
+CX_CALLER=delly/0.7.6
+CX_MULTIMAPPING_LOCATIONS=100
+CX_READ_DEPTH=50
+CX_READ_FRAGMENT_LENGTH=319
+CX_READ_FRAGMENT_STDDEV=72
+CX_READ_LENGTH=101
+CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human/hg19.fa

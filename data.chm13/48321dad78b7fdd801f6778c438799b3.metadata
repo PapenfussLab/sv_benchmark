@@ -1,0 +1,11 @@
+CX_ALIGNER=bwamem
+CX_ALIGNER_MODE=local
+CX_BAM=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.chm/45dc5b222cc7915cea78a3dbe03e3ab5.sc.bam
+CX_CALLER=delly/0.7.6
+CX_FQ1=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.chm/chm13.1.fq
+CX_FQ2=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.chm/chm13.2.fq
+CX_READ_DEPTH=40
+CX_READ_FRAGMENT_LENGTH=350
+CX_READ_FRAGMENT_STDDEV=117
+CX_READ_LENGTH=151
+CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human_new/no_alt/hg38_no_alt.fa

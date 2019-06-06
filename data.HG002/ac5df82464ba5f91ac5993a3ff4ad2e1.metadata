@@ -1,0 +1,9 @@
+CX_ALIGNER=bowtie2
+CX_ALIGNER_MODE=local
+CX_BLACKLIST=/home/cameron.d/Papenfuss_lab/projects/reference_genomes/human/blacklist_annotations/wgEncodeDacMapabilityConsensusExcludable.bed
+CX_FQ1=/home/cameron.d/projects/sv_benchmark/scripts/../data.HG002/9f60aeb372a95a2b2642ae865a8b3420.1.fq
+CX_FQ2=/home/cameron.d/projects/sv_benchmark/scripts/../data.HG002/9f60aeb372a95a2b2642ae865a8b3420.2.fq
+CX_READ_FRAGMENT_LENGTH=412
+CX_READ_FRAGMENT_STDDEV=87
+CX_READ_LENGTH=250
+CX_REFERENCE=/home/cameron.d/refdata/genomes/hs37d5.fa

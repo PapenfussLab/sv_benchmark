@@ -1,0 +1,8 @@
+CX_READ_LENGTH=150
+CX_REFERENCE=/home/cameron.d/refdata/genomes/hs37d5.fa
+CX_ALIGNER=novoalign
+CX_ALIGNER_VERSION=3.02.07
+CX_BLACKLIST=~/Papenfuss_lab/projects/reference_genomes/human/blacklist_annotations/wgEncodeDacMapabilityConsensusExcludable.bed
+CX_READ_DEPTH=60
+CX_READ_FRAGMENT_LENGTH=555
+CX_READ_FRAGMENT_STDDEV=152

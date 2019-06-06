@@ -1,0 +1,9 @@
+CX_ALIGNER=bwamem
+CX_ALIGNER_MODE=local
+CX_FQ1=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.chm/chmboth.1.fq
+CX_FQ2=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.chm/chmboth.2.fq
+CX_READ_DEPTH=81
+CX_READ_FRAGMENT_LENGTH=310
+CX_READ_FRAGMENT_STDDEV=120
+CX_READ_LENGTH=151
+CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human_new/no_alt/hg38_no_alt.fa

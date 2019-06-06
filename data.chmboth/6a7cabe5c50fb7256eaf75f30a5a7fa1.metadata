@@ -1,0 +1,9 @@
+CX_CALLER=cortex/1.0.5.14
+CX_CALLER_ARGS=31,0,31
+CX_FQ1=/home/cameron.d/projects/sv_benchmark/scripts/../data.chmboth/chmboth.1.fq
+CX_FQ2=/home/cameron.d/projects/sv_benchmark/scripts/../data.chmboth/chmboth.2.fq
+CX_READ_DEPTH=81
+CX_READ_FRAGMENT_LENGTH=310
+CX_READ_FRAGMENT_STDDEV=120
+CX_READ_LENGTH=151
+CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human_new/no_alt/hg38_no_alt.fa

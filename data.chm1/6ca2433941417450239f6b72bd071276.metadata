@@ -1,0 +1,10 @@
+CX_CALLER=cortex/1.0.5.14
+CX_CALLER_ARGS=31,0,31
+CX_FQ1=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.chm/chm1.1.fq
+CX_FQ2=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/scripts/../data.chm/chm1.2.fq
+CX_READ_DEPTH=40
+CX_READ_FRAGMENT_LENGTH=268
+CX_READ_FRAGMENT_STDDEV=111
+CX_READ_LENGTH=151
+CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human_new/no_alt/hg38_no_alt.fa
+CX_SNP_TRUTH=94bb6deef9f1bf1f9027a47e8488ae4f.vcf

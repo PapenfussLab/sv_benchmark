@@ -1,0 +1,3 @@
+COMMENT=chm1_chm13_merged_naively
+CX_REFERENCE=/home/users/allstaff/cameron.d/reference_genomes/human_new/no_alt/hg38_no_alt.fa
+CX_REFERENCE_VCF=/wehisan/bioinf/bioinf-data/Papenfuss_lab/projects/sv_benchmark/data.chm/00000000000000000000000000000014.vcf
