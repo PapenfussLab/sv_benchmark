@@ -126,6 +126,10 @@ generate_figures <- function(
 	callgr$repeatAnn <- factor(callgr$repeatAnn, levels = c("No repeat", "SINE", "LINE", "DNA", "LTR", "Simple/Tandem", "Low complexity", "Other"))
 
 
+	as.data.frame(callgr) %>% write_tsv(
+		str_c("callgr_tsvs/", fileprefix, "_callgr.tsv"))
+	return()
+
 	### PLOTTING ###
 
 	# browser()
