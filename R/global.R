@@ -9,7 +9,7 @@ library(shinyBS)
 mainPlotHeight <- 800
 
 enableBookmarking(store = "url")
-options("R.cache::compress" = TRUE)
+options("R.cache.compress" = TRUE)
 
 
 ALL_CALLS <- "All calls"
