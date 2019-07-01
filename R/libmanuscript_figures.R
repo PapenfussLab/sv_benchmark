@@ -128,7 +128,6 @@ generate_figures <- function(
 
 	as.data.frame(callgr) %>% write_tsv(
 		str_c("callgr_tsvs/", fileprefix, "_callgr.tsv"))
-	return()
 
 	### PLOTTING ###
 
