@@ -15,7 +15,6 @@ R/exploratory_plots_dc.nb.html
 *.Rhistory
 data.chm/
 input.chm/
-input.common/
 docs/*
 README.txt
 R/callgr_tsvs/*
