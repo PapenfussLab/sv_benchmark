@@ -311,7 +311,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 		summarise(besthits=sum(!dup), allhits=n())
 
 	calldf <- as.data.frame(callgr) %>%
-		dplyr::select(QUAL, svLen, insLen, vcfId, HOMLEN, ihomlen) %>%
+		dplyr::select(QUAL, svLen, insLen, sourceId, HOMLEN, ihomlen) %>%
 		mutate(
 			Id=id,
 			tp=rep(FALSE, nrow(.)),
@@ -336,7 +336,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	truthdf <- NULL
 	if (requiredHits == 1) {
 		truthdf <- as.data.frame(truthgr) %>%
-			dplyr::select(svLen, insLen, vcfId, HOMLEN, ihomlen) %>%
+			dplyr::select(svLen, insLen, sourceId, HOMLEN, ihomlen) %>%
 			mutate(Id=id, QUAL=0, tp=FALSE, fp=FALSE, fn=FALSE, sizeerror=NA, bperror=NA) %>%
 			mutate(
 				includeFiltered=includeFiltered,

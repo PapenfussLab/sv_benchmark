@@ -92,7 +92,7 @@ lrcalls <- bind_rows(lapply(names(vcfs)[names(vcfs) %in% (metadata %>% filter(!i
 	write(paste0("Processing ", id), stderr())
 	callgr <- vcfs[[id]]
 	result <- data.frame(
-		vcfId=callgr$vcfId,
+		sourceId=callgr$sourceId,
 		QUAL=callgr$QUAL,
 		FILTER=callgr$FILTER,
 		svLen=callgr$svLen) %>% mutate(

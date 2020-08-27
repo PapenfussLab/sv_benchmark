@@ -19,7 +19,7 @@ rnagr$partner <- c(paste0("three", seq_along(rnagr5p)), paste0("five", seq_along
 names(rnagr) <- c(paste0("five", seq_along(rnagr5p)), paste0("three", seq_along(rnagr5p)))
 rnagr$svLen <- NA
 rnagr$insLen <- NA
-rnagr$vcfId <- NA
+rnagr$sourceId <- NA
 seqlevelsStyle(rnagr) <- "UCSC"
 
 dnaxlsx <- read.xlsx(paste0(rootdir, "input.HCC1395/INTEGRATE/Supplemental_Table3.xlsx"), 1, startRow=6)
@@ -34,7 +34,7 @@ dnagr$partner <- c(paste0("three", seq_along(dnagr5p)), paste0("five", seq_along
 names(dnagr) <- c(paste0("five", seq_along(dnagr5p)), paste0("three", seq_along(dnagr5p)))
 dnagr$svLen <- NA
 dnagr$insLen <- NA
-dnagr$vcfId <- NA
+dnagr$sourceId <- NA
 seqlevelsStyle(dnagr) <- "UCSC"
 
 
@@ -73,7 +73,7 @@ rnagr$gridss <- rnacalls$truth$QUAL
 table(rnagr$gridss > 0, !is.na(rnagr$dnaindex))
 
 
-gr <- vcf[names(vcf) %in% c((rnacalls$calls %>% filter(tp & !duptp))$vcfId, (dnacalls$calls %>% filter(tp & !duptp))$vcfId)]
+gr <- vcf[names(vcf) %in% c((rnacalls$calls %>% filter(tp & !duptp))$sourceId, (dnacalls$calls %>% filter(tp & !duptp))$sourceId)]
 bedpe <- data.frame(
 		chrom1=seqnames(gr),
 		start1=start(gr),

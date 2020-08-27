@@ -699,11 +699,11 @@ IdCallSet_to_colname <- function(id, callset) {
 	# }
 	# # remove breakend suffix and get the longest homology length
 	# ihomlendt <- ihomlendt %>%
-	# 	dplyr::mutate(vcfId=str_replace(breakpointid, "_bp[0-9]+$", "")) %>%
-	# 	dplyr::group_by(vcfId) %>%
+	# 	dplyr::mutate(sourceId=str_replace(breakpointid, "_bp[0-9]+$", "")) %>%
+	# 	dplyr::group_by(sourceId) %>%
 	# 	dplyr::summarise(ihomlen=max(ihomlen))
 	# ihomlen <- ihomlendt$ihomlen
-	# names(ihomlen) <- ihomlendt$vcfId
+	# names(ihomlen) <- ihomlendt$sourceId
 	vcf <- withqual(vcf, caller)
 	gr <- breakpointRanges(vcf, nominalPosition, suffix="_bp")
 	if (!is.null(grtransform)) {
@@ -722,7 +722,7 @@ IdCallSet_to_colname <- function(id, callset) {
 	gr$insSeq <- NULL
 	#gr$insLen <- NULL
 
-	# gr$ihomlen <- ihomlen[gr$vcfId]
+	# gr$ihomlen <- ihomlen[gr$sourceId]
 	# annotate nearby SNP/indel counts
 	gr$snp50bp <- 0
 	if (!is.null(metadata$CX_SNP_TRUTH)) {

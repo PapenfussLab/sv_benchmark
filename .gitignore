@@ -18,3 +18,5 @@ input.chm/
 docs/*
 README.txt
 R/callgr_tsvs/*
+/input.common/hg19.fa.out.gz
+/input.common/hg38.fa.out.gz

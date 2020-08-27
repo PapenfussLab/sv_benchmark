@@ -51,7 +51,7 @@ publishedgrs <- lapply(drsheetnames, function(sheetname) {
 	names(gr) <- c(paste0("row", seq_along(dt$chrom1), "_bp1"), paste0("row", seq_along(dt$chrom2), "_bp2"))
 	gr$insLen <- 0
 	gr$svLen <- NA_integer_
-	gr$vcfId <- paste0(sheetname, "_", seq_along(gr))
+	gr$sourceId <- paste0(sheetname, "_", seq_along(gr))
 	return(gr)
 })
 names(publishedgrs) <- str_replace(drsheetnames, stringr::fixed(" (DR)"), "")
