@@ -2,9 +2,10 @@
 /.Rproj.user
 .Rproj.user
 /tools
-/R/png
-/R/eps
-/R/pdf
+/R/png/*.png
+/R/eps/*.eps
+/R/pdf/*.pdf
+R/callgr_tsvs/*.tsv
 /R/ensemble_data_tsvs
 /.Rhistory
 .DS_Store
@@ -17,6 +18,5 @@ data.chm/
 input.chm/
 docs/*
 README.txt
-R/callgr_tsvs/*
 /input.common/hg19.fa.out.gz
 /input.common/hg38.fa.out.gz
