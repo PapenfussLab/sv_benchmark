@@ -84,7 +84,7 @@ generate_figures <- function(
 	if (!is.null(longreadbedpedir)) {
 		callgr$longreadhits <- 0
 		longreadgr <- .CachedLoadTruthBedpe(longreadbedpedir, longread_minMapq)
-		lrhits <- findBreakpointOverlaps(callgr, longreadgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
+		lrhits <- as.data.frame(findBreakpointOverlaps(callgr, longreadgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin))
 		lrhit_summary <- lrhits %>% group_by(queryHits) %>%
 			summarise(hitCount=n())
 		callgr$longreadhits[lrhit_summary$queryHits] <- lrhit_summary$hitCount

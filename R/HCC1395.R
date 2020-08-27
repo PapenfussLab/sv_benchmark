@@ -48,7 +48,7 @@ rnagr$svLen <- abs(start(rnagr) - start(partner(rnagr)))
 # eg: UNC5C-STPG2 positions differ by over 202kpb
 
 
-matches <- findBreakpointOverlaps(rnagr, dnagr, maxgap=205000)
+matches <- as.data.frame(findBreakpointOverlaps(rnagr, dnagr, maxgap=205000))
 rnagr$dnaindex <- NA
 rnagr$dnaindex[matches$queryHits] <- matches$queryHits
 dnagr$rnaindex <- NA

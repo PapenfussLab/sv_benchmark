@@ -588,7 +588,7 @@ IdCallSet_to_colname <- function(id, callset) {
 	return(result)
 }
 .findMatchingQuals <- function(querygr, subjectgr, maxgap, sizemargin, ignore.strand, missingQUAL=-1, duplicateHitQUAL=-2) {
-		hits <- findBreakpointOverlaps(querygr, subjectgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
+		hits <- as.data.frame(findBreakpointOverlaps(querygr, subjectgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin))
 		hits$queryQUAL <- querygr$QUAL[hits$queryHits]
 		hits$subjectQUAL <- subjectgr$QUAL[hits$subjectHits]
 		if (any(is.na(hits$queryQUAL))) {

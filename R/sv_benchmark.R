@@ -210,7 +210,7 @@ LoadMinimalSVFromVCF <- function(directory, pattern="*.vcf$", metadata=NULL, exi
 }
 # used only in na12878.R
 findMatchingBreakpoints <- function(query, subject, maxgap=0L, ignore.strand=FALSE, sizemargin=0.25, restrictMarginToSizeMultiple=0.5) {
-  hits <- findBreakpointOverlaps(query, subject, maxgap=maxgap, ignore.strand=ignore.strand)
+  hits <- as.data.frame(findBreakpointOverlaps(query, subject, maxgap=maxgap, ignore.strand=ignore.strand))
   # take into account confidence intervals when calculating event size
   callwidth <- .distance(query, partner(query))
   truthwidth <- .distance(subject, partner(subject))
@@ -301,7 +301,7 @@ ScoreVariantsFromTruthVCF <- function(callgr, truthgr, includeFiltered=FALSE, ma
 	if (is.null(truthgr$ihomlen)) {
 		truthgr$ihomlen <- rep(NA_integer_, length(truthgr))
 	}
-	hits <- findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin)
+	hits <- as.data.frame(findBreakpointOverlaps(callgr, truthgr, maxgap=maxgap, ignore.strand=ignore.strand, sizemargin=sizemargin))
 
 	hits$QUAL <- callgr$QUAL[hits$queryHits]
 	hits <- hits[order(-hits$QUAL),] # sort by qual so the highest QUAL writes last when doing hit assignments on subjectHits or queryHits
