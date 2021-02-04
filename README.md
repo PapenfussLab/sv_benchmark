@@ -1,3 +1,5 @@
+Manuscript available here: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6642177/
+
 # Structural Variant Benchmarking
 
 This project contains a collection of scripts used for SV benchmarking and visualisation of the results. The project structure is as follows:
